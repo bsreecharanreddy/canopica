@@ -126,6 +126,7 @@ flowchart TB
 | Audit integrity | Hash-chained, append-only audit log with a CI verification job | See §3.7. Turns "immutable audit log" from a claim into a control a reader can verify. |
 | Authorization depth | RBAC **plus** caseload-scoped row-level filtering, sensitive-case flagging, and access-review reporting | The characteristic real-world breach in benefits systems is not privilege escalation — it is an authorized worker viewing a case they have no business reason to touch. Roles don't prevent that; row scoping does. Maps to NIST AC-3(3)/AC-6. Built in Phase 1b. |
 | Async messaging | **pgmq** (Postgres extension, SQS-like queue semantics) — decouples document-intake jobs, correspondence dispatch, and fraud-triage triggers from the request/determination path | Zero new infrastructure — reuses the existing operational Postgres instead of standing up a broker. Portfolio-documented as the deliberate substitute for RabbitMQ/Kafka; see the tech-stack doc's Messaging tier (§2) and §4.11 for what that costs. Built in Phase 3. |
+| Ingestion pattern | Batch extract (Python job, Postgres → Delta bronze), not CDC | Debezium/CDC needs a broker to stream into — the same infrastructure pgmq (above) already avoided standing up for messaging. Documented as the production equivalent, not built, same treatment as pgmq; see the tech-stack doc's Data tier and §4.12 for what that costs. Built as a batch job in Phase 1a Task 10. |
 
 ### 3.4 Domain model
 
