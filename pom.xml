@@ -19,6 +19,9 @@
   <properties>
     <java.version>17</java.version>
     <maven.compiler.release>17</maven.compiler.release>
+    <!-- Spring MVC needs this to bind @PathVariable/@RequestParam by parameter name without an
+         explicit name on every annotation (e.g. @PathVariable UUID id, not @PathVariable("id") UUID id). -->
+    <maven.compiler.parameters>true</maven.compiler.parameters>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <spring.boot.version>3.5.3</spring.boot.version>
     <kie.version>10.2.0</kie.version>
