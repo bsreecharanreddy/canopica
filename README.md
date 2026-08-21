@@ -65,7 +65,8 @@ demoable.
 
 | Phase | Focus | Status |
 |---|---|---|
-| 1 | Core system of record — portal, rules engine, data platform, reporting, governance, accessibility, observability | Planned |
+| 1a | Walking skeleton — intake → rules-engine determination → audit trail → warehouse → report page, end to end | Planned |
+| 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability | Planned |
 | 2 | Policy Intelligence & Analytics AI — RAG-based policy Q&A, rule-authoring copilot, natural-language analytics | Planned |
 | 3 | Case Intake & Communication AI — document classification/extraction, AI-drafted correspondence, localization | Planned |
 | 4 | Compliance & Integrity AI — fraud risk triage, SLA/QC monitoring, caseworker SOP copilot | Planned |
@@ -80,10 +81,10 @@ full breakdown of every phase.
 |---|---|
 | Portal | Spring Boot (Java) + React, role-gated customer/worker views |
 | Identity | Keycloak (self-hosted OIDC) |
-| Rules engine | DMN decision tables via an open-source DMN engine |
+| Rules engine | DMN decision tables on Drools/KIE, against effective-dated policy parameters |
 | Data platform | Python, dbt + DuckDB locally, real Delta Lake tables, Postgres serving layer |
 | Orchestration | Airflow |
-| Reporting | Power BI |
+| Reporting | Power BI semantic model as code (TMDL, so it diffs in git), plus a containerized dashboard so the repo renders for anyone who clones it |
 | Search / RAG | OpenSearch (hybrid lexical + vector) |
 | AI runtime | Local, self-hosted (Ollama) by default — $0 to clone and run |
 | Local infra | Docker Compose |

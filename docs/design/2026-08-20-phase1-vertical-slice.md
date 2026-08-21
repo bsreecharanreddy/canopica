@@ -1,7 +1,20 @@
 # IES — Phase 1 Design: End-to-End Vertical Slice
 
-Status: approved
+Status: **partially superseded** — kept as a record of how the design
+evolved, not as current guidance
 Date: 2026-08-20
+Superseded by: `2026-08-21-full-system-and-phased-roadmap.md`
+
+> **Read the roadmap doc, not this one, where they disagree.** The
+> architecture and governance framework below still hold. Four things have
+> changed since: the DMN runtime (now Drools/KIE, not Camunda), the
+> reporting toolchain (now TMDL model-as-code plus a containerized
+> dashboard, not `.pbix`), the audit-log design (now hash-chained and
+> CI-verified), and Phase 1's shape (now split into 1a/1b). The roadmap doc
+> also adds the domain model, effective-dating, and determination-trace
+> design this doc was missing entirely. One external fact below may also
+> have gone stale: §7's reference to a free Databricks Community Edition —
+> verify the current free tier before relying on it.
 
 ## 1. What IES is
 
