@@ -24,19 +24,18 @@ tasks, each with its own tests, its own commit, and its own STATUS update.
 It also pins the toolchain versions this phase builds against and records
 two environment prerequisites (Docker Desktop running; `uv` installed).
 
-**Next action:** Task 1 — repo scaffolding, Maven/uv/Vite toolchains, CI
-skeleton.
+**Next action:** Task 2 — effective-dated operational schema (Flyway +
+Testcontainers).
 
 ---
 
 ## Verification log
 
-Nothing to verify yet — no implementation code exists. Once Phase 1a
-starts, every row here records a full-suite run, not a partial one.
+Every row records a full-suite run, not a partial one.
 
 | Date | Scope | Result |
 |---|---|---|
-| — | — | No code yet |
+| 2026-08-21 | Task 1 — `make test`, `make lint` (Java `./mvnw verify`, web `npm test`/`npm run typecheck`, Python `uv run pytest`/`ruff`/`mypy --strict`) | All green. Java: 1 test (context loads). Web: 1 test (app shell renders). Python: 2 tests (Settings config). No integration/e2e tests yet — no database, no Compose stack exists until Task 2 onward. |
 
 ---
 
@@ -51,7 +50,7 @@ each task's files, interfaces, and test steps.
 
 | # | Task | Status |
 |---|---|---|
-| 1 | Repo scaffolding, Maven/uv/Vite toolchains, CI skeleton | Not started |
+| 1 | Repo scaffolding, Maven/uv/Vite toolchains, CI skeleton | Done — 6af08cf |
 | 2 | Operational schema, effective-dated (Flyway + Testcontainers) | Not started |
 | 3 | `policy_parameter_set` — effective-dated SNAP parameters + as-of resolver | Not started |
 | 4 | DMN decision tables on Drools/KIE, table-driven scenarios | Not started |
