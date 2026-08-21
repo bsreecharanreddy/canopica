@@ -21,6 +21,12 @@ Don't scrub those.
 
 ## Read this first
 
+**`docs/STATUS.md` before anything else.** It is the authoritative record
+of where implementation stands against the full plan — current position,
+what was last verified green, what's next, and which decisions are already
+settled and shouldn't be reopened. It is updated in the same commit as the
+work it describes, so it is never stale. Start there, then come back here.
+
 `docs/design/2026-08-21-full-system-and-phased-roadmap.md` is the
 authoritative architecture and roadmap doc — read it before making any
 structural decision. It carries the domain model (§3.4), the temporality
@@ -54,13 +60,10 @@ that's a design bug, not an implementation detail to work around.
 
 ## Current status
 
-**Design phase — no implementation yet.** All three design docs above are
-written, reviewed, and committed. The design has been through one full
-review pass (2026-08-21) which added the domain/temporality/audit design,
-switched the DMN runtime and reporting toolchain, and split Phase 1 into
-1a/1b. Phase 1a has not been started. This section gets updated
-phase-by-phase as work actually happens, the same way it would in any
-long-running project.
+`docs/STATUS.md` holds it, at task granularity. Deliberately not duplicated
+here — two places to record the same thing means one of them is wrong.
+
+At the coarsest level: **design phase complete, Phase 1a not started.**
 
 ## Phase plan
 
@@ -80,6 +83,44 @@ See the roadmap doc for full detail. At a glance:
 - **Phase 5 — planned.** Domain expansion (Medicaid/TANF) & real cloud
   deployment demos.
 
+## Testing policy — non-negotiable
+
+**No implementation code gets committed without tests, and the full suite
+runs before every push.** Not the tests for the area that changed — the
+whole suite, every time. The point is catching regressions in work built
+in earlier phases, which is exactly what a growing multi-phase project
+breaks silently.
+
+Per layer:
+
+| Layer | Tooling | What must be covered |
+|---|---|---|
+| Rules engine | JUnit 5, table-driven | One test per SNAP scenario: gross-income test, each deduction applied in the correct order, net-income test, categorical eligibility override, and **as-of-date correctness** — an old determination re-run against its own parameter version still produces its original answer |
+| Determination + audit | JUnit 5 + Testcontainers (real Postgres) | Trace is persisted and complete; audit chain verifies; `UPDATE`/`DELETE` on the audit table are actually refused |
+| Portal API | Spring Boot Test | Endpoint contracts, authorization (including row-scoping once Phase 1b lands) |
+| Portal UI | Vitest + React Testing Library | Component behavior, plus accessibility assertions once Phase 1b lands |
+| Python services | `pytest`, `ruff`, `mypy --strict` | Unit + integration; the synthetic generator's distributions; every AI service's I/O contract |
+| Data platform | dbt tests | `not_null` / `unique` / `relationships` / `accepted_values` on every model, plus custom tests asserting no unmasked PII-shaped column reaches gold |
+| End to end | pytest | The full slice: intake → determination → audit → warehouse → mart |
+| AI layer (Phase 2+) | Eval suite in CI | Groundedness and citation accuracy; fairness disparate-impact gate |
+
+CI runs all of it on every push. A red suite blocks the merge. When
+reporting a step as done, state the actual result — including which tests
+failed, if any did.
+
+## Language policy — Python-first where the choice is open
+
+Python is the default for anything where the language is genuinely open:
+the data platform, the synthetic generator, every AI service, the eval and
+fairness harnesses, and tooling. Use current-generation tooling — `uv`,
+Pydantic v2, `ruff`, `mypy --strict`, `pytest`, FastAPI, Polars where it
+beats pandas — not older equivalents.
+
+Java/Spring stays where it earns its place and is not to be rewritten
+away: the portal API (deliberate full-stack Java signal for role
+targeting) and the rules engine (Drools/KIE is JVM-only, and the DMN
+evaluation lives inside the portal service). Everything else is Python.
+
 ## Conventions
 
 - Single monorepo (see the roadmap doc's repo layout).
@@ -87,9 +128,13 @@ See the roadmap doc for full detail. At a glance:
   `docs/design/` → user approval → implementation plan, before any code
   gets written. Don't skip straight to code on a new subsystem.
 - Every phase gets its own implementation plan before implementation
-  starts, and a wrap-up/verification pass before being called done —
-  process TBD in detail once Phase 1's plan is written, at which point
-  it's worth capturing here.
+  starts, and a wrap-up/verification pass before being called done.
+- **One commit per completed step**, not one bundled commit at phase end.
+  Each step's commit carries its own code, its own tests, and its own
+  green full-suite run.
+- **`docs/STATUS.md` updates in the same commit as the work it
+  describes** — never as a separate follow-up commit, or it drifts and
+  stops being trustworthy.
 
 ## `.claude/` tooling — deliberately not pre-built
 

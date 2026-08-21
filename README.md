@@ -128,11 +128,11 @@ usage) are in the design docs.
 ## Docs
 
 This README is the primary read. For depth: everything else lives in
-[`docs/design/`](docs/design/) — dated design docs, each one a real record
-of a design decision and the reasoning behind it, not after-the-fact
-documentation.
+[`docs/`](docs/) — dated design docs, each one a real record of a design
+decision and the reasoning behind it, not after-the-fact documentation.
 
-- [`2026-08-20-phase1-vertical-slice.md`](docs/design/2026-08-20-phase1-vertical-slice.md) — the original Phase 1 architecture
+- [`STATUS.md`](docs/STATUS.md) — live implementation status against the full plan, updated in the same commit as the work it describes
+- [`2026-08-20-phase1-vertical-slice.md`](docs/design/2026-08-20-phase1-vertical-slice.md) — the original Phase 1 architecture (partially superseded; kept as a record of how the design evolved)
 - [`2026-08-21-full-system-and-phased-roadmap.md`](docs/design/2026-08-21-full-system-and-phased-roadmap.md) — full AI layer + the complete phased roadmap (start here)
 - [`2026-08-21-tech-stack-and-production-tradeoffs.md`](docs/design/2026-08-21-tech-stack-and-production-tradeoffs.md) — every stack choice mapped to its real production equivalent, and an explicit account of what was compromised and what each compromise costs
 
