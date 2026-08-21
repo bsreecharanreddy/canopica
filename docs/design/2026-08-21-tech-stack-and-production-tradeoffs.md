@@ -201,3 +201,38 @@ commercial IdP, pgmq over RabbitMQ/Kafka. In every case the substitute was
 chosen specifically
 because the *interface* it presents matches the production equivalent,
 so the migration path is real rather than aspirational.
+
+## 6. Translating prior ETL-tool experience
+
+Government and enterprise data-warehouse shops disproportionately run
+GUI-based ETL tools — Informatica PowerCenter/IICS, IBM DataStage, SSIS —
+rather than a modern SQL-first stack, and the "Interfaces tier" row above
+already names Informatica/DataStage/Ab Initio as the real-world equivalent
+of this project's transformation layer, not a hypothetical. The concepts
+carry over directly; only the authoring surface changes (GUI canvas vs.
+version-controlled SQL + YAML):
+
+| Informatica / DataStage concept | dbt equivalent in this repo | Where |
+|---|---|---|
+| Source Qualifier / source definition | `sources.yml` declaring the raw operational tables | Bronze layer, roadmap §3.4.2 |
+| Staging area (landing raw data before transform) | Bronze — raw, append-only, no reshaping | Roadmap §3.4.2 |
+| Mapping / reusable Mapplet | A dbt model / a reusable Jinja macro | `data-platform/models/`, `macros/` |
+| Lookup transformation | `ref()` join to a dimension model | Silver-layer `dim_*`/`fct_*` models |
+| Expression transformation (derived columns, business rules) | Model SQL (`case when`, computed columns) | Silver/Gold models |
+| Aggregator transformation | Model SQL with `group by` | Gold-layer marts |
+| Update Strategy / Type 2 slowly-changing dimension | **dbt snapshot** — same concept, built in | `dim_policy_parameter_set`, SCD Type 2 per §3.4.2 |
+| Workflow / Session (a scheduled, monitored execution unit) | An Airflow DAG running `dbt run` / `dbt test` | Phase 1b orchestration |
+| Workflow Monitor (run history, row counts, session logs) | Airflow's UI + dbt's own run results | Phase 1b |
+| Data-quality rule embedded in a mapping | `not_null`/`unique`/`relationships`/`accepted_values` dbt tests, enforced in CI | CLAUDE.md's testing policy |
+| Mapping parameter | `dbt_project.yml` vars — or, for business-rule values specifically, IES's own effective-dated `policy_parameter_set` pattern | §3.5 |
+| Impact analysis before changing a field | `dbt docs generate` / the model DAG — lineage is a first-class artifact, not a side tool | Built into dbt |
+
+**One honest gap, not papered over:** dbt has no native equivalent of
+Informatica's reject-file/error-row handling — a failed dbt test flags a
+run, it doesn't automatically quarantine the offending rows the way a
+mapping's error path does. Closing that gap for real (explicit
+`etl_batch_id`/`_loaded_at` audit columns, row-count reconciliation
+between layers, a quarantine table for rows a test rejects) is a genuine
+implementation choice for Task 10, not something to claim exists today —
+see the `ies-design-decision` skill if it's picked up, since it changes
+the schema design §3.4.2 already specifies.
