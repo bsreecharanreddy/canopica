@@ -26,6 +26,7 @@ dev = [
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     "ruff>=0.16.4",
+    "testcontainers>=4.15.0",
 ]
 
 [tool.ruff]
@@ -35,6 +36,12 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "PL", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Magic-number comparisons against expected fixture values are normal and
+# readable in test assertions; naming every one as a constant hurts more
+# than it helps.
+"tests/**/*.py" = ["PLR2004"]
 
 [tool.mypy]
 python_version = "3.12"

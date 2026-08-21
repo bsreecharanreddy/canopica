@@ -2,6 +2,8 @@ package ies.portal.determination;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ies.portal.audit.AuditEventType;
+import ies.portal.audit.AuditService;
 import ies.portal.domain.DeterminationTrace;
 import ies.portal.domain.EligibilityDetermination;
 import ies.portal.policy.PolicyParameterResolver;
@@ -11,6 +13,8 @@ import ies.rules.SnapDecision;
 import ies.rules.SnapDmnEvaluator;
 import ies.rules.SnapFacts;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,11 +39,13 @@ class JdbcDeterminationService implements DeterminationService {
     private final EligibilityDeterminationRepository determinations;
     private final DeterminationTraceRepository traces;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     JdbcDeterminationService(JdbcTemplate jdbc, FactAssembler factAssembler,
                               PolicyParameterResolver policyParameterResolver, SnapDmnEvaluator evaluator,
                               EligibilityDeterminationRepository determinations,
-                              DeterminationTraceRepository traces, ObjectMapper objectMapper) {
+                              DeterminationTraceRepository traces, ObjectMapper objectMapper,
+                              AuditService auditService) {
         this.jdbc = jdbc;
         this.factAssembler = factAssembler;
         this.policyParameterResolver = policyParameterResolver;
@@ -47,6 +53,7 @@ class JdbcDeterminationService implements DeterminationService {
         this.determinations = determinations;
         this.traces = traces;
         this.objectMapper = objectMapper;
+        this.auditService = auditService;
     }
 
     @Override
@@ -68,6 +75,15 @@ class JdbcDeterminationService implements DeterminationService {
                 UUID.randomUUID(), determinationId,
                 writeJson(facts), writeJson(decision.trace()),
                 "snap-eligibility", evaluator.modelHash(), SnapDmnEvaluator.ENGINE_VERSION));
+
+        Map<String, Object> auditPayload = new LinkedHashMap<>();
+        auditPayload.put("eligible", decision.eligible());
+        auditPayload.put("benefitAmount", decision.benefitAmount());
+        auditPayload.put("reasonCode", decision.reasonCode());
+        auditPayload.put("policyParameterVersion", parameters.parameterSetVersion());
+        auditPayload.put("asOfDate", asOf.toString());
+        auditService.append(AuditEventType.DETERMINATION_MADE, decidedBy,
+                "eligibility_determination", determinationId, auditPayload);
 
         return determinationId;
     }
