@@ -40,6 +40,12 @@ DMN runtime, reporting toolchain, audit-log design, and Phase 1's shape —
 listed in a table at the top of the roadmap doc. When the two disagree,
 the roadmap doc wins.
 
+`docs/plans/` holds the per-phase implementation plans (file-by-file, task
+by task, each task carrying its own tests and its own commit). The active
+one is `docs/plans/2026-08-21-phase-1a-implementation-plan.md`. A plan is
+written from the design docs and approved before any code for that phase
+gets written; `docs/STATUS.md` tracks progress through it.
+
 `docs/design/2026-08-21-tech-stack-and-production-tradeoffs.md` maps every
 stack choice to its real production equivalent and states what each
 substitution costs. Read it before changing a stack choice, so a
