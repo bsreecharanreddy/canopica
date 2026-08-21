@@ -1,21 +1,15 @@
 package canopica.portal;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
 /**
- * Proves the Spring context starts. Task 1 has no database yet, so JPA and the
- * DataSource are excluded here; from Task 2 onward tests extend a Testcontainers
- * base class and run against a real Postgres instead.
+ * Proves the full Spring context starts against a real Postgres instance --
+ * migrations, JPA, and every {@code @Component} together. From Task 2
+ * onward the app fundamentally requires a database to start, so this
+ * extends {@link AbstractPostgresTest} rather than excluding
+ * datasource/JPA autoconfiguration the way Task 1's version did.
  */
-@SpringBootTest(properties = {
-        "spring.autoconfigure.exclude="
-                + "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
-})
-class CanopicaPortalApplicationTest {
+class CanopicaPortalApplicationTest extends AbstractPostgresTest {
 
     @Test
     void contextLoads() {
