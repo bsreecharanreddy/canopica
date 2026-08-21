@@ -142,12 +142,37 @@ evaluation lives inside the portal service). Everything else is Python.
   describes** — never as a separate follow-up commit, or it drifts and
   stops being trustworthy.
 
-## `.claude/` tooling — deliberately not pre-built
+## `.claude/` tooling — added only for real, already-settled things
 
-No custom skills, agents, or hooks exist yet, on purpose. lore-native's
-equivalent tooling (project skills, review agents, a stale-dev-server
-hook) all encode specific incidents from that project's real history —
-copying that structure here with invented content would mean fabricating
-gotchas that never happened. Add them here the same way: when a real,
-specific, repeatable lesson lands during implementation, write it down
-then, not before.
+Unlike lore-native's incident-driven tooling (a stale-dev-server hook, a
+Maestro-gotcha skill — each one encoding a specific thing that actually
+went wrong), IES has almost no implementation history yet, so its
+`.claude/` tooling only codifies things that were *already true* before
+any tooling existed: standing policies this file already states as
+non-negotiable, and the one real incident hit so far. Nothing here is
+anticipatory — no fabricated gotchas for problems this repo hasn't had.
+
+- **`ies-task-checkpoint` skill** — the per-task regression gate (full
+  `make test`/`make lint`, STATUS.md same-commit, one-commit-per-task)
+  the testing policy above already requires. Codifies the checklist, adds
+  nothing new to it.
+- **`ies-design-decision` skill** — the brainstorm → dated doc → approval
+  → implementation-plan workflow from the Conventions section below, plus
+  exactly where a settled decision gets recorded (STATUS.md, roadmap
+  doc, tradeoffs doc). First used for real recording the pgmq decision
+  (commit 683747a) before this skill existed; the skill just makes that
+  same shape repeatable without re-deriving it from prose each time.
+- **`check-status-md-commit.sh` hook** (PreToolUse/Bash) — warns,
+  non-blocking, if a `git commit` stages files outside `docs/` without
+  `docs/STATUS.md`, enforcing the same-commit rule above mechanically
+  instead of relying on memory.
+
+The Ryuk/Testcontainers-Python incident (Task 6 — see STATUS.md's
+verification log) is *not* duplicated here as a skill: it's already fully
+codified at the right layer, `make test`'s `TESTCONTAINERS_RYUK_DISABLED`
+and `data-platform/tests/conftest.py`'s docstring, and a Claude-specific
+artifact on top would be redundant.
+
+Add more here the same way lore-native does: when a real, specific,
+repeatable lesson actually lands during implementation, write it down
+then — not before.
