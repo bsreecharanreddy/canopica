@@ -683,12 +683,27 @@ create table person (
     created_at          timestamptz not null default now()
 );
 
+-- HOUSEHOLD is Canopica's case record: one benefit case can span many
+-- applications over its lifetime (an initial application, then renewals and
+-- reported changes), which is why APPLICATION is 1:N off HOUSEHOLD rather
+-- than the other way around. CASE_ASSIGNMENT (below) is keyed off
+-- household_id for the same reason -- a worker owns the case, not a single
+-- application.
 create table household (
     id                  uuid primary key,
     -- The person whose circumstances anchor the case. Head-of-household is a
     -- real SNAP concept, not a UI convenience.
     head_person_id      uuid        not null references person (id),
     county              text        not null,
+    -- Mailing/residential address for the case. Not effective-dated in
+    -- Phase 1a -- an address change mid-case is reported as a new row here
+    -- in Phase 1b once change-of-circumstance workflows exist; Phase 1a
+    -- treats it as current-value-only, same as county.
+    address_line1       text        not null,
+    address_line2       text,
+    city                text        not null,
+    state               text        not null,
+    zip_code            text        not null check (zip_code similar to '[0-9]{5}(-[0-9]{4})?'),
     created_at          timestamptz not null default now()
 );
 
