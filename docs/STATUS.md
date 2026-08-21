@@ -119,6 +119,7 @@ reasoning lives in the design docs.
 | Java build tool | Maven (not Gradle) — dominant in the enterprise/government Java shops this repo targets; committed `./mvnw` wrapper is what CI runs | Phase 1a plan, "Versions pinned" |
 | Python version | 3.12 via `uv`, not the system 3.14 — dbt-core support lags new releases | Phase 1a plan, "Versions pinned" |
 | Bronze storage, Phase 1a | Local filesystem Delta tables; MinIO/S3 is a `storage_options` swap in Phase 1b | Phase 1a plan, Task 10 |
+| Async messaging | **pgmq** (Postgres extension), not RabbitMQ/Kafka — document-intake jobs, correspondence dispatch, fraud-triage triggers. Portfolio-documented substitute, not an oversight. | Roadmap §3.3; tech-stack doc's Messaging tier + §4.11 |
 
 ## Open questions
 

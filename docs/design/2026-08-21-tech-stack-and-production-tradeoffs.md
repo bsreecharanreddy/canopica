@@ -73,6 +73,12 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 | Correspondence | Templated generation, rendered to PDF | A customer-communications-management product (Exstream, Quadient, Smart Communications) wired to a print-and-mail vendor, with certified-mail tracking and undeliverable-address handling | **~** | Notices are generated but never *sent*. See §4.4. |
 | Evaluation | Golden-question suite scored for groundedness and citation accuracy, gating CI | Same, plus human review panels and periodic model revalidation | **≈** | Scale of the eval set, and who reviews it. |
 
+### Messaging tier
+
+| Layer | Canopica uses | Real production equivalent | Fidelity | What would change |
+|---|---|---|---|---|
+| Async task queue | **pgmq** (Postgres extension) — decouples document-intake jobs, correspondence dispatch, and fraud-triage triggers from the request/determination path (Phase 3/4) | RabbitMQ or Kafka — a dedicated message broker, deployed and scaled independently of the operational database | **~** | Producer/consumer code swaps from pgmq's SQL functions (`send`/`read`/`delete`) to an AMQP or Kafka client; the enqueue → async-worker pattern carries over, but the broker becomes its own service instead of living inside Postgres. See §4.11. |
+
 ### Interfaces tier
 
 | Layer | Canopica uses | Real production equivalent | Fidelity | What would change |
@@ -170,6 +176,17 @@ analyst. Real systems have policy staff who own rule correctness, and the
 gap between "what the manual says" and "how it is actually applied" is
 where a great deal of real-world complexity lives.
 
+**4.11 Messaging lives inside the operational database, not a dedicated
+broker.** pgmq queues share Postgres's resources and failure domain with
+the OLTP workload they're decoupling from — a queue backlog can compete
+with the operational store it's trying to protect, which defeats part of
+the point. There's no independently scaled broker, and none of Kafka's
+actual differentiators (durable replay, multiple independent consumer
+groups reading the same stream) are available — pgmq gives point-to-point
+work queues, not an event log. Real systems isolate the messaging
+substrate from the transactional store specifically so the two failure
+domains don't collapse into one.
+
 ## 5. Cost
 
 Running the full stack locally is **$0** and requires no cloud account, no
@@ -180,6 +197,7 @@ overspending.
 
 That constraint drove several choices above — Ollama over a hosted API,
 DuckDB over managed Spark, MinIO over cloud storage, Keycloak over a
-commercial IdP. In every case the substitute was chosen specifically
+commercial IdP, pgmq over RabbitMQ/Kafka. In every case the substitute was
+chosen specifically
 because the *interface* it presents matches the production equivalent,
 so the migration path is real rather than aspirational.
