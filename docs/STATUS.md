@@ -11,15 +11,21 @@ Last updated: **2026-08-21**
 
 ## Current position
 
-**Design phase complete. Phase 1a not yet started.**
+**Design phase complete. Phase 1a planned; implementation not yet started.**
 
 All three design docs are written, reviewed, and committed. The design has
 been through one full review pass (2026-08-21) which added the domain
 model, effective dating, and tamper-evident audit design, changed the DMN
 runtime and reporting toolchain, and split Phase 1 into 1a/1b.
 
-**Next action:** write the Phase 1a implementation plan (file-by-file),
-then begin Task 1.
+The Phase 1a implementation plan is written and committed:
+`docs/plans/2026-08-21-phase-1a-implementation-plan.md` — file-by-file, 13
+tasks, each with its own tests, its own commit, and its own STATUS update.
+It also pins the toolchain versions this phase builds against and records
+two environment prerequisites (Docker Desktop running; `uv` installed).
+
+**Next action:** Task 1 — repo scaffolding, Maven/uv/Vite toolchains, CI
+skeleton.
 
 ---
 
@@ -39,23 +45,25 @@ starts, every row here records a full-suite run, not a partial one.
 The thinnest path that touches every layer and produces a real, correct,
 auditable determination. Demoable on completion.
 
-*Task list below is provisional and gets replaced by the implementation
-plan's definitive breakdown once that's written.*
+Task breakdown is the definitive one from
+`docs/plans/2026-08-21-phase-1a-implementation-plan.md`; read that plan for
+each task's files, interfaces, and test steps.
 
 | # | Task | Status |
 |---|---|---|
-| 1 | Repo scaffolding, tooling, CI skeleton | Not started |
-| 2 | Domain schema — operational entities per design §3.4.1, effective-dated | Not started |
-| 3 | Synthetic applicant generator (ACS PUMS–driven) | Not started |
-| 4 | `POLICY_PARAMETER_SET` — effective-dated SNAP thresholds and deductions | Not started |
-| 5 | DMN decision tables on Drools/KIE, as-of-date aware | Not started |
-| 6 | Determination service — writes `ELIGIBILITY_DETERMINATION` + `DETERMINATION_TRACE` | Not started |
-| 7 | Hash-chained audit log + CI chain-verification job | Not started |
-| 8 | Portal — intake form + worker case view (roles hardcoded) | Not started |
-| 9 | Ingestion + one dbt path through bronze → silver → gold | Not started |
-| 10 | Reporting — one report page + Metabase container | Not started |
-| 11 | Docker Compose: full stack runs with one command | Not started |
-| 12 | End-to-end test: intake → determination → audit → warehouse → mart | Not started |
+| 1 | Repo scaffolding, Maven/uv/Vite toolchains, CI skeleton | Not started |
+| 2 | Operational schema, effective-dated (Flyway + Testcontainers) | Not started |
+| 3 | `policy_parameter_set` — effective-dated SNAP parameters + as-of resolver | Not started |
+| 4 | DMN decision tables on Drools/KIE, table-driven scenarios | Not started |
+| 5 | Determination service — persisted determination + DMN trace | Not started |
+| 6 | Hash-chained audit log + CI chain-verification job | Not started |
+| 7 | Portal API — intake + worker case view (roles hardcoded) | Not started |
+| 8 | React UI — intake form, case list, trace panel | Not started |
+| 9 | Synthetic applicant generator (ACS PUMS–driven) + loader | Not started |
+| 10 | Ingestion to Delta bronze + dbt silver/gold with tests | Not started |
+| 11 | Reporting — serving layer, Metabase, TMDL semantic model | Not started |
+| 12 | Docker Compose: full stack runs with one command | Not started |
+| 13 | End-to-end test (intake → determination → audit → warehouse → mart) + wrap-up | Not started |
 
 ## Phase 1b — Hardening
 
@@ -104,6 +112,9 @@ reasoning lives in the design docs.
 | AI scope | All nine components stay in committed scope | Roadmap §5 |
 | Cloud target | Azure Government by design; commercial Azure for any live demo | Roadmap §3.7 |
 | Repo visibility | Private until Phase 1a ships | — |
+| Java build tool | Maven (not Gradle) — dominant in the enterprise/government Java shops this repo targets; committed `./mvnw` wrapper is what CI runs | Phase 1a plan, "Versions pinned" |
+| Python version | 3.12 via `uv`, not the system 3.14 — dbt-core support lags new releases | Phase 1a plan, "Versions pinned" |
+| Bronze storage, Phase 1a | Local filesystem Delta tables; MinIO/S3 is a `storage_options` swap in Phase 1b | Phase 1a plan, Task 10 |
 
 ## Open questions
 
