@@ -111,6 +111,41 @@ flowchart TB
 | Observability | OpenTelemetry traces/metrics/logs across the API and data pipeline (general system health) **plus** AI-specific observability — token usage, latency, RAG groundedness scores (per-component health) | Two different things; both are in scope. The general layer doesn't get replaced by the AI-specific one. |
 | Accessibility | Section 508/WCAG-conformant portal (a11y linting, ARIA-correct components) | Actually non-negotiable for real government portals — cheap to add, and almost no portfolio project bothers, which makes it a disproportionately authentic detail. |
 
+### 3.4 Government cloud & compliance tier
+
+The data this system is modeled around — income data handled with FTI-style
+safeguards from Phase 1, and Medicaid-adjacent health data from Phase 5 —
+is exactly the category real state systems run in **Azure Government**
+rather than commercial Azure: a physically and logically separate Azure
+instance, restricted to U.S. federal/state/local government entities and
+their vetted partners, staffed only by screened U.S. persons, carrying
+FedRAMP High, DoD IL2/IL4/IL5, IRS 1075, and HIPAA/HITECH accreditation
+already baked in. IRS Pub 1075 specifically leans on that screened-personnel
+requirement in a way commercial-cloud support staffing doesn't automatically
+satisfy — it's the reason real FTI-adjacent workloads default to Gov cloud
+even when the technical controls could theoretically be replicated
+elsewhere.
+
+**Honest constraint, stated plainly rather than glossed over**: Azure
+Government is not self-service. Provisioning it requires the tenant to
+already be a verified U.S. government entity or an approved contractor
+acting on one's behalf — there is no individual/personal signup path, so
+this portfolio project cannot actually run in it. The design response,
+consistent with the Databricks/Synapse/Fabric pattern in §7 of the Phase 1
+doc: `infra/azure/` is written to be Azure-Government-compatible (documented
+`usgovcloud` endpoint/provider-alias swap, called out explicitly rather than
+buried), and the README states outright *"designed for Azure Government;
+demoed on commercial Azure because Government access requires an actual
+government/contractor relationship this personal project doesn't have —
+here's exactly what would change to retarget it."* Commercial Azure itself
+still supports FedRAMP Moderate, HIPAA/HITECH BAAs, and NIST 800-53 — a
+real, individually-accessible environment for the actual demo, just not the
+Gov-specific isolation tier. (Microsoft Fabric's Government-cloud
+availability is newer and narrower than Synapse's long-standing Gov
+presence — verify current status against Microsoft's own documentation
+before stating anything specific about it in the README, rather than
+assuming parity with Synapse.)
+
 ## 4. Data
 
 Unchanged from the Phase 1 doc, plus one addition: the real, public SNAP
