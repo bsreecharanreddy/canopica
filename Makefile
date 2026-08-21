@@ -14,7 +14,13 @@ build: ## Compile the Java modules and build the web bundle
 test: ## Run every unit/integration suite that does not need the Compose stack
 	./mvnw -B verify
 	cd portal/web && npm test
-	cd data-platform && uv run pytest -m "not e2e"
+	# TESTCONTAINERS_RYUK_DISABLED works around a Docker-Desktop-for-macOS-
+	# specific bug in testcontainers-python's Ryuk reaper container ("error
+	# while creating mount source path ...docker.sock: operation not
+	# supported") -- not needed in CI (Linux runners), and does not affect
+	# the Java Testcontainers tests above, which hit ./mvnw's own JVM-side
+	# Testcontainers, unaffected by this.
+	cd data-platform && TESTCONTAINERS_RYUK_DISABLED=true uv run pytest -m "not e2e"
 
 lint: ## Type-check and lint every language
 	cd data-platform && uv run ruff check . && uv run mypy src tests
