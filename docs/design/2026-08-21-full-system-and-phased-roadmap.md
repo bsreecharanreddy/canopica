@@ -433,6 +433,7 @@ meaningful, which is why it comes after intake and correspondence exist:
 canopica/
   README.md
   docs/
+    STATUS.md               <- authoritative implementation tracker; read first
     design/                 <- dated design docs (this one + Phase 1's)
   portal/                   <- Spring Boot API + React app
   rules-engine/             <- DMN decision tables + evaluation service
