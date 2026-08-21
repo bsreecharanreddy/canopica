@@ -1,6 +1,7 @@
 package canopica.portal.policy;
 
 import canopica.portal.domain.PolicyParameter;
+import canopica.portal.domain.PolicyParameterSet;
 import canopica.portal.repo.PolicyParameterRepository;
 import canopica.portal.repo.PolicyParameterSetRepository;
 import canopica.rules.SnapPolicyParameters;
@@ -8,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
@@ -34,7 +36,18 @@ class JdbcPolicyParameterResolver implements PolicyParameterResolver {
         var set = sets.findEffectiveOn("SNAP", asOf).orElseThrow(() ->
                 new PolicyParameterNotFoundException(
                         "no published SNAP parameter set covers " + asOf));
+        return buildFromSet(set, householdSize);
+    }
 
+    @Override
+    public SnapPolicyParameters resolveSnapByParameterSetId(UUID parameterSetId, int householdSize) {
+        var set = sets.findById(parameterSetId).orElseThrow(() ->
+                new PolicyParameterNotFoundException(
+                        "no published SNAP parameter set with id " + parameterSetId));
+        return buildFromSet(set, householdSize);
+    }
+
+    private SnapPolicyParameters buildFromSet(PolicyParameterSet set, int householdSize) {
         // One query, then an in-memory index: a determination resolves ~14
         // parameters and should not issue 14 round trips.
         Map<String, BigDecimal> byName = parameters
