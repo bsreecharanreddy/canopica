@@ -2,13 +2,23 @@
 
 Status: approved
 Date: 2026-08-21
-Supersedes/expands: `2026-08-20-phase1-vertical-slice.md` (that doc's architecture,
-stack choices, and governance framework are unchanged and still apply — this
-doc adds the full AI layer that was brainstormed afterward, and reorganizes
-everything into a complete phased roadmap. Kept as a separate dated doc
-rather than overwritten, since the original is a legitimate record of how
-the design evolved — a small piece of authentic engineering process worth
-letting a reader see.)
+Supersedes/expands: `2026-08-20-phase1-vertical-slice.md`. That doc's
+architecture and governance framework still apply; this one adds the AI
+layer brainstormed afterward, adds the domain/temporality/audit design it
+was missing, and reorganizes everything into a complete phased roadmap. It
+is kept as a separate dated doc rather than overwritten, since the original
+is a legitimate record of how the design evolved — a small piece of
+authentic engineering process worth letting a reader see.
+
+**Where this doc overrides it** (read this doc, not that one, on these
+four points):
+
+| Topic | Phase 1 doc said | Now |
+|---|---|---|
+| DMN runtime | Camunda open-source engine, Drools as fallback | Drools/KIE as primary (§3.3) |
+| Reporting toolchain | Power BI Desktop, `.pbix` in the repo | TMDL model-as-code + Power BI Service + Metabase container (§3.3) |
+| Audit log | "immutable audit-log table" | Hash-chained and CI-verified (§3.6) |
+| Phase 1 shape | One block | Split 1a / 1b (§5) |
 
 ## 1. What changed since Phase 1's design
 
@@ -110,8 +120,135 @@ flowchart TB
 | Threat model | The policy-document corpus is trusted; anything derived from applicant-submitted free text or uploaded documents is untrusted input to the AI layer, never concatenated into a prompt with policy-document authority | Standard prompt-injection boundary for a RAG system that also ingests user content. |
 | Observability | OpenTelemetry traces/metrics/logs across the API and data pipeline (general system health) **plus** AI-specific observability — token usage, latency, RAG groundedness scores (per-component health) | Two different things; both are in scope. The general layer doesn't get replaced by the AI-specific one. |
 | Accessibility | Section 508/WCAG-conformant portal (a11y linting, ARIA-correct components) | Actually non-negotiable for real government portals — cheap to add, and almost no portfolio project bothers, which makes it a disproportionately authentic detail. |
+| DMN runtime | **Drools / KIE** (`kie-dmn`), embedded in the Spring Boot service | Apache 2.0, actively developed, DMN-conformant. Supersedes the Phase 1 doc's Camunda choice: Camunda 7's community support has ended and Camunda 8 changed the engine's licensing posture. KIE also collapses the fallback into the primary — the Phase 1 doc named Drools as the backup if decision tables can't express SNAP's deduction stacking, and starting on KIE means DMN tables *and* DRL rules come from one runtime with no migration. |
+| Reporting toolchain | Semantic model authored as **TMDL text files**; visuals in the free Power BI Service; a containerized OSS dashboard (Metabase) in `docker-compose` | Power BI Desktop is Windows-only and this project is developed on macOS. Model-as-code also resolves the Phase 1 doc's §12 risk about `.pbix` binaries not diffing in git — the model becomes reviewable source. The OSS dashboard means the repo renders something real for anyone who clones it, rather than requiring a Power BI install to see any reporting at all. |
+| Temporality | Effective-dated policy parameter sets; every determination stamped with its parameter-set version | See §3.6. Without this, no determination is reproducible as of its decision date, and Phase 4's QC assistant cannot function. |
+| Audit integrity | Hash-chained, append-only audit log with a CI verification job | See §3.7. Turns "immutable audit log" from a claim into a control a reader can verify. |
+| Authorization depth | RBAC **plus** caseload-scoped row-level filtering, sensitive-case flagging, and access-review reporting | The characteristic real-world breach in benefits systems is not privilege escalation — it is an authorized worker viewing a case they have no business reason to touch. Roles don't prevent that; row scoping does. Maps to NIST AC-3(3)/AC-6. Built in Phase 1b. |
 
-### 3.4 Government cloud & compliance tier
+### 3.4 Domain model
+
+Both prior docs named *screens* (income, expenses, living arrangements…)
+but never *entities*. That gap matters more than it looks: the entity model
+is what the rules engine reads, what dbt sources, what correspondence
+merges from, and what the QC assistant re-derives against. Designed once
+here so Phase 1 doesn't invent it ad hoc.
+
+#### 3.4.1 Operational core
+
+```mermaid
+erDiagram
+    PERSON ||--o{ HOUSEHOLD_MEMBER : "belongs to"
+    HOUSEHOLD ||--o{ HOUSEHOLD_MEMBER : contains
+    HOUSEHOLD ||--o{ APPLICATION : submits
+    APPLICATION ||--|{ PROGRAM_REQUEST : "requests one per program"
+    PERSON ||--o{ INCOME_RECORD : reports
+    PERSON ||--o{ EXPENSE_RECORD : reports
+    PERSON ||--o{ WORK_ACTIVITY : reports
+    PERSON ||--o{ DISABILITY_RECORD : reports
+    HOUSEHOLD ||--o{ LIVING_ARRANGEMENT : has
+    PROGRAM_REQUEST ||--o{ VERIFICATION : requires
+    VERIFICATION ||--o| EXTERNAL_VERIFICATION : "may be satisfied by"
+    PROGRAM_REQUEST ||--o{ ELIGIBILITY_DETERMINATION : produces
+    POLICY_PARAMETER_SET ||--o{ ELIGIBILITY_DETERMINATION : "governs (versioned)"
+    ELIGIBILITY_DETERMINATION ||--|| DETERMINATION_TRACE : "explained by"
+    ELIGIBILITY_DETERMINATION ||--o{ BENEFIT_MONTH : authorizes
+    ELIGIBILITY_DETERMINATION ||--o{ NOTICE : "communicated by"
+    HOUSEHOLD ||--o{ CASE_ASSIGNMENT : "worked by"
+    WORKER ||--o{ CASE_ASSIGNMENT : owns
+    AUDIT_EVENT }o--|| PERSON : "actor / subject"
+```
+
+Entity notes worth stating rather than leaving implied:
+
+- **`PROGRAM_REQUEST`** is the unit of eligibility, not `APPLICATION`. One
+  application commonly requests several programs, each of which is
+  determined separately, on its own timeline, with its own outcome. Real
+  systems that conflate the two struggle later; this one doesn't.
+- **`ELIGIBILITY_DETERMINATION`** is the binding record: program, benefit
+  month, eligible yes/no, benefit amount, the parameter-set version used,
+  decided-at, decided-by, and a foreign key to its trace. It is
+  append-only — a changed circumstance produces a *new* determination, it
+  never mutates an existing one.
+- **`DETERMINATION_TRACE`** persists the full DMN evaluation: the input
+  snapshot as of decision time, which rules fired, and intermediate values
+  (gross income test, each deduction applied in order, net income test).
+  This is a Phase 1 deliverable precisely because Phase 2's policy Q&A and
+  Phase 4's QC assistant both already assume it exists — see §3.6.
+- **`POLICY_PARAMETER_SET`** holds the effective-dated federal thresholds
+  and deduction standards. Versioned, never edited in place.
+- **`VERIFICATION`** tracks each outstanding data element, its due date,
+  and how it was satisfied — this is what drives the intake pipeline in
+  Phase 3 and the SLA monitor in Phase 4.
+- **`CASE_ASSIGNMENT`** is what makes caseload-scoped authorization
+  possible at all. Without it, row-level access control has nothing to
+  filter on.
+- Every intake entity (`INCOME_RECORD`, `EXPENSE_RECORD`,
+  `LIVING_ARRANGEMENT`, `WORK_ACTIVITY`, …) carries effective-from /
+  effective-to dates. Households report changes mid-month constantly; a
+  model that only stores "current" values cannot answer what was true in
+  March.
+
+#### 3.4.2 Reporting model
+
+The warehouse is designed here too, not left to emerge from whatever the
+operational schema happens to look like:
+
+| Layer | Tables |
+|---|---|
+| **Bronze** | Raw, append-only landings of each operational table, with ingest metadata. No reshaping. |
+| **Silver** | `dim_person`, `dim_household`, `dim_worker`, `dim_program`, `dim_policy_parameter_set` (SCD Type 2 — the dimension that makes as-of reporting work), `fct_application`, `fct_program_request`, `fct_eligibility_determination`, `fct_verification`, `fct_benefit_month`, `fct_audit_event`. Cleaned, conformed, PII classified and tokenized per column. |
+| **Gold** | `mart_processing_timeliness` (against SNAP's real 30-day and 7-day expedited standards), `mart_determination_outcomes`, `mart_payment_accuracy` (the QC / error-rate view), `mart_fairness_audit` (shared computation with the CI gate, per §3.3), `mart_worker_caseload`, `mart_access_review` (who looked at which case, and whether they had a reason to). |
+
+`fct_eligibility_determination` carries the parameter-set version as a
+foreign key to the SCD-2 dimension, which is what lets a report say "under
+the rules in force at the time" rather than silently re-scoring history
+against today's thresholds.
+
+### 3.5 Temporality and determination reproducibility
+
+Eligibility systems are fundamentally temporal, and getting this wrong is
+not a detail that can be patched later:
+
+- Federal SNAP thresholds change annually on a fixed date.
+- Households report changes mid-month; benefits are computed per benefit
+  month.
+- A determination must be reproducible **as of the date it was made**, on
+  demand, years later — for appeals, for audits, and for QC.
+
+The design response, all of it Phase 1a:
+
+1. `POLICY_PARAMETER_SET` is effective-dated and immutable once published.
+2. Every `ELIGIBILITY_DETERMINATION` stores the parameter-set version it
+   used, not a pointer to "current."
+3. DMN evaluation takes an explicit as-of date and resolves both parameters
+   and intake facts against it.
+4. `DETERMINATION_TRACE` persists the whole evaluation, so re-derivation
+   can be checked against what actually happened rather than merely
+   re-run and hoped to match.
+
+Phase 4's QC / Payment Error Rate Assistant depends on all four. Its entire
+function is re-deriving what a case *should* have produced and flagging the
+delta — which is impossible if the inputs and thresholds it re-runs against
+have silently moved.
+
+### 3.6 Tamper-evident audit log
+
+The Phase 1 doc calls for an "immutable audit-log table." A table is not
+immutable; anyone holding `UPDATE` can rewrite history. Upgraded to
+something a reader can actually verify:
+
+- Each `AUDIT_EVENT` row carries the hash of its predecessor's hash plus
+  its own payload, forming a chain.
+- `UPDATE` and `DELETE` are revoked from the application role at the
+  database level; the app can only append.
+- A CI job walks the chain and fails the build if it doesn't verify.
+
+Roughly forty lines of work, and it converts a governance claim into a
+demonstrated control — which is the difference this repo is trying to make
+throughout.
+
+### 3.7 Government cloud & compliance tier
 
 The data this system is modeled around — income data handled with FTI-style
 safeguards from Phase 1, and Medicaid-adjacent health data from Phase 5 —
@@ -166,26 +303,56 @@ arbitrary.
 
 The deterministic foundation. One SNAP applicant journey, fully working,
 nothing mocked except the identity of the "other agency" on the far end of
-one interface:
+one interface.
 
-- Portal (Spring Boot + React, customer/worker role-gated views)
+Split into two increments. The scope is the same either way; the split
+exists so there is never a stretch where nothing runs. Phase 1a is
+demoable, and from that point every commit improves something that already
+works — rather than the repo sitting simultaneously half-finished in ten
+directions, which is the failure §8 says the phase boundaries exist to
+prevent.
+
+#### Phase 1a — walking skeleton
+
+The thinnest path that touches every layer and produces a real, correct,
+auditable determination:
+
+- Portal: intake form + worker case view (Spring Boot + React, roles
+  hardcoded for now — no Keycloak yet)
+- Domain model per §3.4.1, with effective dating per §3.5 built in from
+  the start
+- Rules engine: DMN decision tables on Drools/KIE, evaluated against an
+  effective-dated `POLICY_PARAMETER_SET`
+- `ELIGIBILITY_DETERMINATION` + persisted `DETERMINATION_TRACE`
+- Hash-chained audit log per §3.6, with its CI verification job
+- Data platform: one dbt model path through bronze → silver → gold
+- Reporting: one report page, plus the Metabase dashboard container
+- Synthetic-applicant generator (ACS PUMS–driven)
+- Docker Compose + CI (build/lint/test/dbt-test)
+
+#### Phase 1b — hardening
+
+Everything that makes it production-shaped rather than merely working:
+
 - Identity (Keycloak — citizen + worker realms)
-- Rules engine (DMN via Camunda's open-source engine)
+- **Row-level authorization**: caseload-scoped access via
+  `CASE_ASSIGNMENT`, sensitive-case flagging, and the `mart_access_review`
+  reporting page (§3.3)
 - Mock external verification interface (wage/income stand-in, with the
   FTI-style safeguards from the governance framework actually applied to
   it — this is what makes "interfaces" a real, working thing instead of a
   roadmap bullet)
-- Data platform (dbt-duckdb, medallion architecture, real Delta Lake
-  tables, Postgres serving layer)
-- Reporting (baseline Power BI: applications, determinations, processing
-  time)
-- Governance framework (RBAC, immutable audit log, tokenized
-  SSN-like fields, NIST 800-53 / IRS Pub 1075–style control mapping)
+- Data platform widened: full medallion coverage of §3.4.2's tables, real
+  Delta Lake tables, Postgres serving layer, Airflow orchestration
+- Reporting widened: applications, determinations, processing time
+  against SNAP's real 30-day / 7-day standards
+- Governance framework completed (tokenized SSN-like fields, column-level
+  classification, NIST 800-53 / IRS Pub 1075–style control mapping in
+  `docs/design/compliance-mapping.md`)
 - Accessibility (Section 508/WCAG)
 - Observability (OpenTelemetry across API + pipeline)
-- Local infra (Docker Compose) + documented cloud path (reference
-  Terraform for Azure, not deployed by default)
-- CI (build/lint/test on every push)
+- Documented cloud path (reference Terraform for Azure, not deployed by
+  default)
 
 ### Phase 2 — Policy Intelligence & Analytics AI
 
@@ -250,8 +417,15 @@ meaningful, which is why it comes after intake and correspondence exist:
   assistance work pathways)
 - Correspondence and interfaces breadth beyond SNAP
 - Real cloud deployment demos: the existing dbt project run for real on
-  Databricks Community Edition (free); the existing Terraform applied to
-  an Azure free trial for a real Synapse/Fabric screenshot
+  a free Databricks tier, and the existing Terraform applied to an Azure
+  free trial for a real screenshot. Two things to verify at the time
+  rather than assume now — Databricks replaced Community Edition with a
+  differently-scoped free tier, so confirm what the current free offering
+  actually permits before promising this in the README; and target
+  **Fabric first, Synapse second**, since Microsoft's investment has moved
+  to Fabric even though Synapse remains widely deployed in government
+  (where cloud offerings lag commercial by years, which is itself worth a
+  sentence in the README)
 
 ## 6. Repo layout (updated)
 
@@ -273,7 +447,10 @@ canopica/
     compliance/             <- SLA monitor, QC assistant
     sop-copilot/            <- worker guidance + SOP mining
   identity/                 <- Keycloak realm config
-  reporting/                <- Power BI .pbix + exported views
+  reporting/
+    semantic-model/         <- TMDL model-as-code (reviewable in PRs)
+    powerbi/                <- Service screenshots + import instructions
+    dashboard/              <- containerized OSS dashboard (runs on clone)
   infra/
     docker-compose.yml
     azure/                  <- reference Terraform (not deployed by default)
@@ -297,8 +474,22 @@ canopica/
 
 ## 8. Open risks / known limitations (updated)
 
-- Everything from the Phase 1 doc's §12 still applies (DMN
-  expressiveness, `.pbix` binary diffing, single combined React app).
+- From the Phase 1 doc's §12: the single combined React app (rather than
+  separate citizen and worker applications) still stands as a deliberate
+  simplification. The other two risks it listed are now closed — `.pbix`
+  binary diffing goes away with TMDL model-as-code, and the DMN
+  expressiveness risk shrinks considerably now that Drools/KIE gives DMN
+  tables and DRL rules from one runtime (§3.3).
+- **The fairness audit runs on synthetic data, which bounds what it can
+  claim.** Applicant records are generated from public census
+  distributions, so a disparate-impact measurement over them partly
+  measures the generator's own assumptions. What the audit demonstrates is
+  that the measurement, the threshold, and the CI gate work and would
+  catch a regression — not that any model here is fair in the world.
+  Stated explicitly wherever fairness results are shown, since claiming
+  more than that would be exactly the overstatement §2's governing
+  principle exists to prevent. Full treatment in
+  `2026-08-21-tech-stack-and-production-tradeoffs.md` §4.9.
 - This is now a large system for a solo project. Phase boundaries exist
   specifically so each phase ships and is demoable on its own — if time
   runs out after Phase 2 or 3, the repo still tells a complete, coherent

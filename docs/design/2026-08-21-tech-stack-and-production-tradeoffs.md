@@ -37,7 +37,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 
 | Layer | Canopica uses | Real production equivalent | Fidelity | What would change |
 |---|---|---|---|---|
-| Rules engine | DMN 1.x decision tables, evaluated by an embedded open-source DMN engine | Commercial policy-automation suites (Oracle Policy Automation, IBM ODM, Red Hat Decision Manager, FICO Blaze) | **≈** | DMN is an OMG standard several of those products implement. Rules stay authored as data, not code, either way — that property is what transfers, not the vendor. |
+| Rules engine | DMN 1.x decision tables on Drools/KIE (`kie-dmn`), embedded in the Spring Boot service | Commercial policy-automation suites (Oracle Policy Automation, IBM ODM, Red Hat Decision Manager, FICO Blaze) | **≈** | DMN is an OMG standard several of those products implement — and Red Hat Decision Manager is the commercially supported build of this exact engine, so that particular migration is a support contract rather than a port. Rules stay authored as data, not code, either way; that property is what transfers, not the vendor. |
 | Rule authoring | Decision tables in the repo, reviewed via pull request | A policy-analyst-facing authoring GUI, with a separate approval workflow and a rules release cycle decoupled from application releases | **~** | No GUI here. PR review stands in for the approval workflow — the governance concept survives, the tooling doesn't. |
 | Policy versioning | Effective-dated parameter sets, version stamped on every determination | Same — mandatory, because federal thresholds change annually and determinations must be reproducible as-of their decision date | **=** | Nothing. This is not a place to compromise; see the roadmap doc. |
 
