@@ -125,6 +125,7 @@ flowchart TB
 | Temporality | Effective-dated policy parameter sets; every determination stamped with its parameter-set version | See §3.6. Without this, no determination is reproducible as of its decision date, and Phase 4's QC assistant cannot function. |
 | Audit integrity | Hash-chained, append-only audit log with a CI verification job | See §3.7. Turns "immutable audit log" from a claim into a control a reader can verify. |
 | Authorization depth | RBAC **plus** caseload-scoped row-level filtering, sensitive-case flagging, and access-review reporting | The characteristic real-world breach in benefits systems is not privilege escalation — it is an authorized worker viewing a case they have no business reason to touch. Roles don't prevent that; row scoping does. Maps to NIST AC-3(3)/AC-6. Built in Phase 1b. |
+| Async messaging | **pgmq** (Postgres extension, SQS-like queue semantics) — decouples document-intake jobs, correspondence dispatch, and fraud-triage triggers from the request/determination path | Zero new infrastructure — reuses the existing operational Postgres instead of standing up a broker. Portfolio-documented as the deliberate substitute for RabbitMQ/Kafka; see the tech-stack doc's Messaging tier (§2) and §4.11 for what that costs. Built in Phase 3. |
 
 ### 3.4 Domain model
 
@@ -382,10 +383,14 @@ Builds on Phase 1's portal and case model:
 - Intelligent Document Intake — classify/extract/route across document
   types (income reports, renewal packets, work activity reports,
   verification-checklist documents), checked against each case's
-  outstanding verification checklist, worker-confirmed before use
+  outstanding verification checklist, worker-confirmed before use; an
+  upload enqueues a **pgmq** job an async worker picks up, rather than
+  blocking the upload request on classification
 - AI-drafted correspondence — eligibility notices drafted from the DMN
   determination and audit trail, template/validation gate before a notice
-  is considered sent
+  is considered sent; dispatch is a **pgmq** job enqueued after the
+  determination transaction commits, so drafting/sending never holds up
+  the binding decision
 - Translation/localization of the portal and correspondence
 
 ### Phase 4 — Compliance & Integrity AI
@@ -396,7 +401,9 @@ meaningful, which is why it comes after intake and correspondence exist:
 - Fraud Risk Triage — anomaly scoring surfaces cases to a human
   investigator's queue only, never auto-adjudicates; fairness-audited via
   the same CI gate as the rules engine; explicitly excludes
-  protected-class-proxy features
+  protected-class-proxy features; scoring is triggered off a **pgmq**
+  job enqueued on determination change, kept off the binding transaction
+  path
 - Fairness-audit results extended and surfaced as a Power BI report page
 - Case SLA/Compliance Monitor — deterministic deadline tracking (SNAP's
   real 30-day/7-day expedited processing requirements) plus an
