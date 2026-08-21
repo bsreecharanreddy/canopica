@@ -1,0 +1,33 @@
+# Java
+target/
+*.class
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Data platform output — generated, never committed
+data-platform/warehouse/
+*.duckdb
+*.duckdb.wal
+
+# dbt
+target/
+dbt_packages/
+logs/
+
+# Local environment
+.env
+!infra/.env.example
+
+# OS
+.DS_Store

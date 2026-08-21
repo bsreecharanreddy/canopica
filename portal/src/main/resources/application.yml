@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: ies-portal
+  datasource:
+    url: ${IES_OPERATIONAL_JDBC_URL:jdbc:postgresql://localhost:5432/ies_operational}
+    username: ${IES_OPERATIONAL_USER:ies_app}
+    password: ${IES_OPERATIONAL_PASSWORD:ies_app}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Substituted into V6__audit_event.sql, so the role the grants apply to is
+    # the role the application actually connects as.
+    placeholders:
+      app_role: ${IES_OPERATIONAL_USER:ies_app}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+ies:
+  # Benefit months, effective dating, and the annual October parameter change
+  # are all civil-calendar concepts; pin the zone rather than inherit the host's.
+  timezone: America/New_York
