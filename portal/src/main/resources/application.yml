@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: canopica-portal
+  datasource:
+    url: ${CANOPICA_OPERATIONAL_JDBC_URL:jdbc:postgresql://localhost:5432/canopica_operational}
+    username: ${CANOPICA_OPERATIONAL_USER:canopica_app}
+    password: ${CANOPICA_OPERATIONAL_PASSWORD:canopica_app}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Substituted into V6__audit_event.sql, so the role the grants apply to is
+    # the role the application actually connects as.
+    placeholders:
+      app_role: ${CANOPICA_OPERATIONAL_USER:canopica_app}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+canopica:
+  # Benefit months, effective dating, and the annual October parameter change
+  # are all civil-calendar concepts; pin the zone rather than inherit the host's.
+  timezone: America/New_York
