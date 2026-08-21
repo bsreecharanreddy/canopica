@@ -1,0 +1,343 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:feel="https://www.omg.org/spec/DMN/20191111/FEEL/"
+             id="snap-eligibility"
+             name="snap-eligibility"
+             namespace="https://canopica/dmn/snap">
+
+  <!--
+    SNAP eligibility, split into fifteen named decisions so the persisted
+    trace (portal Task 5) shows the deduction stack step by step. See
+    rules-engine/README.md for the decision graph in prose. Numbers
+    (thresholds, rates) come in via the Parameters input, resolved
+    effective-dated by the portal before this model ever runs; this file
+    holds only logic: test ordering, exemptions, deduction stacking, and
+    the benefit formula.
+  -->
+
+  <itemDefinition id="tSnapFacts" name="tSnapFacts">
+    <itemComponent id="tSnapFacts_householdSize" name="householdSize"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_earnedIncome" name="earnedIncome"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_unearnedIncome" name="unearnedIncome"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_dependentCareCost" name="dependentCareCost"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_medicalExpense" name="medicalExpense"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_shelterCost" name="shelterCost"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_utilityCost" name="utilityCost"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_hasElderlyOrDisabledMember" name="hasElderlyOrDisabledMember"><typeRef>boolean</typeRef></itemComponent>
+    <itemComponent id="tSnapFacts_categoricallyEligible" name="categoricallyEligible"><typeRef>boolean</typeRef></itemComponent>
+  </itemDefinition>
+
+  <itemDefinition id="tSnapParameters" name="tSnapParameters">
+    <itemComponent id="tSnapParameters_grossIncomeLimit" name="grossIncomeLimit"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_netIncomeLimit" name="netIncomeLimit"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_standardDeduction" name="standardDeduction"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_earnedIncomeDeductionRate" name="earnedIncomeDeductionRate"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_medicalExpenseThreshold" name="medicalExpenseThreshold"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_excessShelterCap" name="excessShelterCap"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_shelterIncomeShare" name="shelterIncomeShare"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_maxAllotment" name="maxAllotment"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_minimumBenefit" name="minimumBenefit"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_minimumBenefitMaxHouseholdSize" name="minimumBenefitMaxHouseholdSize"><typeRef>number</typeRef></itemComponent>
+    <itemComponent id="tSnapParameters_benefitReductionRate" name="benefitReductionRate"><typeRef>number</typeRef></itemComponent>
+  </itemDefinition>
+
+  <inputData id="iFacts" name="Facts">
+    <variable id="iFacts_var" name="Facts" typeRef="tSnapFacts"/>
+  </inputData>
+  <inputData id="iParameters" name="Parameters">
+    <variable id="iParameters_var" name="Parameters" typeRef="tSnapParameters"/>
+  </inputData>
+
+  <decision id="dGrossIncome" name="Gross Income">
+    <variable id="dGrossIncome_var" name="Gross Income" typeRef="number"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <literalExpression id="dGrossIncome_expr">
+      <text>Facts.earnedIncome + Facts.unearnedIncome</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dGrossTestExempt" name="Gross Test Exempt">
+    <variable id="dGrossTestExempt_var" name="Gross Test Exempt" typeRef="boolean"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <literalExpression id="dGrossTestExempt_expr">
+      <text>Facts.hasElderlyOrDisabledMember or Facts.categoricallyEligible</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dGrossIncomeWithinLimit" name="Gross Income Within Limit">
+    <variable id="dGrossIncomeWithinLimit_var" name="Gross Income Within Limit" typeRef="boolean"/>
+    <informationRequirement><requiredDecision href="#dGrossIncome"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <literalExpression id="dGrossIncomeWithinLimit_expr">
+      <text>Gross Income &lt;= Parameters.grossIncomeLimit</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dGrossIncomeTest" name="Gross Income Test">
+    <variable id="dGrossIncomeTest_var" name="Gross Income Test" typeRef="string"/>
+    <informationRequirement><requiredDecision href="#dGrossTestExempt"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dGrossIncomeWithinLimit"/></informationRequirement>
+    <decisionTable id="dGrossIncomeTest_dt" hitPolicy="UNIQUE">
+      <input id="dGrossIncomeTest_in0">
+        <inputExpression id="dGrossIncomeTest_in0_expr" typeRef="boolean">
+          <text>Gross Test Exempt</text>
+        </inputExpression>
+      </input>
+      <input id="dGrossIncomeTest_in1">
+        <inputExpression id="dGrossIncomeTest_in1_expr" typeRef="boolean">
+          <text>Gross Income Within Limit</text>
+        </inputExpression>
+      </input>
+      <output id="dGrossIncomeTest_out" typeRef="string"/>
+      <rule id="dGrossIncomeTest_r0">
+        <inputEntry id="dGrossIncomeTest_r0_c0"><text>true</text></inputEntry>
+        <inputEntry id="dGrossIncomeTest_r0_c1"><text>-</text></inputEntry>
+        <outputEntry id="dGrossIncomeTest_r0_out"><text>"EXEMPT"</text></outputEntry>
+      </rule>
+      <rule id="dGrossIncomeTest_r1">
+        <inputEntry id="dGrossIncomeTest_r1_c0"><text>false</text></inputEntry>
+        <inputEntry id="dGrossIncomeTest_r1_c1"><text>true</text></inputEntry>
+        <outputEntry id="dGrossIncomeTest_r1_out"><text>"PASS"</text></outputEntry>
+      </rule>
+      <rule id="dGrossIncomeTest_r2">
+        <inputEntry id="dGrossIncomeTest_r2_c0"><text>false</text></inputEntry>
+        <inputEntry id="dGrossIncomeTest_r2_c1"><text>false</text></inputEntry>
+        <outputEntry id="dGrossIncomeTest_r2_out"><text>"FAIL"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <decision id="dEarnedIncomeDeduction" name="Earned Income Deduction">
+    <variable id="dEarnedIncomeDeduction_var" name="Earned Income Deduction" typeRef="number"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <literalExpression id="dEarnedIncomeDeduction_expr">
+      <text>Facts.earnedIncome * Parameters.earnedIncomeDeductionRate</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dDependentCareDeduction" name="Dependent Care Deduction">
+    <variable id="dDependentCareDeduction_var" name="Dependent Care Deduction" typeRef="number"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <literalExpression id="dDependentCareDeduction_expr">
+      <text>Facts.dependentCareCost</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dMedicalExpenseDeduction" name="Medical Expense Deduction">
+    <variable id="dMedicalExpenseDeduction_var" name="Medical Expense Deduction" typeRef="number"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <decisionTable id="dMedicalExpenseDeduction_dt" hitPolicy="UNIQUE">
+      <input id="dMedicalExpenseDeduction_in0">
+        <inputExpression id="dMedicalExpenseDeduction_in0_expr" typeRef="boolean">
+          <text>Facts.hasElderlyOrDisabledMember</text>
+        </inputExpression>
+      </input>
+      <output id="dMedicalExpenseDeduction_out" typeRef="number"/>
+      <rule id="dMedicalExpenseDeduction_r0">
+        <inputEntry id="dMedicalExpenseDeduction_r0_c0"><text>true</text></inputEntry>
+        <outputEntry id="dMedicalExpenseDeduction_r0_out"><text>max([0, Facts.medicalExpense - Parameters.medicalExpenseThreshold])</text></outputEntry>
+      </rule>
+      <rule id="dMedicalExpenseDeduction_r1">
+        <inputEntry id="dMedicalExpenseDeduction_r1_c0"><text>false</text></inputEntry>
+        <outputEntry id="dMedicalExpenseDeduction_r1_out"><text>0</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <decision id="dAdjustedIncome" name="Adjusted Income">
+    <variable id="dAdjustedIncome_var" name="Adjusted Income" typeRef="number"/>
+    <informationRequirement><requiredDecision href="#dGrossIncome"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dEarnedIncomeDeduction"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dDependentCareDeduction"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dMedicalExpenseDeduction"/></informationRequirement>
+    <literalExpression id="dAdjustedIncome_expr">
+      <text>max([0, Gross Income - Parameters.standardDeduction - Earned Income Deduction - Dependent Care Deduction - Medical Expense Deduction])</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dTotalShelterCost" name="Total Shelter Cost">
+    <variable id="dTotalShelterCost_var" name="Total Shelter Cost" typeRef="number"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <literalExpression id="dTotalShelterCost_expr">
+      <text>Facts.shelterCost + Facts.utilityCost</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dShelterExcess" name="Shelter Excess">
+    <variable id="dShelterExcess_var" name="Shelter Excess" typeRef="number"/>
+    <informationRequirement><requiredDecision href="#dTotalShelterCost"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dAdjustedIncome"/></informationRequirement>
+    <literalExpression id="dShelterExcess_expr">
+      <text>max([0, Total Shelter Cost - Parameters.shelterIncomeShare * Adjusted Income])</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dExcessShelterDeduction" name="Excess Shelter Deduction">
+    <variable id="dExcessShelterDeduction_var" name="Excess Shelter Deduction" typeRef="number"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dShelterExcess"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <decisionTable id="dExcessShelterDeduction_dt" hitPolicy="UNIQUE">
+      <input id="dExcessShelterDeduction_in0">
+        <inputExpression id="dExcessShelterDeduction_in0_expr" typeRef="boolean">
+          <text>Facts.hasElderlyOrDisabledMember</text>
+        </inputExpression>
+      </input>
+      <output id="dExcessShelterDeduction_out" typeRef="number"/>
+      <rule id="dExcessShelterDeduction_r0">
+        <inputEntry id="dExcessShelterDeduction_r0_c0"><text>true</text></inputEntry>
+        <outputEntry id="dExcessShelterDeduction_r0_out"><text>Shelter Excess</text></outputEntry>
+      </rule>
+      <rule id="dExcessShelterDeduction_r1">
+        <inputEntry id="dExcessShelterDeduction_r1_c0"><text>false</text></inputEntry>
+        <outputEntry id="dExcessShelterDeduction_r1_out"><text>min([Shelter Excess, Parameters.excessShelterCap])</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <decision id="dNetIncome" name="Net Income">
+    <variable id="dNetIncome_var" name="Net Income" typeRef="number"/>
+    <informationRequirement><requiredDecision href="#dAdjustedIncome"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dExcessShelterDeduction"/></informationRequirement>
+    <literalExpression id="dNetIncome_expr">
+      <text>max([0, Adjusted Income - Excess Shelter Deduction])</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dNetIncomeTest" name="Net Income Test">
+    <variable id="dNetIncomeTest_var" name="Net Income Test" typeRef="string"/>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dNetIncome"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <decisionTable id="dNetIncomeTest_dt" hitPolicy="UNIQUE">
+      <input id="dNetIncomeTest_in0">
+        <inputExpression id="dNetIncomeTest_in0_expr" typeRef="boolean">
+          <text>Facts.categoricallyEligible</text>
+        </inputExpression>
+      </input>
+      <input id="dNetIncomeTest_in1">
+        <inputExpression id="dNetIncomeTest_in1_expr" typeRef="boolean">
+          <text>Net Income &lt;= Parameters.netIncomeLimit</text>
+        </inputExpression>
+      </input>
+      <output id="dNetIncomeTest_out" typeRef="string"/>
+      <rule id="dNetIncomeTest_r0">
+        <inputEntry id="dNetIncomeTest_r0_c0"><text>true</text></inputEntry>
+        <inputEntry id="dNetIncomeTest_r0_c1"><text>-</text></inputEntry>
+        <outputEntry id="dNetIncomeTest_r0_out"><text>"EXEMPT"</text></outputEntry>
+      </rule>
+      <rule id="dNetIncomeTest_r1">
+        <inputEntry id="dNetIncomeTest_r1_c0"><text>false</text></inputEntry>
+        <inputEntry id="dNetIncomeTest_r1_c1"><text>true</text></inputEntry>
+        <outputEntry id="dNetIncomeTest_r1_out"><text>"PASS"</text></outputEntry>
+      </rule>
+      <rule id="dNetIncomeTest_r2">
+        <inputEntry id="dNetIncomeTest_r2_c0"><text>false</text></inputEntry>
+        <inputEntry id="dNetIncomeTest_r2_c1"><text>false</text></inputEntry>
+        <outputEntry id="dNetIncomeTest_r2_out"><text>"FAIL"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <decision id="dComputedBenefit" name="Computed Benefit">
+    <variable id="dComputedBenefit_var" name="Computed Benefit" typeRef="number"/>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dNetIncome"/></informationRequirement>
+    <literalExpression id="dComputedBenefit_expr">
+      <text>max([0, Parameters.maxAllotment - ceiling(Net Income * Parameters.benefitReductionRate)])</text>
+    </literalExpression>
+  </decision>
+
+  <decision id="dBenefitAmount" name="Benefit Amount">
+    <variable id="dBenefitAmount_var" name="Benefit Amount" typeRef="number"/>
+    <informationRequirement><requiredDecision href="#dGrossIncomeTest"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dNetIncomeTest"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dComputedBenefit"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iFacts"/></informationRequirement>
+    <informationRequirement><requiredInput href="#iParameters"/></informationRequirement>
+    <decisionTable id="dBenefitAmount_dt" hitPolicy="FIRST">
+      <input id="dBenefitAmount_in0">
+        <inputExpression id="dBenefitAmount_in0_expr" typeRef="string">
+          <text>Gross Income Test</text>
+        </inputExpression>
+      </input>
+      <input id="dBenefitAmount_in1">
+        <inputExpression id="dBenefitAmount_in1_expr" typeRef="string">
+          <text>Net Income Test</text>
+        </inputExpression>
+      </input>
+      <input id="dBenefitAmount_in2">
+        <inputExpression id="dBenefitAmount_in2_expr" typeRef="number">
+          <text>Computed Benefit</text>
+        </inputExpression>
+      </input>
+      <input id="dBenefitAmount_in3">
+        <inputExpression id="dBenefitAmount_in3_expr" typeRef="number">
+          <text>Facts.householdSize</text>
+        </inputExpression>
+      </input>
+      <output id="dBenefitAmount_out" typeRef="number"/>
+      <rule id="dBenefitAmount_r0">
+        <inputEntry id="dBenefitAmount_r0_c0"><text>"FAIL"</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r0_c1"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r0_c2"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r0_c3"><text>-</text></inputEntry>
+        <outputEntry id="dBenefitAmount_r0_out"><text>0</text></outputEntry>
+      </rule>
+      <rule id="dBenefitAmount_r1">
+        <inputEntry id="dBenefitAmount_r1_c0"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r1_c1"><text>"FAIL"</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r1_c2"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r1_c3"><text>-</text></inputEntry>
+        <outputEntry id="dBenefitAmount_r1_out"><text>0</text></outputEntry>
+      </rule>
+      <rule id="dBenefitAmount_r2">
+        <inputEntry id="dBenefitAmount_r2_c0"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r2_c1"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r2_c2"><text>>0</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r2_c3"><text>-</text></inputEntry>
+        <outputEntry id="dBenefitAmount_r2_out"><text>Computed Benefit</text></outputEntry>
+      </rule>
+      <rule id="dBenefitAmount_r3">
+        <inputEntry id="dBenefitAmount_r3_c0"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r3_c1"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r3_c2"><text>&lt;=0</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r3_c3"><text>&lt;= Parameters.minimumBenefitMaxHouseholdSize</text></inputEntry>
+        <outputEntry id="dBenefitAmount_r3_out"><text>Parameters.minimumBenefit</text></outputEntry>
+      </rule>
+      <rule id="dBenefitAmount_r4">
+        <inputEntry id="dBenefitAmount_r4_c0"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r4_c1"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r4_c2"><text>-</text></inputEntry>
+        <inputEntry id="dBenefitAmount_r4_c3"><text>-</text></inputEntry>
+        <outputEntry id="dBenefitAmount_r4_out"><text>0</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <decision id="dDetermination" name="Determination">
+    <variable id="dDetermination_var" name="Determination"/>
+    <informationRequirement><requiredDecision href="#dGrossIncomeTest"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dNetIncomeTest"/></informationRequirement>
+    <informationRequirement><requiredDecision href="#dBenefitAmount"/></informationRequirement>
+    <context id="dDetermination_ctx">
+      <contextEntry>
+        <variable name="eligible" typeRef="boolean"/>
+        <literalExpression><text>Gross Income Test != "FAIL" and Net Income Test != "FAIL" and Benefit Amount > 0</text></literalExpression>
+      </contextEntry>
+      <contextEntry>
+        <variable name="benefitAmount" typeRef="number"/>
+        <literalExpression><text>Benefit Amount</text></literalExpression>
+      </contextEntry>
+      <contextEntry>
+        <variable name="reasonCode" typeRef="string"/>
+        <literalExpression><text>if Gross Income Test = "FAIL" then "GROSS_INCOME_EXCEEDS_LIMIT" else if Net Income Test = "FAIL" then "NET_INCOME_EXCEEDS_LIMIT" else if Benefit Amount &lt;= 0 then "ZERO_BENEFIT_AMOUNT" else "ELIGIBLE"</text></literalExpression>
+      </contextEntry>
+    </context>
+  </decision>
+
+</definitions>
