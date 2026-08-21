@@ -1,7 +1,12 @@
 package ies.rules;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,25 +27,60 @@ public final class SnapDmnEvaluator {
 
     private static final String NAMESPACE = "https://ies/dmn/snap";
     private static final String MODEL_NAME = "snap-eligibility";
+    private static final String CLASSPATH_RESOURCE = "dmn/snap-eligibility.dmn";
+
+    /**
+     * Hardcoded rather than read from JAR manifest metadata: package
+     * {@code Implementation-Version} is only populated when running from a
+     * packaged jar with the right manifest entries, not when running tests
+     * against {@code target/classes} -- which is every test in this repo.
+     * Keep in sync with the parent POM's {@code kie.version} property.
+     */
+    public static final String ENGINE_VERSION = "kie-dmn-core-10.2.0";
 
     private final DMNRuntime runtime;
     private final DMNModel model;
+    private final String modelHash;
 
     public SnapDmnEvaluator() {
         this.runtime = DMNRuntimeBuilder.fromDefaults()
                 .buildConfiguration()
-                .fromClasspathResource("dmn/snap-eligibility.dmn", SnapDmnEvaluator.class)
+                .fromClasspathResource(CLASSPATH_RESOURCE, SnapDmnEvaluator.class)
                 .getOrElseThrow(e -> new DmnEvaluationException("cannot load DMN model", e));
         this.model = runtime.getModel(NAMESPACE, MODEL_NAME);
         if (model == null) {
             throw new DmnEvaluationException(
                     "DMN model " + NAMESPACE + "#" + MODEL_NAME + " not found on the classpath");
         }
+        this.modelHash = sha256OfClasspathResource(CLASSPATH_RESOURCE);
     }
 
     /** DMN compilation messages for the loaded model; empty on a clean load. */
     public List<String> modelMessages() {
         return model.getMessages().stream().map(Object::toString).toList();
+    }
+
+    /**
+     * SHA-256 of the exact {@code .dmn} file this evaluator loaded, so a
+     * later re-derivation can prove it ran against the same model, not just
+     * the same numbers.
+     */
+    public String modelHash() {
+        return modelHash;
+    }
+
+    private static String sha256OfClasspathResource(String resourcePath) {
+        try (InputStream in = SnapDmnEvaluator.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new DmnEvaluationException("classpath resource not found: " + resourcePath);
+            }
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(in.readAllBytes()));
+        } catch (IOException e) {
+            throw new DmnEvaluationException("failed to read " + resourcePath + " for hashing", e);
+        } catch (NoSuchAlgorithmException e) {
+            throw new DmnEvaluationException("SHA-256 not available", e);
+        }
     }
 
     public SnapDecision evaluate(SnapFacts facts, SnapPolicyParameters parameters) {
