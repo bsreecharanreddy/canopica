@@ -120,6 +120,7 @@ reasoning lives in the design docs.
 | Python version | 3.12 via `uv`, not the system 3.14 — dbt-core support lags new releases | Phase 1a plan, "Versions pinned" |
 | Bronze storage, Phase 1a | Local filesystem Delta tables; MinIO/S3 is a `storage_options` swap in Phase 1b | Phase 1a plan, Task 10 |
 | Async messaging | **pgmq** (Postgres extension), not RabbitMQ/Kafka — document-intake jobs, correspondence dispatch, fraud-triage triggers. Portfolio-documented substitute, not an oversight. | Roadmap §3.3; tech-stack doc's Messaging tier + §4.11 |
+| Ingestion pattern | Batch extract (Python job) for Phase 1a; CDC/Debezium documented as the production equivalent, not built — same treatment as pgmq, and for the same reason (needs a broker). | Roadmap §3.3; tech-stack doc's Data tier + §4.12 |
 
 ## Open questions
 
