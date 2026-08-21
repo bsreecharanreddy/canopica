@@ -42,15 +42,33 @@ line — see the design docs for how that plays out component by component.
 ## Architecture, at a glance
 
 ```mermaid
-flowchart LR
-    A["Customer / Worker\nPortal"] --> B["Rules Engine\n(DMN decision tables)"]
-    A --> C[("Data Platform\ndbt + Delta Lake")]
-    B --> C
-    C --> D["Power BI\nReporting"]
+flowchart TB
+    A["Customer / Worker Portal"]
+
+    subgraph core["System of record — deterministic, auditable"]
+        direction LR
+        B["Rules Engine\n(DMN decision tables)"] --> F["Audit Log\n(hash-chained, append-only)"]
+    end
+
+    subgraph data["Data Platform — ELT, orchestrated by Airflow"]
+        direction LR
+        C1["Bronze\n(raw)"] --> C2["Silver\n(conformed)"] --> C3["Gold\n(marts)"]
+    end
+
+    subgraph bi["Reporting"]
+        direction LR
+        G["Semantic Layer\n(MetricFlow · TMDL)"] --> D["Power BI · Metabase"]
+    end
+
     E["AI Layer\nPolicy Q&A · Analytics Copilot\nDocument Intake · Fraud Triage\nSOP Copilot · ..."]
+
+    A --> core
+    core --> C1
+    C3 --> G
+
     E -. assists, never decides .-> A
-    E -. assists, never decides .-> B
-    E -. assists, never decides .-> D
+    E -. assists, never decides .-> core
+    E -. assists, never decides .-> bi
 ```
 
 Full architecture, every component, and the reasoning behind each choice

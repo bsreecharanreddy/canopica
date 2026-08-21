@@ -141,6 +141,12 @@ evaluation lives inside the portal service). Everything else is Python.
 - **`docs/STATUS.md` updates in the same commit as the work it
   describes** — never as a separate follow-up commit, or it drifts and
   stops being trustworthy.
+- **The README's "Architecture, at a glance" Mermaid diagram updates in
+  the same commit as any change to what it depicts** — a new/removed
+  component, a renamed tier, a changed data flow. Same reasoning as the
+  STATUS.md rule above: a diagram nobody keeps current is worse than no
+  diagram, because it actively misleads a reader instead of just being
+  silent.
 
 ## `.claude/` tooling — added only for real, already-settled things
 
