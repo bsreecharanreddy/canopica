@@ -24,8 +24,8 @@ tasks, each with its own tests, its own commit, and its own STATUS update.
 It also pins the toolchain versions this phase builds against and records
 two environment prerequisites (Docker Desktop running; `uv` installed).
 
-**Next action:** Task 2 — effective-dated operational schema (Flyway +
-Testcontainers).
+**Next action:** Task 3 — effective-dated `policy_parameter_set` and the
+as-of SNAP parameter resolver.
 
 ---
 
@@ -36,6 +36,7 @@ Every row records a full-suite run, not a partial one.
 | Date | Scope | Result |
 |---|---|---|
 | 2026-08-21 | Task 1 — `make test`, `make lint` (Java `./mvnw verify`, web `npm test`/`npm run typecheck`, Python `uv run pytest`/`ruff`/`mypy --strict`) | All green. Java: 1 test (context loads). Web: 1 test (app shell renders). Python: 2 tests (Settings config). No integration/e2e tests yet — no database, no Compose stack exists until Task 2 onward. |
+| 2026-08-21 | Task 2 — `make test`, `make lint` (portal now runs 9 Testcontainers tests against a real Postgres 16 instance) | All green. Java: 9 tests — schema migration (V1/V2 apply, every Phase 1a table exists, every effective-dated table carries both date columns, household carries a mailing address), effective-dating/benefit-month constraint enforcement, and as-of query correctness for income_record. Web/Python unchanged from Task 1. Domain scope grew mid-task: `household` gained a mailing address (address_line1/2, city, state, zip_code) after clarifying that `household` is IES's case record — one HOH, many members via household_member, one or more applications over the case's life (including renewals) — and a case needs an address, which nothing in the schema carried yet. |
 
 ---
 
@@ -51,7 +52,7 @@ each task's files, interfaces, and test steps.
 | # | Task | Status |
 |---|---|---|
 | 1 | Repo scaffolding, Maven/uv/Vite toolchains, CI skeleton | Done — 6af08cf |
-| 2 | Operational schema, effective-dated (Flyway + Testcontainers) | Not started |
+| 2 | Operational schema, effective-dated (Flyway + Testcontainers) | Done |
 | 3 | `policy_parameter_set` — effective-dated SNAP parameters + as-of resolver | Not started |
 | 4 | DMN decision tables on Drools/KIE, table-driven scenarios | Not started |
 | 5 | Determination service — persisted determination + DMN trace | Not started |
