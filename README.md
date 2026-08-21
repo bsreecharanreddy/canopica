@@ -120,7 +120,9 @@ usage) are in the design docs.
   triage design in the docs are the two highest-signal reads.
 - **Reporting / BI, Azure Synapse/Fabric-adjacent** — `reporting/`, the
   data-platform's governed warehouse, and the Azure Government section
-  above.
+  above. Coming from a GUI ETL tool (Informatica, DataStage, SSIS)? See
+  the tech-stack doc's §6 for how those concepts map onto this project's
+  dbt implementation.
 - **Full-stack / Java / Spring / React** — `portal/`.
 - **Platform / security / responsible-AI–minded roles** — the governance
   framework and the fraud-triage design.
