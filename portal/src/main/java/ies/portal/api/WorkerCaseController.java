@@ -9,22 +9,28 @@ import ies.portal.api.dto.DeterminationResponse;
 import ies.portal.api.dto.TraceResponse;
 import ies.portal.audit.AuditEventType;
 import ies.portal.audit.AuditService;
+import ies.portal.caseload.CaseAssignmentService;
 import ies.portal.domain.Application;
+import ies.portal.domain.CaseAssignment;
 import ies.portal.domain.DeterminationTrace;
 import ies.portal.domain.EligibilityDetermination;
 import ies.portal.domain.Household;
 import ies.portal.domain.Person;
 import ies.portal.domain.ProgramRequest;
+import ies.portal.domain.Worker;
 import ies.portal.repo.ApplicationRepository;
 import ies.portal.repo.DeterminationTraceRepository;
 import ies.portal.repo.EligibilityDeterminationRepository;
 import ies.portal.repo.HouseholdRepository;
 import ies.portal.repo.PersonRepository;
 import ies.portal.repo.ProgramRequestRepository;
+import ies.portal.repo.WorkerRepository;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,12 +53,15 @@ class WorkerCaseController {
     private final PersonRepository persons;
     private final EligibilityDeterminationRepository determinations;
     private final DeterminationTraceRepository traces;
+    private final WorkerRepository workers;
+    private final CaseAssignmentService caseAssignmentService;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
 
     WorkerCaseController(JdbcTemplate jdbc, ProgramRequestRepository programRequests,
             ApplicationRepository applications, HouseholdRepository households, PersonRepository persons,
             EligibilityDeterminationRepository determinations, DeterminationTraceRepository traces,
+            WorkerRepository workers, CaseAssignmentService caseAssignmentService,
             AuditService auditService, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.programRequests = programRequests;
@@ -61,6 +70,8 @@ class WorkerCaseController {
         this.persons = persons;
         this.determinations = determinations;
         this.traces = traces;
+        this.workers = workers;
+        this.caseAssignmentService = caseAssignmentService;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
     }
@@ -104,14 +115,42 @@ class WorkerCaseController {
         Application application = applications.findById(programRequest.getApplicationId()).orElseThrow();
         Household household = households.findById(application.getHouseholdId()).orElseThrow();
         Person head = persons.findById(household.getHeadPersonId()).orElseThrow();
+
+        boolean inAssignment = checkCaseloadAccess(household.getId(), authentication);
+
         List<DeterminationResponse> history = determinations.findByProgramRequestIdOrderByDecidedAtDesc(id)
                 .stream().map(DeterminationResponse::from).toList();
 
-        auditService.append(AuditEventType.CASE_VIEWED, authentication.getName(), "program_request", id, Map.of());
+        auditService.append(AuditEventType.CASE_VIEWED, authentication.getName(), "program_request", id,
+                Map.of("in_assignment", inAssignment));
 
         return new CaseDetailResponse(id, application.getId(), household.getId(),
                 head.getFirstName() + " " + head.getLastName(), programRequest.getProgramCode(),
                 programRequest.getStatus(), programRequest.getRequestedOn(), history);
+    }
+
+    /**
+     * Row-level authorization (design doc §2.1): {@code case_assignment} is the sole source of truth for
+     * "who can see this household," never a role check. A SUPERVISOR always gets in -- viewing without
+     * being the assigned worker is logged (the returned {@code in_assignment} flag), not blocked. A WORKER
+     * who is the first to ever touch this household auto-claims it (a real case_assignment row, not just a
+     * read); a WORKER who touches a household someone else already claimed gets denied outright.
+     */
+    private boolean checkCaseloadAccess(UUID householdId, Authentication authentication) {
+        Worker viewer = workers.findByKeycloakSubject(authentication.getName())
+                .orElseThrow(() -> new NoSuchElementException("no worker row for " + authentication.getName()));
+
+        boolean isSupervisor = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPERVISOR"));
+        if (isSupervisor) {
+            return caseAssignmentService.isAssignedTo(householdId, viewer.getId());
+        }
+
+        CaseAssignment assignment = caseAssignmentService.assignOnFirstTouch(householdId, viewer.getId());
+        if (!assignment.getWorkerId().equals(viewer.getId())) {
+            throw new AccessDeniedException("household " + householdId + " is assigned to a different worker");
+        }
+        return true;
     }
 
     @GetMapping("/api/determinations/{id}/trace")

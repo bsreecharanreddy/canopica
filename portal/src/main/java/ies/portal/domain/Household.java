@@ -35,6 +35,15 @@ public class Household {
     @Column(name = "zip_code", nullable = false)
     private String zipCode;
 
+    // Both DB-managed past creation: false/null on insert (matching the column defaults), settable only
+    // through the SUPERVISOR-only /api/supervisor/households/{id}/sensitivity endpoint's direct UPDATE --
+    // never through this entity's own constructor/save path (design doc §2.1, flag-and-log not sealing).
+    @Column(name = "is_sensitive", insertable = false, updatable = false)
+    private boolean isSensitive;
+
+    @Column(name = "sensitive_reason", insertable = false, updatable = false)
+    private String sensitiveReason;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -84,6 +93,14 @@ public class Household {
 
     public String getZipCode() {
         return zipCode;
+    }
+
+    public boolean isSensitive() {
+        return isSensitive;
+    }
+
+    public String getSensitiveReason() {
+        return sensitiveReason;
     }
 
     public Instant getCreatedAt() {

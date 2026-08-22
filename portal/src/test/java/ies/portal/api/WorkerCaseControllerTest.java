@@ -23,6 +23,9 @@ import org.springframework.test.web.servlet.MockMvc;
  * The Postgres container backing {@link AbstractPostgresTest} is a JVM-wide singleton, so the case list
  * this suite hits is never empty or exclusively this test's data -- every assertion below finds its own
  * fixture by id rather than assuming list length or position.
+ *
+ * <p>Caseload-scoped authorization (Task 2, design doc §2.1) is exercised here rather than in
+ * {@code AuthorizationTest}, since it's a data-driven {@code case_assignment} check, not a role gate.
  */
 class WorkerCaseControllerTest extends AbstractApiTest {
 
@@ -82,6 +85,56 @@ class WorkerCaseControllerTest extends AbstractApiTest {
         assertThat(response).contains("\"policyParameterVersion\":\"SNAP-FY2025\"");
     }
 
+    @Test
+    void workerViewingAnUnassignedHouseholdAutoClaimsItAndIsMarkedInAssignment() throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+
+        mvc.perform(get("/api/program-requests/" + ids.programRequestId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk());
+
+        UUID samWorkerId = provisionedWorkerId("worker.sam@ies.local");
+        assertThat(jdbc.queryForObject(
+                "select worker_id from case_assignment where household_id = ?", UUID.class, ids.householdId()))
+                .isEqualTo(samWorkerId);
+        assertThat(jdbc.queryForObject(
+                "select payload->>'in_assignment' from audit_event "
+                        + "where event_type = 'CASE_VIEWED' and subject_id = ?",
+                String.class, ids.programRequestId())).isEqualTo("true");
+    }
+
+    @Test
+    void workerNotHoldingTheActiveAssignmentGets403() throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        UUID otherWorkerId = CaseFixtures.insertWorker(jdbc, "Someone Else", "WORKER");
+        jdbc.update(
+                "insert into case_assignment (id, household_id, worker_id, effective_from) "
+                        + "values (?, ?, ?, current_date)",
+                UUID.randomUUID(), ids.householdId(), otherWorkerId);
+
+        mvc.perform(get("/api/program-requests/" + ids.programRequestId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void supervisorViewingAnUnassignedHouseholdIsAllowedButNotMarkedInAssignmentAndDoesNotClaimIt() throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+
+        mvc.perform(get("/api/program-requests/" + ids.programRequestId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + supervisorToken()))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from case_assignment where household_id = ?", Integer.class, ids.householdId()))
+                .as("a supervisor's view is an override, not a claim -- it must not create an assignment")
+                .isEqualTo(0);
+        assertThat(jdbc.queryForObject(
+                "select payload->>'in_assignment' from audit_event "
+                        + "where event_type = 'CASE_VIEWED' and subject_id = ?",
+                String.class, ids.programRequestId())).isEqualTo("false");
+    }
+
     private JsonNode findByProgramRequestId(String listResponse, UUID programRequestId) throws Exception {
         for (JsonNode node : objectMapper.readTree(listResponse)) {
             if (node.get("programRequestId").asText().equals(programRequestId.toString())) {
@@ -89,5 +142,12 @@ class WorkerCaseControllerTest extends AbstractApiTest {
             }
         }
         return null;
+    }
+
+    // KeycloakWorkerSyncFilter provisions the worker row lazily, on that user's first authenticated
+    // request -- looking it up by the seeded realm user's own email (unique, stable) rather than decoding
+    // the JWT's sub claim ourselves.
+    private UUID provisionedWorkerId(String email) {
+        return jdbc.queryForObject("select id from worker where email = ?", UUID.class, email);
     }
 }
