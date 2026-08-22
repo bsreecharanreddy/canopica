@@ -11,7 +11,7 @@ Last updated: **2026-08-22**
 
 ## Current position
 
-**Phase 1a complete, verified end-to-end. Phase 1b not started.**
+**Phase 1a complete, verified end-to-end. Phase 1b planned, not started.**
 
 All 13 tasks of `docs/plans/2026-08-21-phase-1a-implementation-plan.md` are
 done. The full walking skeleton — intake → DMN determination (persisted
@@ -23,11 +23,15 @@ plan's own "Phase 1a definition of done" checklist is satisfied — see
 Task 13's verification-log row below for how each one was actually
 checked, not just asserted.
 
-**Next action:** Write the Phase 1b implementation plan (identity/Keycloak,
-caseload-scoped row-level authorization, mock external verification
-interface, Airflow orchestration, full medallion coverage, widened
-reporting, governance completion, accessibility, observability, reference
-Terraform — see CLAUDE.md's Phase plan and the roadmap doc for scope).
+Phase 1b's design decisions are recorded in
+`docs/design/2026-08-22-phase-1b-hardening-design.md` (see the "Decisions
+already made" table below), and its 10-task implementation plan is written:
+`docs/plans/2026-08-22-phase-1b-implementation-plan.md`.
+
+**Next action:** Awaiting explicit go-ahead to start Task 1 (Keycloak) of
+the Phase 1b implementation plan — per CLAUDE.md's "a plan is written from
+the design docs and approved before any code for that phase gets written,"
+the plan's existence isn't itself that approval.
 
 ---
 
