@@ -1,0 +1,15 @@
+# Committed, no secrets -- DuckDB is a local file, not a server with
+# credentials. Default paths are relative to this file's own directory
+# (dbt/ies_warehouse/), matching how dbt is actually invoked (`cd
+# dbt/ies_warehouse && dbt build`); the ingestion CLI and CI both set
+# IES_WAREHOUSE_ROOT/IES_DUCKDB_PATH explicitly so they aren't sensitive to
+# the caller's own working directory.
+ies_warehouse:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('IES_DUCKDB_PATH', '../../warehouse/ies.duckdb') }}"
+      schema: main
+      extensions: [delta]
+      threads: 4

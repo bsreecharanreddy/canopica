@@ -8,12 +8,16 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "connectorx>=0.4.5",
+    "dbt-core>=1.12.3",
+    "dbt-duckdb>=1.11.0",
     "deltalake>=1.6.2",
     "duckdb>=1.5.5",
     "httpx>=0.28.1",
     "numpy>=2.5.2",
     "polars>=1.43.2",
     "psycopg[binary]>=3.3.4",
+    "pyarrow>=25.0.1",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
 ]

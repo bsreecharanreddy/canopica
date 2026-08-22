@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: mart_determination_outcomes
+    description: >
+      Determination counts and benefit totals grouped by benefit month,
+      program, outcome, reason code, and the policy parameter version in
+      force -- the contract Task 11's serving layer/semantic model reads.
+    tests:
+      - no_pii_in_gold
+    columns:
+      - name: benefit_month
+        tests: [not_null]
+      - name: program_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["SNAP"] }
+      - name: outcome
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["ELIGIBLE", "DENIED"] }
+      - name: reason_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - "ELIGIBLE"
+                  - "GROSS_INCOME_EXCEEDS_LIMIT"
+                  - "NET_INCOME_EXCEEDS_LIMIT"
+                  - "ZERO_BENEFIT_AMOUNT"
+      - name: policy_parameter_version
+        tests: [not_null]
+      - name: determination_count
+        tests: [not_null]
+      - name: eligible_count
+        tests: [not_null]
+      - name: total_benefit_amount
+        tests: [not_null]
+      - name: average_benefit_amount
+        tests: [not_null]

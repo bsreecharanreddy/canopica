@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: >
+      Append-only Delta landings of the operational tables, written by
+      ies_data.ingestion.extract.extract_to_bronze. No reshaping happens
+      here (roadmap §3.4.2) -- duplicates across ingestion batches are
+      expected; silver deduplicates on the natural key and the latest
+      _ingested_at.
+    meta:
+      external_location: "delta_scan('{{ env_var('IES_WAREHOUSE_ROOT', '../../warehouse') }}/bronze/{name}')"
+    tables:
+      - name: person
+      - name: household
+      - name: household_member
+      - name: program_request
+      - name: eligibility_determination
+      - name: policy_parameter_set
+      - name: policy_parameter
