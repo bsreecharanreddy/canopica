@@ -11,7 +11,7 @@ COPY portal/pom.xml portal/pom.xml
 COPY portal/src portal/src
 RUN ./mvnw -B -q -pl portal -am package -DskipTests
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:24-jre
 # curl backs the healthcheck below -- not present in the base -jre image.
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
