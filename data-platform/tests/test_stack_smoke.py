@@ -17,6 +17,7 @@ import pytest
         # canopica-workers realm actually imported, not just that the container
         # is listening.
         ("http://localhost:8081/realms/canopica-workers", "canopica-workers"),
+        ("http://localhost:8082/health", "healthy"),
     ],
 )
 def test_every_service_answers(url: str, expected: str) -> None:

@@ -111,12 +111,15 @@ Tear down with `make down` (also removes the Postgres volume).
 determination → hash-chained audit trail → dbt warehouse → Metabase
 dashboard) runs end to end against real infrastructure, proven by
 `data-platform/tests/test_end_to_end.py` and walkable by hand in
-[`docs/demo.md`](docs/demo.md). Phase 1b (hardening) is next.
+[`docs/demo.md`](docs/demo.md). Phase 1b (hardening) is in progress —
+identity, row-level authorization, mocked external verification, and
+Airflow orchestration are done; governance mapping, accessibility, and
+observability remain.
 
 | Phase | Focus | Status |
 |---|---|---|
 | 1a | Walking skeleton — intake → rules-engine determination → audit trail → warehouse → report page, end to end | Done |
-| 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability | Planned |
+| 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability | In progress (4/10 tasks) |
 | 2 | Policy Intelligence & Analytics AI — RAG-based policy Q&A, rule-authoring copilot, natural-language analytics | Planned |
 | 3 | Case Intake & Communication AI — document classification/extraction, AI-drafted correspondence, localization | Planned |
 | 4 | Compliance & Integrity AI — fraud risk triage, SLA/QC monitoring, caseworker SOP copilot | Planned |
@@ -128,27 +131,21 @@ task-level detail.
 
 ## Honest limitations of what's built so far
 
-Phase 1a is a real, working slice, not a demo shell — but it's deliberately
-thin in ways worth stating plainly rather than leaving a reader to
+Phase 1a is a real, working slice, not a demo shell, and Phase 1b's first
+four tasks — Keycloak identity, caseload-scoped row-level authorization,
+the mocked external verification interface, and Airflow orchestration —
+have already closed several of its original gaps. What's still
+deliberately thin is worth stating plainly rather than leaving a reader to
 discover:
 
-- **No row-level authorization yet.** Real Keycloak-backed login (two
-  realms, Authorization Code + PKCE) landed in Phase 1b's first task, but
-  any authenticated worker can still see any case — caseload-scoped
-  authorization is the very next Phase 1b task.
-- **No real external verification.** Income/identity checks a real system
-  would run against external interfaces (IEVS-style) aren't built —
-  Phase 1b adds a mocked interface with FTI-style safeguards applied.
-- **No orchestration.** The pipeline runs on demand (`make pipeline`), not
-  on an Airflow schedule.
 - **A narrow rules-engine scope.** SNAP only, one program; several real
   deductions/rules (asset test, child-support-paid deduction, homeless
   shelter deduction, ABAWD work requirements, broad-based categorical
   eligibility) aren't modeled, and household size is capped at 8.
 - **A narrow bronze layer.** Seven operational tables, not the full
-  medallion table set.
+  medallion table set — Phase 1b's Task 5.
 - **No accessibility or observability work yet** — Section 508/WCAG and
-  OpenTelemetry are both Phase 1b.
+  OpenTelemetry are Phase 1b's Tasks 8 and 9.
 
 Every one of these is a scoping decision, not an oversight — see the plan's
 own "Deferred out of Phase 1a, on purpose" list

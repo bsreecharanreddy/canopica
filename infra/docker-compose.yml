@@ -2,7 +2,47 @@
 # Task 11, which needed a real Metabase instance to provision and verify
 # provision_metabase.py against -- see that task's file list, which
 # anticipates exactly this) plus portal-api, portal-web, and the
-# profile-gated one-shot `pipeline` service, added here in Task 12.
+# profile-gated one-shot `pipeline` service, added here in Task 12. Phase 1b
+# Task 4 adds airflow-init/-webserver/-scheduler, which run the same four
+# pipeline stages on their own hourly schedule instead of needing `make
+# pipeline` run by hand.
+
+# Shared by all three airflow-* services below -- environment, build, dags
+# volume, and the postgres dependency are identical across them; only the
+# command (and airflow-webserver/-scheduler's extra depends_on/ports/
+# healthcheck) differs. Mirrors the x-airflow-common pattern Airflow's own
+# official reference docker-compose.yaml uses for the same reason.
+x-airflow-common: &airflow-common
+  build:
+    context: ../data-platform
+    dockerfile: ../infra/airflow/Dockerfile
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    # Local/demo stack, no encrypted connections stored -- same "$0, dev-mode,
+    # local-first" tradeoff the Keycloak service above already documents for
+    # itself (no TLS, hardcoded bootstrap admin).
+    AIRFLOW__CORE__FERNET_KEY: ""
+    # The DAG's own @hourly schedule can only actually fire if it starts
+    # unpaused -- Airflow pauses newly-discovered DAGs by default, which
+    # would otherwise silently defeat "runs on its own schedule."
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    # Lets test_airflow_dag.py authenticate with a plain username/password
+    # against the REST API (the default session backend only accepts a
+    # browser's own login cookie).
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+    CANOPICA_OPERATIONAL_DSN: postgresql://canopica_app:canopica_app@postgres:5432/canopica_operational
+    CANOPICA_SERVING_DSN: postgresql://canopica_app:canopica_app@postgres:5432/canopica_serving
+    CANOPICA_METABASE_URL: http://metabase:3000
+    CANOPICA_METABASE_USER: admin@canopica.local
+    CANOPICA_METABASE_PASSWORD: CanopicaAdmin123!
+  volumes:
+    - ../infra/airflow/dags:/opt/airflow/dags
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -119,6 +159,54 @@ services:
         condition: service_healthy
       metabase:
         condition: service_healthy
+
+  # One-shot: `airflow db migrate` (idempotent, safe to re-run on every
+  # boot) then create the admin user. `airflow users create` is *not*
+  # idempotent -- it errors if the user already exists, which it will on
+  # every `make up` after the first against the same postgres-data volume
+  # -- so only that second command's failure is swallowed; a real migrate
+  # failure still fails this service (and, via service_completed_
+  # successfully below, blocks the webserver/scheduler from starting).
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - >-
+        airflow db migrate &&
+        (airflow users create --username admin --password CanopicaAirflowAdmin123!
+        --firstname Admin --lastname Admin --role Admin --email admin@canopica.local
+        || true)
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 40s
+
+  # LocalExecutor runs every task as a subprocess of the scheduler itself,
+  # not a separate worker -- this is the container that actually executes
+  # extract/dbt_build/materialize/provision_metabase. No triggerer service:
+  # that's only needed for deferrable operators, which this DAG doesn't use.
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
 
 volumes:
   postgres-data:

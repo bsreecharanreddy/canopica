@@ -7,3 +7,10 @@
 create role canopica_app with login password 'canopica_app';
 create database canopica_operational owner canopica_app;
 create database canopica_serving owner canopica_app;
+
+-- Airflow's own metadata DB (task/DAG-run state, connections, users) --
+-- orchestration-internal, unrelated to the app's own operational data, so
+-- it gets its own role rather than reusing canopica_app (least privilege: an
+-- Airflow credential compromise shouldn't also be an canopica_operational one).
+create role airflow with login password 'airflow';
+create database airflow owner airflow;
