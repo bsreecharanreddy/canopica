@@ -49,6 +49,24 @@ class IntakeControllerTest extends AbstractApiTest {
     }
 
     @Test
+    void submittingAnApplicationCreatesExactlyOneOutstandingIncomeVerification() throws Exception {
+        String body = TestPayloads.threePersonWorkingHouseholdIntake();
+
+        String response = mvc.perform(post("/api/applications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID programRequestId = UUID.fromString(objectMapper.readTree(response).get("programRequestId").asText());
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from verification where program_request_id = ? "
+                        + "and data_element = 'INCOME' and status = 'OUTSTANDING'",
+                Integer.class, programRequestId)).isEqualTo(1);
+    }
+
+    @Test
     void rejectsAnIntakeWithNoHouseholdMembers() throws Exception {
         mvc.perform(post("/api/applications").header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
                         .contentType(MediaType.APPLICATION_JSON)

@@ -1,13 +1,18 @@
 package ies.portal.caseload;
 
 import ies.portal.domain.CaseAssignment;
+import ies.portal.domain.Worker;
 import ies.portal.repo.CaseAssignmentRepository;
 import ies.portal.repo.HouseholdRepository;
+import ies.portal.repo.WorkerRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,20 +20,46 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code case_assignment} is the sole source of truth for "who can see this household" (design doc §2.1) --
  * never a role check, never a county match. Assignment is auto-claim-on-first-touch: the first worker to
  * open a household with no existing assignment becomes the assigned worker, with no separate
- * assignment-queue UI. A {@code SUPERVISOR} can always view any household (that check lives in
- * WorkerCaseController, not here) and can explicitly reassign one.
+ * assignment-queue UI. A {@code SUPERVISOR} can always view any household and can explicitly reassign one.
  */
 @Service
 public class CaseAssignmentService {
 
     private final CaseAssignmentRepository caseAssignments;
     private final HouseholdRepository households;
+    private final WorkerRepository workers;
     private final Clock clock;
 
-    public CaseAssignmentService(CaseAssignmentRepository caseAssignments, HouseholdRepository households, Clock clock) {
+    public CaseAssignmentService(CaseAssignmentRepository caseAssignments, HouseholdRepository households,
+            WorkerRepository workers, Clock clock) {
         this.caseAssignments = caseAssignments;
         this.households = households;
+        this.workers = workers;
         this.clock = clock;
+    }
+
+    /**
+     * Row-level authorization (design doc §2.1), shared by every controller that reads or acts on one
+     * household's case: a SUPERVISOR always gets in -- viewing without being the assigned worker is
+     * logged (the returned {@code inAssignment} flag), not blocked. A WORKER who is the first to ever
+     * touch this household auto-claims it (a real case_assignment row, not just a read); a WORKER who
+     * touches a household someone else already claimed gets denied outright.
+     */
+    public boolean checkCaseloadAccess(UUID householdId, Authentication authentication) {
+        Worker viewer = workers.findByKeycloakSubject(authentication.getName())
+                .orElseThrow(() -> new NoSuchElementException("no worker row for " + authentication.getName()));
+
+        boolean isSupervisor = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPERVISOR"));
+        if (isSupervisor) {
+            return isAssignedTo(householdId, viewer.getId());
+        }
+
+        CaseAssignment assignment = assignOnFirstTouch(householdId, viewer.getId());
+        if (!assignment.getWorkerId().equals(viewer.getId())) {
+            throw new AccessDeniedException("household " + householdId + " is assigned to a different worker");
+        }
+        return true;
     }
 
     /**
