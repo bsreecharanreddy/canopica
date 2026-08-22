@@ -49,6 +49,24 @@ def _postgres_container() -> Iterator[PostgresContainer]:
 
 
 @pytest.fixture(scope="session")
+def _serving_postgres_container() -> Iterator[PostgresContainer]:
+    """A separate, unmigrated Postgres instance standing in for the serving
+    database -- materialize_gold() creates its own `reporting` schema/tables,
+    so no Flyway migrations belong here, unlike migrated_dsn's operational
+    container."""
+    with PostgresContainer(
+        "postgres:16-alpine", username="ies_app", password="ies_app", dbname="ies_serving"
+    ) as container:
+        yield container
+
+
+@pytest.fixture
+def serving_dsn(_serving_postgres_container: PostgresContainer) -> str:
+    host_port = _serving_postgres_container.get_exposed_port(5432)
+    return f"postgresql://ies_app:ies_app@localhost:{host_port}/ies_serving"
+
+
+@pytest.fixture(scope="session")
 def migrated_dsn(_postgres_container: PostgresContainer) -> str:
     """A DSN for a Postgres instance with every V1-V6 migration applied.
 

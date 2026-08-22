@@ -22,7 +22,18 @@ class Settings(BaseSettings):
     # is data-platform/warehouse in practice.
     warehouse_root: Path = Path("warehouse")
 
+    metabase_url: str = "http://localhost:3001"
+    metabase_user: str = "admin@ies.local"
+    metabase_password: str = "IesAdmin123!"
+
     @property
     def bronze_root(self) -> Path:
         """Append-only Delta landings of the operational tables."""
         return self.warehouse_root / "bronze"
+
+    @property
+    def duckdb_path(self) -> Path:
+        """The dbt-built warehouse file, matching profiles.yml's own
+        default (`../../warehouse/ies.duckdb`, relative to dbt/ies_warehouse/
+        -- the same path as warehouse_root/ies.duckdb from here)."""
+        return self.warehouse_root / "ies.duckdb"

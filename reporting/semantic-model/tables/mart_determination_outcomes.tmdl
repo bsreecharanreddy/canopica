@@ -1,0 +1,93 @@
+table mart_determination_outcomes
+	lineageTag: ies-mart-determination-outcomes
+
+	column benefit_month
+		dataType: dateTime
+		formatString: Long Date
+		sourceColumn: benefit_month
+		summarizeBy: none
+
+	column program_code
+		dataType: string
+		sourceColumn: program_code
+		summarizeBy: none
+
+	column outcome
+		dataType: string
+		sourceColumn: outcome
+		summarizeBy: none
+
+	column reason_code
+		dataType: string
+		sourceColumn: reason_code
+		summarizeBy: none
+
+	column policy_parameter_version
+		dataType: string
+		sourceColumn: policy_parameter_version
+		summarizeBy: none
+
+	column determination_count
+		dataType: int64
+		formatString: #,0
+		sourceColumn: determination_count
+		summarizeBy: sum
+
+	column eligible_count
+		dataType: int64
+		formatString: #,0
+		sourceColumn: eligible_count
+		summarizeBy: sum
+
+	column total_benefit_amount
+		dataType: decimal
+		formatString: "$"#,0.00
+		sourceColumn: total_benefit_amount
+		summarizeBy: sum
+
+	column average_benefit_amount
+		dataType: decimal
+		formatString: "$"#,0.00
+		sourceColumn: average_benefit_amount
+		summarizeBy: none
+
+	/// Total determinations in the current filter context -- a plain SUM
+	/// over determination_count, since the mart's grain is already one row
+	/// per (month, program, outcome, reason, parameter version) group.
+	measure 'Determinations' = SUM('mart_determination_outcomes'[determination_count])
+		formatString: #,0
+
+	/// Eligible determinations divided by all determinations, in the
+	/// current filter context.
+	measure 'Eligible Rate' = ```
+			DIVIDE(
+				SUM('mart_determination_outcomes'[eligible_count]),
+				SUM('mart_determination_outcomes'[determination_count])
+			)
+			```
+		formatString: 0.0%
+
+	/// Determination-count-weighted average benefit -- deliberately not
+	/// AVERAGE(average_benefit_amount), which would average the mart's
+	/// already-per-group averages with equal weight regardless of each
+	/// group's size and understate/overstate the true mean whenever group
+	/// sizes differ.
+	measure 'Average Benefit' = ```
+			DIVIDE(
+				SUM('mart_determination_outcomes'[total_benefit_amount]),
+				SUM('mart_determination_outcomes'[determination_count])
+			)
+			```
+		formatString: "$"#,0.00
+
+	partition mart_determination_outcomes = m
+		mode: import
+		source =
+				let
+					Source = PostgreSQL.Database(ServingHost, "ies_serving"),
+					reporting = Source{[Schema="reporting"]}[Data],
+					mart = reporting{[Name="mart_determination_outcomes"]}[Data]
+				in
+					mart
+
+	annotation PBI_ResultType = Table

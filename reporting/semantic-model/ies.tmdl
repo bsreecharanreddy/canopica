@@ -1,0 +1,11 @@
+model IES
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+
+	annotation PBI_QueryOrder = ["ServingHost", "mart_determination_outcomes"]
+
+expression ServingHost = "localhost" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	annotation PBI_ResultType = Text
+
+ref table mart_determination_outcomes
