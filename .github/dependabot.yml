@@ -1,0 +1,41 @@
+# Automated dependency-update PRs, one per ecosystem this repo actually
+# uses -- see CLAUDE.md's "Language policy" and "Tech stack" for why each
+# of these exists (Java portal + rules engine, the data platform's uv-managed
+# Python, the portal's npm web client, three Dockerfiles from Task 12, and
+# this repo's own CI workflow).
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: "/portal/web"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: uv
+    directory: "/data-platform"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/portal"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/portal/web"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/data-platform"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
