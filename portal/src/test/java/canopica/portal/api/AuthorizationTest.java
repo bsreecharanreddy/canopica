@@ -35,12 +35,24 @@ class AuthorizationTest extends AbstractApiTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // The genuine "authenticated, wrong role" 403 case: supervisor.robin authenticates fine against the
-    // worker chain (same realm, valid signature) but only carries SUPERVISOR, not WORKER -- Task 2 is what
-    // gives SUPERVISOR its own access; Task 1 doesn't widen these hasRole("WORKER") checks to include it.
+    // Task 2 widened these role gates: a SUPERVISOR can view any case (design doc §2.1) -- the
+    // caseload-scoped part of that (assigned WORKER vs. anyone else) is a data-driven check in
+    // WorkerCaseController, not a role gate, so it isn't exercised here; this only proves the role itself
+    // clears SecurityConfig's static check.
     @Test
-    void supervisorTokenIsForbiddenFromTheWorkerCaseList() throws Exception {
+    void supervisorTokenIsAuthorizedForTheWorkerCaseList() throws Exception {
         mvc.perform(get("/api/worker/cases").header(HttpHeaders.AUTHORIZATION, "Bearer " + supervisorToken()))
+                .andExpect(status().isOk());
+    }
+
+    // The genuine "authenticated, wrong role" 403 case post-Task-2: creating a determination is still
+    // WORKER-only -- Task 2 did not widen this endpoint the way it widened case viewing.
+    @Test
+    void supervisorTokenIsForbiddenFromCreatingADetermination() throws Exception {
+        mvc.perform(post("/api/program-requests/" + UUID.randomUUID() + "/determinations")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + supervisorToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"asOfDate\":\"2025-06-15\",\"benefitMonth\":\"2025-06-01\"}"))
                 .andExpect(status().isForbidden());
     }
 

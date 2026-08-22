@@ -64,12 +64,18 @@ class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/program-requests/*/determinations")
                         .hasRole("WORKER")
+                        // A SUPERVISOR can view any case (design doc §2.1) -- the caseload-scoped check
+                        // itself (assigned WORKER vs. anyone else) is data-driven, not role-based, so it
+                        // lives in WorkerCaseController, not here; this gate only proves the *role* is
+                        // allowed to reach these endpoints at all.
                         .requestMatchers(HttpMethod.GET, "/api/program-requests/*")
-                        .hasRole("WORKER")
+                        .hasAnyRole("WORKER", "SUPERVISOR")
                         .requestMatchers(HttpMethod.GET, "/api/determinations/*/trace")
-                        .hasRole("WORKER")
+                        .hasAnyRole("WORKER", "SUPERVISOR")
+                        .requestMatchers("/api/supervisor/**")
+                        .hasRole("SUPERVISOR")
                         .requestMatchers("/api/worker/**")
-                        .hasRole("WORKER")
+                        .hasAnyRole("WORKER", "SUPERVISOR")
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(

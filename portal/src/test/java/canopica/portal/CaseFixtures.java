@@ -50,6 +50,15 @@ public final class CaseFixtures {
         insertIncome(jdbc, ids.headPersonId(), "WAGES", true, monthlyAmount, effectiveFrom);
     }
 
+    /** A bare {@code worker} row with a fabricated (non-Keycloak-backed) id -- for tests below the API layer. */
+    public static UUID insertWorker(JdbcTemplate jdbc, String fullName, String role) {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "insert into worker (id, full_name, email, role) values (?, ?, ?, ?)",
+                id, fullName, "worker-" + id + "@canopica.local", role);
+        return id;
+    }
+
     private static UUID insertPerson(JdbcTemplate jdbc, String firstName, String lastName, LocalDate dob) {
         UUID id = UUID.randomUUID();
         jdbc.update(
