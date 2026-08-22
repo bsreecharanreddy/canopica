@@ -15,6 +15,11 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="IES_", env_file=".env", extra="ignore")
 
+    # These are fixed placeholder credentials for the local Docker Compose
+    # stack only (infra/docker-compose.yml) -- never reachable outside
+    # localhost/the Compose network, and overridable via IES_-prefixed env
+    # vars (see infra/.env.example). Not production secrets; a real
+    # deployment supplies real values through the environment, not this file.
     operational_dsn: str = "postgresql://ies_app:ies_app@localhost:5432/ies_operational"
     serving_dsn: str = "postgresql://ies_app:ies_app@localhost:5432/ies_serving"
     # Relative to cwd, not the repo root: every entry point here runs via
