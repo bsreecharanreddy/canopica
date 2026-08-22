@@ -31,7 +31,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 | API edge | Direct to service | API gateway (Azure APIM, Apigee), WAF, rate limiting, mutual TLS between tiers | **~** | Insert gateway; no application code change. |
 | Identity — authentication | Keycloak, self-hosted OIDC, two realms | PingFederate / ForgeRock / Entra External ID for citizens; enterprise SSO (SAML/OIDC) + PIV/CAC for staff | **≈** | Swap the OIDC provider. Spring Security config changes; application code does not. |
 | Identity — *proofing* | None | **This is the real gap.** Citizen portals federate to a NIST IAL2 identity-proofing service (Login.gov, ID.me) that verifies a human is who they claim before an account exists | **~** | Genuinely absent here — see §4.3. Keycloak authenticates an account; it does not prove an identity. |
-| Authorization | Spring Security RBAC + caseload-scoped row filtering | Same, plus attribute-based policies, sensitive-case sealing (VIP/employee/domestic-violence cases), and periodic access recertification | **≈** | Add recertification workflow; core model is the same. |
+| Authorization | Spring Security RBAC + explicit `CASE_ASSIGNMENT`-scoped row filtering; sensitive cases are flagged and logged, not sealed | Same, plus attribute-based policies, true sensitive-case sealing (VIP/employee/domestic-violence cases, blocked without an override workflow), and periodic access recertification | **≈** | Add recertification workflow and a real sealing/override flow; core assignment-scoped model is the same. |
 
 ### Rules tier
 
@@ -46,6 +46,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 | Layer | Canopica uses | Real production equivalent | Fidelity | What would change |
 |---|---|---|---|---|
 | Operational store | Postgres | Oracle (still dominant in legacy state systems), SQL Server, or Postgres | **≈** | Dialect differences in DDL only. |
+| PII protection (silver tokenization) | `pii_token` vault table, `pgcrypto`-encrypted, narrow-RLS'd; detokenization is a separate audited call (Phase 1b) | A dedicated tokenization product or HSM-backed envelope encryption, running as an out-of-band service with its own credential | **~** | See §4.15 — the vault lives in the same database and failure domain as the data it protects, unlike a real out-of-band vault. |
 | Transformation | dbt, medallion (bronze/silver/gold) | dbt on Databricks/Snowflake/Fabric — or, in older systems, Informatica / DataStage / Ab Initio | **=** | The dbt project is portable as-is. |
 | Compute engine | DuckDB (local, in-process) | Spark on Databricks, Fabric, or Synapse | **≈** | A dbt profile swap (`dbt-duckdb` → `dbt-databricks`). Model SQL is unchanged. |
 | Table format | Delta Lake, via the open-source `deltalake` library (no Spark) | Delta Lake on Databricks/Fabric, or Iceberg | **=** | Same on-disk format, byte for byte. |
@@ -84,7 +85,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 
 | Layer | Canopica uses | Real production equivalent | Fidelity | What would change |
 |---|---|---|---|---|
-| External verification | One mock interface (wage/income stand-in) with FTI-style safeguards genuinely applied | A dozen-plus real federal and state interfaces — SSA benefit/citizenship verification, IRS income data, DHS immigration-status verification, new-hire and wage databases, interstate duplicate-participation checks | **~** | The mock proves the *pattern* (request, safeguard, audit, reconcile). It cannot prove integration against a real counterparty with a real SLA and a real data-sharing agreement. |
+| External verification | One mock interface (wage/income stand-in): synchronous REST, deterministic canned responses, every request/response an audit-chain event, raw response readable only by an active `CASE_ASSIGNMENT` holder | A dozen-plus real federal and state interfaces — SSA benefit/citizenship verification, IRS income data, DHS immigration-status verification, new-hire and wage databases, interstate duplicate-participation checks | **~** | The mock proves the *pattern* (request, safeguard, audit, reconcile). It cannot prove integration against a real counterparty with a real SLA and a real data-sharing agreement. |
 | Transport | REST over HTTPS | Batch SFTP / managed file transfer, message queues, an ESB — often on a nightly cycle, sometimes fixed-width flat files | **~** | Real interfaces are far more batch-oriented and far less RESTful than a modern greenfield design suggests. |
 
 ### Platform tier
@@ -95,7 +96,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 | IaC | Terraform (reference, not applied by default) | Terraform / Bicep, applied through a gated release pipeline with policy-as-code guardrails | **≈** | Same language, plus approval gates and drift detection. |
 | Cloud | Local; documented Azure path | **Azure Government** — separate instance, screened U.S. persons, FedRAMP High / DoD IL4-5 / IRS 1075 / HIPAA accreditation | **~** | Not obtainable without a government or approved-contractor tenant. See the roadmap doc §3.4. |
 | Secrets | `.env` + local Keycloak credentials | Key Vault / HashiCorp Vault, HSM-backed, FIPS 140-validated crypto modules, automated rotation | **~** | Substituted for local-run convenience; the *code* reads from an abstraction either way. |
-| Observability | OpenTelemetry → local collector | OpenTelemetry → Azure Monitor / **Splunk** (near-standard in government), with 24/7 alerting and on-call rotation | **≈** | Backend swap. Instrumentation code is identical — that's the point of OTel. |
+| Observability | OpenTelemetry → Jaeger (traces) + Prometheus/Grafana (metrics), self-hosted single-host containers | OpenTelemetry → Azure Monitor / **Splunk** (near-standard in government), with 24/7 alerting and on-call rotation | **≈** | Backend swap. Instrumentation code is identical — that's the point of OTel. |
 | CI/CD | GitHub Actions: build, lint, test, dbt tests, fairness gate, eval gate | Azure DevOps / GitLab, plus SAST, DAST, software composition analysis, container scanning, STIG compliance scanning, and a formal change-approval board | **≈** | More gates, slower cadence, human approval boards. |
 
 ## 3. What genuinely transfers
@@ -217,6 +218,16 @@ missing is provisioning four more environments to run them against, which
 is infrastructure cost a personal project doesn't carry, not a gap in the
 pipeline's design.
 
+**4.15 PII tokenization shares a failure domain with the data it
+protects.** The `pii_token` vault (Phase 1b) lives in the same Postgres
+instance, behind the same database credential, as every other operational
+table — not in a separate service with its own credential and key
+management the way a real tokenization product or HSM-backed vault would.
+Compromising the application database compromises the vault too. This is
+the same shape of compromise §4.11 already accepts for `pgmq` — reusing
+existing infrastructure instead of standing up a dedicated service —
+applied here to PII instead of queues.
+
 ## 5. Cost
 
 Running the full stack locally is **$0** and requires no cloud account, no
@@ -227,8 +238,9 @@ overspending.
 
 That constraint drove several choices above — Ollama over a hosted API,
 DuckDB over managed Spark, MinIO over cloud storage, Keycloak over a
-commercial IdP, pgmq over RabbitMQ/Kafka, and batch extraction over
-Debezium/CDC. In every case the substitute was chosen specifically
+commercial IdP, pgmq over RabbitMQ/Kafka, batch extraction over
+Debezium/CDC, and a `pgcrypto`-backed token vault over a dedicated
+tokenization product. In every case the substitute was chosen specifically
 because the *interface* it presents matches the production equivalent,
 so the migration path is real rather than aspirational.
 

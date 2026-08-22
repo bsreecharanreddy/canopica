@@ -130,6 +130,11 @@ reasoning lives in the design docs.
 | Bronze storage, Phase 1a | Local filesystem Delta tables; MinIO/S3 is a `storage_options` swap in Phase 1b | Phase 1a plan, Task 10 |
 | Async messaging | **pgmq** (Postgres extension), not RabbitMQ/Kafka — document-intake jobs, correspondence dispatch, fraud-triage triggers. Portfolio-documented substitute, not an oversight. | Roadmap §3.3; tech-stack doc's Messaging tier + §4.11 |
 | Ingestion pattern | Batch extract (Python job) for Phase 1a; CDC/Debezium documented as the production equivalent, not built — same treatment as pgmq, and for the same reason (needs a broker). | Roadmap §3.3; tech-stack doc's Data tier + §4.12 |
+| Row-level auth model | Explicit `CASE_ASSIGNMENT` per household (not implicit by county); auto-claimed on first worker touch; `SUPERVISOR` can view any case, logged (not blocked) via a `CASE_VIEWED` payload flag; sensitive-case flag is flag-and-log, not sealing | Phase 1b design doc §2.1; tech-stack doc's Authorization row |
+| Mock external verification shape | Synchronous REST, deterministic canned responses keyed by input hash, every request/response an audit-chain event, raw response gated by an active `CASE_ASSIGNMENT` | Phase 1b design doc §2.2; tech-stack doc's External verification row |
+| PII tokenization | `pii_token` vault table (`pgcrypto`-encrypted), narrow-RLS'd; detokenization is a separate audited call, not a normal column read | Phase 1b design doc §2.3; tech-stack doc's Data tier + §4.15 |
+| `mart_fairness_audit` timing | Deferred from Phase 1b to Phase 4, built alongside fraud-triage so it has both comparison axes from day one | Phase 1b design doc §2.4 |
+| Observability stack | Jaeger (traces) + Prometheus/Grafana (metrics), self-hosted single-host — not a heavier collector/Tempo/Loki stack | Phase 1b design doc §2.5; tech-stack doc's Observability row |
 
 ## Open questions
 
