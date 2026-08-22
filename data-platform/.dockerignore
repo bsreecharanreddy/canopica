@@ -1,0 +1,14 @@
+.venv
+__pycache__
+*.py[cod]
+.mypy_cache
+.pytest_cache
+.ruff_cache
+warehouse
+*.duckdb
+*.duckdb.wal
+tests
+dbt/ies_warehouse/target
+dbt/ies_warehouse/logs
+dbt/ies_warehouse/dbt_packages
+dbt/ies_warehouse/.user.yml
