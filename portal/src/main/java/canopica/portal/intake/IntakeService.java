@@ -14,6 +14,7 @@ import canopica.portal.domain.IncomeRecord;
 import canopica.portal.domain.LivingArrangement;
 import canopica.portal.domain.Person;
 import canopica.portal.domain.ProgramRequest;
+import canopica.portal.domain.Verification;
 import canopica.portal.repo.ApplicationRepository;
 import canopica.portal.repo.ExpenseRecordRepository;
 import canopica.portal.repo.HouseholdMemberRepository;
@@ -22,6 +23,7 @@ import canopica.portal.repo.IncomeRecordRepository;
 import canopica.portal.repo.LivingArrangementRepository;
 import canopica.portal.repo.PersonRepository;
 import canopica.portal.repo.ProgramRequestRepository;
+import canopica.portal.repo.VerificationRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -49,6 +51,7 @@ public class IntakeService {
     private final ExpenseRecordRepository expenseRecords;
     private final ApplicationRepository applications;
     private final ProgramRequestRepository programRequests;
+    private final VerificationRepository verifications;
     private final AuditService auditService;
     private final Clock clock;
 
@@ -56,7 +59,7 @@ public class IntakeService {
                   HouseholdMemberRepository householdMembers, LivingArrangementRepository livingArrangements,
                   IncomeRecordRepository incomeRecords, ExpenseRecordRepository expenseRecords,
                   ApplicationRepository applications, ProgramRequestRepository programRequests,
-                  AuditService auditService, Clock clock) {
+                  VerificationRepository verifications, AuditService auditService, Clock clock) {
         this.persons = persons;
         this.households = households;
         this.householdMembers = householdMembers;
@@ -65,6 +68,7 @@ public class IntakeService {
         this.expenseRecords = expenseRecords;
         this.applications = applications;
         this.programRequests = programRequests;
+        this.verifications = verifications;
         this.auditService = auditService;
         this.clock = clock;
     }
@@ -125,6 +129,12 @@ public class IntakeService {
         UUID programRequestId = UUID.randomUUID();
         programRequests.save(new ProgramRequest(
                 programRequestId, applicationId, "SNAP", "SUBMITTED", today, false));
+
+        // 7 CFR 273.2(f)(1): households must be given at least 10 days to provide verification. Only
+        // INCOME is requested at intake today (design doc §2.2) -- the other data_element values the
+        // verification table's CHECK constraint allows are for a later phase.
+        verifications.save(new Verification(
+                UUID.randomUUID(), programRequestId, "INCOME", "OUTSTANDING", today.plusDays(10), null));
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("householdId", householdId.toString());

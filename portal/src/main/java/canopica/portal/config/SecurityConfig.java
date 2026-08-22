@@ -72,6 +72,12 @@ class SecurityConfig {
                         .hasAnyRole("WORKER", "SUPERVISOR")
                         .requestMatchers(HttpMethod.GET, "/api/determinations/*/trace")
                         .hasAnyRole("WORKER", "SUPERVISOR")
+                        // "/api/program-requests/*" above matches exactly one path segment past the id, so
+                        // it does not cover this nested resource -- needs its own entry. Same data-driven
+                        // caseload check as case viewing (Task 2), reused wholesale by VerificationController
+                        // rather than re-implemented, so a SUPERVISOR is allowed here too.
+                        .requestMatchers("/api/program-requests/*/verifications/**")
+                        .hasAnyRole("WORKER", "SUPERVISOR")
                         .requestMatchers("/api/supervisor/**")
                         .hasRole("SUPERVISOR")
                         .requestMatchers("/api/worker/**")

@@ -59,6 +59,20 @@ public final class CaseFixtures {
         return id;
     }
 
+    /**
+     * An OUTSTANDING verification row -- {@link #threePersonWorkingHousehold} doesn't create one itself
+     * (it bypasses {@code IntakeService} entirely), so tests that need one seed it directly, same reason
+     * {@link #insertWorker} exists.
+     */
+    public static UUID insertVerification(JdbcTemplate jdbc, UUID programRequestId, String dataElement) {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "insert into verification (id, program_request_id, data_element, status, due_on) "
+                        + "values (?, ?, ?, 'OUTSTANDING', ?)",
+                id, programRequestId, dataElement, BASE_EFFECTIVE_FROM.plusDays(10));
+        return id;
+    }
+
     private static UUID insertPerson(JdbcTemplate jdbc, String firstName, String lastName, LocalDate dob) {
         UUID id = UUID.randomUUID();
         jdbc.update(
