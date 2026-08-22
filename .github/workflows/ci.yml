@@ -93,3 +93,22 @@ jobs:
           enable-cache: true
       - run: uv sync --dev
       - run: uv run pytest -m integration tests/test_materialize.py
+
+  e2e:
+    name: End-to-end (full Compose stack)
+    runs-on: ubuntu-latest
+    needs: [java, python, dbt]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: docker compose -f infra/docker-compose.yml up -d --build --wait
+      - run: cd data-platform && uv sync --dev && uv run pytest -m e2e
+      - if: always()
+        run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-logs
+          path: compose-logs.txt

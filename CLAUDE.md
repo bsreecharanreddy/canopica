@@ -69,16 +69,28 @@ that's a design bug, not an implementation detail to work around.
 `docs/STATUS.md` holds it, at task granularity. Deliberately not duplicated
 here — two places to record the same thing means one of them is wrong.
 
-At the coarsest level: **design phase complete, Phase 1a not started.**
+At the coarsest level: **Phase 1a done, verified end-to-end. Phase 1b not
+started.**
 
 ## Phase plan
 
 See the roadmap doc for full detail. At a glance:
 
-- **Phase 1a — planned, not started.** Walking skeleton: intake →
+- **Phase 1a — done, verified end-to-end.** Walking skeleton: intake →
   DMN determination (with persisted trace) → hash-chained audit → one dbt
   path through bronze/silver/gold → one report page. Roles hardcoded, no
-  Keycloak, no Airflow, no OTel yet. Demoable on completion.
+  Keycloak, no Airflow, no OTel yet — see the "Deferred out of Phase 1a, on
+  purpose" list at the bottom of the Phase 1a plan for the full,
+  intentional scope boundary. Verified for real, not just by test count:
+  `data-platform/tests/test_end_to_end.py` (`pytest -m e2e`, CI's `e2e`
+  job) submits an application through the real portal API, runs a real
+  determination as a worker, reads its persisted DMN trace, verifies the
+  real hash-chained audit log, rebuilds the real dbt warehouse from the
+  live operational database, and confirms the gold mart's dollar amount is
+  the exact number the rules engine decided — the same slice is also
+  walkable by hand via `docs/demo.md`, which was itself run once for real
+  (not just written from the code) before being committed. Demoable, and
+  demoed.
 - **Phase 1b — planned.** Hardening: Keycloak, caseload-scoped row-level
   authorization, mock external verification interface, Airflow, full
   medallion coverage, governance mapping, accessibility, observability.
