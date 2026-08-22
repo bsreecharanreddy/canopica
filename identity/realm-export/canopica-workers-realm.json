@@ -1,0 +1,67 @@
+{
+  "realm": "canopica-workers",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 900,
+  "roles": {
+    "realm": [
+      { "name": "WORKER", "description": "Caseworker: intake review, determinations, case detail" },
+      { "name": "SUPERVISOR", "description": "Can view any case, reassign case ownership, flag sensitive cases" },
+      { "name": "ADMIN", "description": "Administrative role, reserved for future use" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "canopica-portal-web",
+      "name": "Canopica Portal (worker realm, browser PKCE)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "test-worker",
+      "name": "Automated test client -- fetches tokens for pytest/Maven test suites, never used by a real user",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "test-worker-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "worker.sam",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "worker.sam@canopica.local",
+      "firstName": "Sam",
+      "lastName": "Worker",
+      "credentials": [{ "type": "password", "value": "CanopicaWorker123!", "temporary": false }],
+      "requiredActions": [],
+      "realmRoles": ["WORKER"]
+    },
+    {
+      "username": "supervisor.robin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "supervisor.robin@canopica.local",
+      "firstName": "Robin",
+      "lastName": "Supervisor",
+      "credentials": [{ "type": "password", "value": "CanopicaSupervisor123!", "temporary": false }],
+      "requiredActions": [],
+      "realmRoles": ["SUPERVISOR"]
+    }
+  ]
+}

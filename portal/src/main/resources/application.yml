@@ -31,3 +31,21 @@ canopica:
   # Benefit months, effective dating, and the annual October parameter change
   # are all civil-calendar concepts; pin the zone rather than inherit the host's.
   timezone: America/New_York
+  keycloak:
+    # issuer-uri is a comparison string, not a URL this app ever connects to
+    # -- it's what Keycloak actually stamps into every token's `iss` claim,
+    # which is always the address the *token-requesting* caller (browser,
+    # test, or the synthetic-data loader) used to reach Keycloak. Every one
+    # of those callers runs on the host, never inside the Compose network,
+    # so this stays localhost:8081 in both local dev and Docker Compose --
+    # unlike jwks-uri below, it does not get overridden per environment.
+    workers-issuer-uri: ${CANOPICA_KEYCLOAK_WORKERS_ISSUER_URI:http://localhost:8081/realms/canopica-workers}
+    citizens-issuer-uri: ${CANOPICA_KEYCLOAK_CITIZENS_ISSUER_URI:http://localhost:8081/realms/canopica-citizens}
+    # jwks-uri is a real network address this app fetches signing keys from
+    # -- unlike issuer-uri, it must actually be reachable from wherever
+    # portal-api itself runs. Local (non-Docker) dev default matches the
+    # issuer above; infra/docker-compose.yml overrides both jwks-uri env
+    # vars to the container-network hostname, since portal-api can't reach
+    # "localhost:8081" meaningfully from inside its own container.
+    workers-jwks-uri: ${CANOPICA_KEYCLOAK_WORKERS_JWKS_URI:${canopica.keycloak.workers-issuer-uri}/protocol/openid-connect/certs}
+    citizens-jwks-uri: ${CANOPICA_KEYCLOAK_CITIZENS_JWKS_URI:${canopica.keycloak.citizens-issuer-uri}/protocol/openid-connect/certs}

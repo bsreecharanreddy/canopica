@@ -61,6 +61,7 @@ class StackFixture:
     hand-assembled approximation of them."""
 
     api_url: str
+    keycloak_url: str
     operational_dsn: str
     serving_dsn: str
     bronze_root: Path
@@ -72,6 +73,7 @@ def stack(tmp_path: Path) -> StackFixture:
     settings = Settings()
     return StackFixture(
         api_url="http://localhost:8080",
+        keycloak_url="http://localhost:8081",
         operational_dsn=settings.operational_dsn,
         serving_dsn=settings.serving_dsn,
         bronze_root=tmp_path / "bronze",
@@ -79,13 +81,40 @@ def stack(tmp_path: Path) -> StackFixture:
     )
 
 
+def _fetch_worker_token(keycloak_url: str) -> str:
+    """Real Direct Access Grant against the real Compose Keycloak, the
+    `test-worker` client identity/realm-export/canopica-workers-realm.json seeds
+    for exactly this purpose -- replaces the X-Canopica-Role header this test
+    used before Keycloak existed. Same "hit the real thing" standard as
+    every other step in this test: no hand-built or mocked JWT."""
+    response = httpx.post(
+        f"{keycloak_url}/realms/canopica-workers/protocol/openid-connect/token",
+        data={
+            "grant_type": "password",
+            "client_id": "test-worker",
+            "client_secret": "test-worker-secret",
+            "username": "worker.sam",
+            "password": "CanopicaWorker123!",
+        },
+        timeout=30.0,
+    )
+    response.raise_for_status()
+    token: str = response.json()["access_token"]
+    return token
+
+
 def _run_determination(
-    api_url: str, program_request_id: uuid.UUID, *, as_of: date, benefit_month: date
+    api_url: str,
+    worker_token: str,
+    program_request_id: uuid.UUID,
+    *,
+    as_of: date,
+    benefit_month: date,
 ) -> dict[str, Any]:
     response = httpx.post(
         f"{api_url}/api/program-requests/{program_request_id}/determinations",
         json={"asOfDate": as_of.isoformat(), "benefitMonth": benefit_month.isoformat()},
-        headers={"X-Canopica-Role": "WORKER"},
+        headers={"Authorization": f"Bearer {worker_token}"},
         timeout=30.0,
     )
     response.raise_for_status()
@@ -93,10 +122,10 @@ def _run_determination(
     return result
 
 
-def _get_trace(api_url: str, determination_id: str) -> dict[str, Any]:
+def _get_trace(api_url: str, worker_token: str, determination_id: str) -> dict[str, Any]:
     response = httpx.get(
         f"{api_url}/api/determinations/{determination_id}/trace",
-        headers={"X-Canopica-Role": "WORKER"},
+        headers={"Authorization": f"Bearer {worker_token}"},
         timeout=30.0,
     )
     response.raise_for_status()
@@ -159,20 +188,26 @@ def test_intake_through_determination_audit_warehouse_and_mart(stack: StackFixtu
     household = generate_households(1, seed=1234)[0]
     ids = post_households([household], stack.api_url)[0]
 
-    # 2. Determination -- through the real API, as a worker. `as_of` must be
-    #    on/after today: FactAssembler (portal) only sees household_member
-    #    rows whose effective_from -- set to the real submission date by
-    #    IntakeService -- is <= as_of.
+    # 2. Determination -- through the real API, as a worker authenticated
+    #    against the real Compose Keycloak. `as_of` must be on/after today:
+    #    FactAssembler (portal) only sees household_member rows whose
+    #    effective_from -- set to the real submission date by IntakeService
+    #    -- is <= as_of.
+    worker_token = _fetch_worker_token(stack.keycloak_url)
     as_of = date.today()
     benefit_month = _random_benefit_month()
     determination = _run_determination(
-        stack.api_url, ids.program_request_id, as_of=as_of, benefit_month=benefit_month
+        stack.api_url,
+        worker_token,
+        ids.program_request_id,
+        as_of=as_of,
+        benefit_month=benefit_month,
     )
     assert determination["policyParameterVersion"] in KNOWN_SNAP_PARAMETER_VERSIONS
     assert determination["reasonCode"] in REASON_CODES
 
     # 3. Trace -- persisted, complete, and matching the model that ran.
-    trace = _get_trace(stack.api_url, determination["determinationId"])
+    trace = _get_trace(stack.api_url, worker_token, determination["determinationId"])
     assert "Excess Shelter Deduction" in trace["decisionResults"]
     assert len(trace["dmnModelHash"]) == 64
 

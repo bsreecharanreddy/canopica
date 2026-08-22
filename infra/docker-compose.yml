@@ -39,6 +39,31 @@ services:
       retries: 12
       start_period: 30s
 
+  # Dev-mode Keycloak: no TLS, a bootstrap admin whose credentials are
+  # local-only -- same "$0, self-hosted, local-first" tradeoff every other
+  # service in this stack already makes. See identity/README.md.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: CanopicaKeycloakAdmin123!
+      # Health endpoint lives on a separate management port (9000, not
+      # 8080) since Keycloak 26 and is off unless explicitly enabled.
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ../identity/realm-export:/opt/keycloak/data/import:ro
+    ports:
+      - "8081:8080"
+    healthcheck:
+      # No curl/wget in this image -- /dev/tcp is bash's own raw-socket
+      # workaround, the standard fix for that gap.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
   portal-api:
     build:
       context: ..
@@ -47,10 +72,21 @@ services:
       CANOPICA_OPERATIONAL_JDBC_URL: jdbc:postgresql://postgres:5432/canopica_operational
       CANOPICA_OPERATIONAL_USER: canopica_app
       CANOPICA_OPERATIONAL_PASSWORD: canopica_app
+      # Deliberately *not* overriding CANOPICA_KEYCLOAK_*_ISSUER_URI here -- every
+      # token's real `iss` claim is localhost:8081 (application.yml's own
+      # default), since every caller that ever requests a token (browser,
+      # test, the synthetic-data loader) runs on the host, never inside this
+      # network. Only jwks-uri needs the container-network address, since
+      # that one's an address portal-api actually connects to. See
+      # SecurityConfig.lazyJwksDecoder's comment for the full reasoning.
+      CANOPICA_KEYCLOAK_WORKERS_JWKS_URI: http://keycloak:8080/realms/canopica-workers/protocol/openid-connect/certs
+      CANOPICA_KEYCLOAK_CITIZENS_JWKS_URI: http://keycloak:8080/realms/canopica-citizens/protocol/openid-connect/certs
     ports:
       - "8080:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
     # Healthcheck itself lives in portal/Dockerfile (needs curl, installed
     # there) -- nothing to repeat here.

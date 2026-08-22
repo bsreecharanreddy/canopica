@@ -39,6 +39,10 @@
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
     <dependency>
@@ -70,9 +74,33 @@
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <!-- 3.9.1 is the newest release still on Testcontainers 1.x (this
+           project's pinned testcontainers.version); 4.x requires
+           Testcontainers 2.x. Targets Keycloak 26.4, matching the image
+           tag infra/docker-compose.yml's real keycloak service uses. -->
+      <groupId>com.github.dasniko</groupId>
+      <artifactId>testcontainers-keycloak</artifactId>
+      <version>3.9.1</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <!-- identity/realm-export is the single source of truth for realm
+             config (also mounted straight into the real Compose keycloak
+             service), copied onto the test classpath rather than
+             duplicated, so KeycloakContainer#withRealmImportFile() in
+             AbstractApiTest can import the exact same files. -->
+        <directory>../identity/realm-export</directory>
+        <targetPath>keycloak</targetPath>
+      </testResource>
+    </testResources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

@@ -9,33 +9,14 @@ import type {
   ApiFieldError,
 } from './types';
 
-export type Role = 'CUSTOMER' | 'WORKER';
+// The real access token from whichever realm the user is currently signed into -- set by AuthBridge
+// (src/auth/AuthContext.tsx) whenever react-oidc-context's own auth state changes. No storage/persistence
+// here: react-oidc-context already persists the token itself (sessionStorage, by its own default), this is
+// just a plain read-through so `request()` below doesn't need to be a hook.
+let currentAccessToken: string | null = null;
 
-const ROLE_STORAGE_KEY = 'canopica-role';
-
-// localStorage can be unavailable (SSR, some jsdom/Node combinations, a browser with site data
-// blocked) even where `window` itself exists -- every access below is guarded, never trusted.
-function readStoredRole(): Role {
-  try {
-    return window.localStorage.getItem(ROLE_STORAGE_KEY) === 'WORKER' ? 'WORKER' : 'CUSTOMER';
-  } catch {
-    return 'CUSTOMER';
-  }
-}
-
-let currentRole: Role = readStoredRole();
-
-export function getRole(): Role {
-  return currentRole;
-}
-
-export function setRole(role: Role): void {
-  currentRole = role;
-  try {
-    window.localStorage.setItem(ROLE_STORAGE_KEY, role);
-  } catch {
-    // Best-effort persistence only -- the in-memory currentRole above is still updated.
-  }
+export function setAccessToken(token: string | null): void {
+  currentAccessToken = token;
 }
 
 /** Thrown for a 400 response; {@link errors} mirrors ApiExceptionHandler's `{errors: [{field, message}]}` body. */
@@ -54,7 +35,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'X-Canopica-Role': currentRole,
+      ...(currentAccessToken ? { Authorization: `Bearer ${currentAccessToken}` } : {}),
       ...init?.headers,
     },
   });

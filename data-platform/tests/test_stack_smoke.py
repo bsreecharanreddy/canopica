@@ -13,6 +13,10 @@ import pytest
         ("http://localhost:8080/actuator/health", "UP"),
         ("http://localhost:3000/", "Canopica"),
         ("http://localhost:3001/api/health", "ok"),
+        # Keycloak's unauthenticated realm-descriptor endpoint -- proves the
+        # canopica-workers realm actually imported, not just that the container
+        # is listening.
+        ("http://localhost:8081/realms/canopica-workers", "canopica-workers"),
     ],
 )
 def test_every_service_answers(url: str, expected: str) -> None:

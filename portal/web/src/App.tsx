@@ -1,47 +1,10 @@
 import { BrowserRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
-import { RoleProvider, useRole } from './RoleContext';
+import { CanopicaAuthProvider, useIesAuth } from './auth/AuthContext';
 import IntakePage from './pages/IntakePage';
 import WorkerCasesPage from './pages/WorkerCasesPage';
 import CaseDetailPage from './pages/CaseDetailPage';
 
-/**
- * Phase 1a has no login (roles are hardcoded server-side too, see
- * `canopica.portal.config.HardcodedRoleFilter`) -- this switch stands in for it, the same simplification on
- * the client that the server already makes.
- */
-function RoleSwitch() {
-  const { role, setRole } = useRole();
-  return (
-    <fieldset>
-      <legend>Viewing as</legend>
-      <label htmlFor="role-customer">
-        <input
-          id="role-customer"
-          type="radio"
-          name="role"
-          value="CUSTOMER"
-          checked={role === 'CUSTOMER'}
-          onChange={() => setRole('CUSTOMER')}
-        />
-        Customer
-      </label>
-      <label htmlFor="role-worker">
-        <input
-          id="role-worker"
-          type="radio"
-          name="role"
-          value="WORKER"
-          checked={role === 'WORKER'}
-          onChange={() => setRole('WORKER')}
-        />
-        Worker
-      </label>
-    </fieldset>
-  );
-}
-
-function Nav() {
-  const { role } = useRole();
+function Nav({ role }: { role: 'CUSTOMER' | 'WORKER' }) {
   return (
     <nav aria-label="Main">
       {role === 'CUSTOMER' && <NavLink to="/apply">Apply</NavLink>}
@@ -50,14 +13,15 @@ function Nav() {
   );
 }
 
-function AppShell() {
-  const { role } = useRole();
+function AuthedAppShell({ role, signOut }: { role: 'CUSTOMER' | 'WORKER'; signOut: () => void }) {
   return (
     <>
       <header>
         <h1>Canopica</h1>
-        <RoleSwitch />
-        <Nav />
+        <Nav role={role} />
+        <button type="button" onClick={signOut}>
+          Sign out
+        </button>
       </header>
       <main>
         <Routes>
@@ -71,12 +35,36 @@ function AppShell() {
   );
 }
 
+function AppShell() {
+  const auth = useIesAuth();
+
+  // 'choosing' never actually reaches here -- CanopicaAuthProvider renders its own realm-choice screen instead
+  // of children in that state. Handled anyway so this function's return type stays exhaustive.
+  switch (auth.status) {
+    case 'authenticated':
+      return <AuthedAppShell role={auth.role} signOut={auth.signOut} />;
+    case 'error':
+      return (
+        <div role="alert">
+          <p>Sign-in failed: {auth.message}</p>
+          <button type="button" onClick={auth.signOut}>
+            Try again
+          </button>
+        </div>
+      );
+    case 'loading':
+    case 'choosing':
+    default:
+      return <p>Signing in…</p>;
+  }
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <RoleProvider>
+      <CanopicaAuthProvider>
         <AppShell />
-      </RoleProvider>
+      </CanopicaAuthProvider>
     </BrowserRouter>
   );
 }
