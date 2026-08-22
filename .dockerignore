@@ -1,0 +1,16 @@
+# Repo-root .dockerignore -- only portal/Dockerfile builds from this
+# context (it needs the multi-module Maven reactor: root pom.xml plus the
+# rules-engine module portal depends on). Trims the build context down to
+# what a Java build actually touches; portal/web and data-platform have
+# their own, self-contained build contexts and their own .dockerignore.
+.git
+.claude
+data-platform
+reporting
+docs
+infra
+portal/web
+**/target
+**/node_modules
+**/.venv
+**/__pycache__

@@ -32,6 +32,13 @@ up: ## Bring up the full local stack
 down: ## Tear the stack down, including volumes
 	docker compose -f infra/docker-compose.yml down -v
 
+seed: ## Generate + load 500 synthetic households into the running stack
+	cd data-platform && uv run python -m canopica_data.synthetic.cli generate --count 500 --seed 42 --out /tmp/canopica-households.jsonl
+	cd data-platform && uv run python -m canopica_data.synthetic.cli load --input /tmp/canopica-households.jsonl --api http://localhost:8080
+
+pipeline: ## Ingest -> dbt build -> serving materialization -> Metabase provisioning
+	docker compose -f infra/docker-compose.yml --profile pipeline run --rm pipeline
+
 e2e: ## Run the end-to-end slice test against a running stack
 	cd data-platform && uv run pytest -m e2e
 

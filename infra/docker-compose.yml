@@ -1,12 +1,8 @@
-# Task 12 (Docker Compose: full stack, one command) is what makes `make up`
-# bring up the whole Phase 1a slice -- portal-api, portal-web, and the
-# profile-gated one-shot `pipeline` service all belong to that task and
-# aren't here yet. This file exists ahead of Task 12, out of the plan's own
-# stated order, because Task 11 (reporting) needs a real Metabase instance
-# to provision and verify provision_metabase.py against; see
-# docs/plans/2026-08-21-phase-1a-implementation-plan.md's Task 11 file list,
-# which anticipates exactly this. Task 12 extends this file rather than
-# replacing it.
+# The full Phase 1a slice: postgres + metabase (added ahead of schedule in
+# Task 11, which needed a real Metabase instance to provision and verify
+# provision_metabase.py against -- see that task's file list, which
+# anticipates exactly this) plus portal-api, portal-web, and the
+# profile-gated one-shot `pipeline` service, added here in Task 12.
 services:
   postgres:
     image: postgres:16-alpine
@@ -42,6 +38,51 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  portal-api:
+    build:
+      context: ..
+      dockerfile: portal/Dockerfile
+    environment:
+      CANOPICA_OPERATIONAL_JDBC_URL: jdbc:postgresql://postgres:5432/canopica_operational
+      CANOPICA_OPERATIONAL_USER: canopica_app
+      CANOPICA_OPERATIONAL_PASSWORD: canopica_app
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Healthcheck itself lives in portal/Dockerfile (needs curl, installed
+    # there) -- nothing to repeat here.
+
+  portal-web:
+    build:
+      context: ../portal/web
+    ports:
+      - "3000:80"
+    depends_on:
+      - portal-api
+
+  # Ingestion -> dbt build -> serving materialization -> Metabase
+  # provisioning, as a one-shot container: `docker compose --profile
+  # pipeline run --rm pipeline` (what `make pipeline` runs). Profile-gated
+  # so `make up`/`docker compose up` never starts it on its own -- it's a
+  # job, not a long-running service.
+  pipeline:
+    build:
+      context: ../data-platform
+    profiles: [pipeline]
+    environment:
+      CANOPICA_OPERATIONAL_DSN: postgresql://canopica_app:canopica_app@postgres:5432/canopica_operational
+      CANOPICA_SERVING_DSN: postgresql://canopica_app:canopica_app@postgres:5432/canopica_serving
+      CANOPICA_METABASE_URL: http://metabase:3000
+      CANOPICA_METABASE_USER: admin@canopica.local
+      CANOPICA_METABASE_PASSWORD: CanopicaAdmin123!
+    depends_on:
+      postgres:
+        condition: service_healthy
+      metabase:
+        condition: service_healthy
 
 volumes:
   postgres-data:

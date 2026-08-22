@@ -74,6 +74,37 @@ flowchart TB
 Full architecture, every component, and the reasoning behind each choice
 live in `docs/design/` — this README stays high-level on purpose.
 
+## Quickstart
+
+Everything runs locally with Docker — no cloud account, no API keys, $0
+to clone and run.
+
+```bash
+make up        # build + start postgres, portal-api, portal-web, metabase
+make seed      # generate + load 500 synthetic households through the real intake API
+make pipeline  # ingest -> dbt build (silver/gold) -> serving materialization -> Metabase provisioning
+```
+
+Then:
+
+| | |
+|---|---|
+| Portal (customer/worker UI) | <http://localhost:3000> |
+| Portal API health | <http://localhost:8080/actuator/health> |
+| Metabase ("SNAP determinations" dashboard) | <http://localhost:3001> |
+
+`make seed` only exercises the customer-facing intake path (submitting an
+application) — it deliberately never runs a determination, since that's a
+worker action a household doesn't take for itself. So the gold mart and
+dashboard are legitimately empty right after `make pipeline` until a
+determination has actually been run for at least one submitted request
+(via the worker-facing `POST /api/program-requests/{id}/determinations`
+endpoint, or the portal UI signed in as a worker) — then `make pipeline`
+picks it up on its next run. `docs/demo.md` walks the full
+intake-through-determination-through-dashboard path end to end.
+
+Tear down with `make down` (also removes the Postgres volume).
+
 ## Status & roadmap
 
 **Currently in the design phase — implementation has not started yet.**
