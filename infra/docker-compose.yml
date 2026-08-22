@@ -1,0 +1,47 @@
+# Task 12 (Docker Compose: full stack, one command) is what makes `make up`
+# bring up the whole Phase 1a slice -- portal-api, portal-web, and the
+# profile-gated one-shot `pipeline` service all belong to that task and
+# aren't here yet. This file exists ahead of Task 12, out of the plan's own
+# stated order, because Task 11 (reporting) needs a real Metabase instance
+# to provision and verify provision_metabase.py against; see
+# docs/plans/2026-08-21-phase-1a-implementation-plan.md's Task 11 file list,
+# which anticipates exactly this. Task 12 extends this file rather than
+# replacing it.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3001:3000"
+    # Metabase's own app database (dashboards, cards, users) stays on its
+    # bundled internal H2 store rather than external Postgres -- its content
+    # is provisioned by provision_metabase.py, so losing it costs one script
+    # run, not data. It only needs `postgres` reachable as a *data source*
+    # (see CANOPICA_SERVING_DSN), not as its own app database.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  postgres-data:
