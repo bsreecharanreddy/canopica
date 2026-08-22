@@ -17,6 +17,19 @@ endpoint paths, no migration numbering — that's `docs/plans/`'s job, in a
 plan written from this doc, per CLAUDE.md's brainstorm → dated doc →
 approval → implementation-plan convention. This is the "approval" step.
 
+**Correction (2026-08-22, same day):** §2.1 and §2.2 as first written
+assumed `worker`, `case_assignment`, and `verification` needed to be
+*created* in Phase 1b. Checking the actual shipped schema (not just the
+roadmap doc) after writing the first draft found all three already exist
+— Phase 1a's Task 2 deliberately over-built the schema
+(`V1__core_entities.sql`'s own comment: "what makes caseload-scoped
+authorization possible at all *in Phase 1b*"), then never wired any of it
+into runtime behavior. Same for `program_request.is_expedited` (§2.6) and
+`audit_event`'s `VERIFICATION_UPDATED` type. Rewritten below to build on
+what's actually there instead of duplicating it — the exact "verify
+before recommending" discipline this project already applies everywhere
+else, applied to my own draft.
+
 ## 1. Scope recap
 
 Ten tasks, per `docs/STATUS.md`'s Phase 1b table. This doc resolves the
@@ -29,15 +42,33 @@ implementation plan, or are addressed below as short stated defaults
 
 ### 2.1 Caseload & row-level authorization (Task 2)
 
-The roadmap's ERD (§3.4.1) already names `CASE_ASSIGNMENT` as the entity
-that makes row-level authorization possible at all — this section fixes
-how it's populated and what it gates.
+**Already built, unused:** `worker` (`id`, `full_name`, `email`, `role`
+— the `CHECK` constraint already allows `WORKER` / `SUPERVISOR` / `ADMIN`)
+and `case_assignment` (`household_id`, `worker_id`, effective-dated) both
+exist since Phase 1a's `V1__core_entities.sql`, with JPA entities
+(`Worker`, `CaseAssignment`) and `CaseAssignmentRepository` already
+written. Nothing in Phase 1a's runtime code ever creates a `worker` row
+or a `case_assignment` row — `decided_by`/`actor_id` everywhere today
+store the raw role string (`"WORKER"`), not a `worker.id`. Task 2's job in
+Phase 1b is **activating** this schema, not creating it: no new migration
+for the base tables, no new role value.
 
-**Household is the case record** (established when `household` gained a
-mailing address in Task 2 of Phase 1a — see STATUS.md's Task 2 row).
-`CASE_ASSIGNMENT` therefore keys off `household_id`, not
-`program_request_id`: a household's whole case moves together, not one
-assignment per program.
+**What genuinely is new:** a way to map a real Keycloak-authenticated
+identity to a `worker` row (Task 1 needs to add a `keycloak_subject text
+unique` column to `worker` via a migration, populated from the token's
+`sub` claim on first login) and, on `household`, `is_sensitive boolean
+not null default false` + `sensitive_reason text` (neither exists today).
+
+`CASE_ASSIGNMENT` keys off `household_id`, matching the case-record model
+already established when `household` gained a mailing address in Phase
+1a's Task 2. **`CASE_VIEWED`'s existing subject is `program_request_id`,
+not `household_id`** (`WorkerCaseController`'s
+`auditService.append(AuditEventType.CASE_VIEWED, ..., "program_request",
+id, Map.of())`) — the authorization check needs the join
+`program_request → application → household → case_assignment`, since
+assignment is household-scoped but the event that already exists is
+request-scoped. Worth being exact about this rather than assuming a
+direct id match.
 
 **Assignment is explicit, not implicit-by-county.** A `CASE_ASSIGNMENT`
 row is the source of truth for "who can see this case" — never a role
@@ -45,8 +76,9 @@ check, never a county match. Populating it is auto-claim-on-first-touch:
 the first worker to open or act on a household with no existing
 assignment becomes the assigned worker (a `CASE_ASSIGNMENT` row is
 written as a side effect, no separate queue-assignment UI needed for
-Phase 1b). A `SUPERVISOR` role (new — see §2.6's Keycloak note) can
-reassign explicitly.
+Phase 1b). A `SUPERVISOR` can reassign explicitly — the role value
+already exists in the schema, so this is new controller/service logic
+against an existing column, not a new one.
 
 Rationale for explicit over implicit: county-based implicit scoping can't
 actually demonstrate the access-review story the roadmap centers on
@@ -60,22 +92,43 @@ authorization check therefore isn't binary allow/deny — a `WORKER`
 viewing a household they're not assigned to is a **denied** action (403,
 same shape as the existing CUSTOMER-hits-WORKER-endpoint case from Task
 7); a `SUPERVISOR` viewing any household is **allowed but logged
-distinctly**: the existing `CASE_VIEWED` audit event (Task 7) gains an
-`in_assignment: boolean` field in its payload, so `mart_access_review`
-(Task 5) can filter for exactly the supervisor-viewed-outside-assignment
-rows the roadmap's row calls out. No new audit event type — reuses what
-Task 7 already writes.
+distinctly**: `CASE_VIEWED`'s payload (currently written as `Map.of()` —
+an empty map, a one-line change to extend) gains an `in_assignment:
+boolean` field, so `mart_access_review` (Task 5) can filter for exactly
+the supervisor-viewed-outside-assignment rows the roadmap's row calls
+out. No new audit event type — reuses what Task 7 already writes.
 
-**Sensitive-case flagging** is a boolean + reason on `household`
-(`is_sensitive`, `sensitive_reason`), settable only by `SUPERVISOR`.
-Flagging doesn't block access — every role that could already see the
-case still can — it raises the audit signal: a `CASE_VIEWED` event against
-a flagged household is what a real access-review process would triage
-first. True sealing (blocking access outright, requiring an override
-workflow) is explicitly not built — see tradeoffs doc's Authorization row,
-refined below (§3).
+**Sensitive-case flagging** is the new `is_sensitive`/`sensitive_reason`
+pair on `household`, settable only by `SUPERVISOR`. Flagging doesn't
+block access — every role that could already see the case still can — it
+raises the audit signal: a `CASE_VIEWED` event against a flagged
+household is what a real access-review process would triage first. True
+sealing (blocking access outright, requiring an override workflow) is
+explicitly not built — see tradeoffs doc's Authorization row, refined
+below (§3).
 
 ### 2.2 Mock external verification interface (Task 3)
+
+**Already built, unused:** the `verification` table exists since Phase
+1a's `V2__intake_records.sql` — `program_request_id`, `data_element`
+(`IDENTITY` / `RESIDENCY` / `INCOME` / `SHELTER_COST` / `MEDICAL_EXPENSE`
+/ `DISABILITY` / `HOUSEHOLD_COMPOSITION`), `status` (`OUTSTANDING` /
+`RECEIVED` / `WAIVED`), `due_on`, `satisfied_on` — with a `Verification`
+JPA entity and `VerificationRepository` already written. This already is
+the roadmap's VERIFICATION entity ("tracks each outstanding data element,
+its due date, and how it was satisfied" — §3.4.1). Nothing in Phase 1a
+ever inserts a row into it. **Task 3 does not create a new table for
+this** — it activates `verification` (intake creates a row per applicant
+with `INCOME` verification outstanding) rather than inventing a
+parallel `verification_record` table, correcting this doc's first draft.
+
+Also already reserved: `audit_event`'s `event_type` `CHECK` constraint
+already includes `VERIFICATION_UPDATED` (`V6__audit_event.sql`), unused
+by any Phase 1a code path. **Reuse it for both the request and the
+received-response events**, distinguished by a `stage` field in the
+event's JSON payload (`REQUESTED` / `RECEIVED`) — smaller migration
+footprint than adding two brand-new `CHECK` values, and it's what that
+value already looks reserved for.
 
 Synchronous REST, not `pgmq`. The roadmap's async-messaging decision row
 names document-intake, correspondence, and fraud-triage as `pgmq`
@@ -83,28 +136,31 @@ consumers (Phase 3/4); verification isn't among them, and a request/reply
 lookup doesn't benefit from decoupling the way a long-running
 classification or dispatch job does.
 
-**Shape:** a `verification_record` per (household_member, verification
-type — starting with `WAGE_INCOME`, matching the roadmap's "wage/income
-stand-in"), tracking status (`PENDING` / `VERIFIED` / `DISCREPANCY` /
-`UNAVAILABLE`) and timestamps. The mock responder is deterministic — it
-derives its canned outcome from a hash of the input (person + income
-type), so the same household always gets the same mock result across
-runs, the same reproducibility property the DMN model already has for
-determinations.
+**What genuinely is new:** a `verification_response` table — the mock
+interface's raw response, which `verification` itself has no field for
+(it's a status/tracking row, not a payload store). Columns: a reference to
+the `verification` row, an `outcome` (`MATCHES` / `DISCREPANCY` /
+`UNAVAILABLE` — kept off `verification.status` itself, so its existing
+`OUTSTANDING`/`RECEIVED`/`WAIVED` `CHECK` constraint doesn't need
+touching), and the raw mock payload. The mock responder is deterministic
+— it derives its canned outcome from a hash of the input (person +
+verification type), so the same household always gets the same mock
+result across runs, the same reproducibility property the DMN model
+already has for determinations. Resolving a `verification` row (setting
+`status = 'RECEIVED'`, `satisfied_on`) is what actually happens to the
+existing table; the new table only carries what's genuinely new.
 
 **FTI-style safeguards, made concrete rather than asserted:**
 
-- Every request and response is an audit-chain event (two new event
-  types: `EXTERNAL_VERIFICATION_REQUESTED`, `EXTERNAL_VERIFICATION_
-RECEIVED`), not just an application log line — the same "verify it, don't
-  just log it" standard the hash-chained audit log already holds
-  everything else to.
-- The raw response is stored separately from `verification_record`'s
-  status/summary, in a table only readable by a role holding an *active
+- Every request and response is a `VERIFICATION_UPDATED` audit-chain
+  event (see above), not just an application log line — the same "verify
+  it, don't just log it" standard the hash-chained audit log already
+  holds everything else to.
+- `verification_response` is readable only by a role holding an *active
   `CASE_ASSIGNMENT`* on that household — reusing §2.1's authorization
   model rather than inventing a second one.
 - No raw response value is ever surfaced to `CUSTOMER` role, only
-  `VERIFIED` / `DISCREPANCY` / `UNAVAILABLE` status.
+  `verification.status`.
 
 The sync-vs-batch fidelity gap this implies (real verification interfaces
 lean batch/SFTP, not request/reply REST) is already stated in the
@@ -114,12 +170,20 @@ verification" row's description to match this concrete shape.
 
 ### 2.3 PII tokenization (Task 7, feeds Task 5's silver layer)
 
-Today, silver carries sensitive columns (SSN-shaped fields on
-`dim_person`, per Task 10's `meta: {classification: SENSITIVE}` tagging)
-in the clear, protected only by gold's `no_pii_in_gold` build-time test
-and column-level access conventions. That's enough to keep PII out of
-marts, but not enough to call it "tokenized" — anyone with silver access
-still sees the raw value.
+**Not in scope: SSN.** `person.ssn_token` has been a token with no real
+underlying value since Phase 1a's Task 2 — its own column comment says so
+("The real value never exists in this system; the token is what the
+warehouse ever sees"). There is nothing to vault or detokenize for it;
+it's already solved, by a different and simpler mechanism (never storing
+the real value at all) than the vault below.
+
+**In scope:** `first_name`, `last_name`, `date_of_birth` on `person` and
+the address columns on `household` — real values, genuinely collected,
+carried into silver in the clear today (`dim_person`, per Task 10's
+`meta: {classification: SENSITIVE}` tagging), protected only by gold's
+`no_pii_in_gold` build-time test and column-level access conventions.
+That's enough to keep PII out of marts, but not enough to call it
+"tokenized" — anyone with silver access still sees the raw value.
 
 **Decision:** a `pii_token` vault table — `token` (opaque, what silver
 actually stores in place of the real value), `encrypted_value` (via
@@ -185,18 +249,22 @@ pipeline" line, taken literally rather than API-only.
   brokering to a real enterprise IdP is what "SSO simulation" stands in
   for conceptually, not something to actually stand up a second IdP to
   demonstrate.
-- **Expedited (7-day) SNAP processing — a real gap found while resolving
-  this, not just an implementation detail:** real expedited eligibility
-  (7 CFR 273.2(i)) needs a household's liquid resources, which Phase 1a's
-  intake never collects (the asset test is explicitly listed as
-  unmodeled in README's "Honest limitations"). A reporting-layer
-  classification computed without that data would just be wrong, not a
-  simplification. Decision: Task 6 adds one small intake field —
-  liquid resources, effective-dated like income/expense records already
-  are — so the expedited/standard classification computed in dbt is
-  real, not approximated. This does **not** touch the DMN model:
-  expedited-vs-standard changes which *processing-time standard*
-  applies, not the benefit calculation itself.
+- **Expedited (7-day) SNAP processing — already-built, unused schema,
+  plus a real gap found while resolving this:**
+  `program_request.is_expedited` (boolean, default `false`) has existed
+  since Phase 1a's `V2__intake_records.sql` ("SNAP's federal processing
+  standards: 30 days normal, 7 days expedited... stored per request
+  because expedited status is determined per request") — nothing has ever
+  set it to `true`. The gap: real expedited eligibility (7 CFR 273.2(i))
+  needs a household's
+  liquid resources, which Phase 1a's intake never collects (the asset
+  test is explicitly listed as unmodeled in README's "Honest
+  limitations"). Populating the existing column without that data would
+  just be wrong, not a simplification. Decision: Task 6 adds one small
+  intake field — liquid resources, effective-dated like income/expense
+  records already are — so `is_expedited` gets computed for real. This
+  does **not** touch the DMN model: expedited-vs-standard changes which
+  *processing-time standard* applies, not the benefit calculation itself.
 - **`test_end_to_end.py` / `docs/demo.md` need a real adaptation once
   `X-Canopica-Role` goes away** — Task 1 replaces the header with actual
   Keycloak tokens, so the e2e test needs to fetch a real token from
