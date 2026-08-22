@@ -132,10 +132,10 @@ Phase 1a is a real, working slice, not a demo shell — but it's deliberately
 thin in ways worth stating plainly rather than leaving a reader to
 discover:
 
-- **No real identity.** Roles (`CUSTOMER`/`WORKER`) are a request header,
-  not a login — Phase 1b replaces this with Keycloak-backed OIDC.
-- **No row-level authorization.** Any worker can see any case; caseload
-  scoping is Phase 1b.
+- **No row-level authorization yet.** Real Keycloak-backed login (two
+  realms, Authorization Code + PKCE) landed in Phase 1b's first task, but
+  any authenticated worker can still see any case — caseload-scoped
+  authorization is the very next Phase 1b task.
 - **No real external verification.** Income/identity checks a real system
   would run against external interfaces (IEVS-style) aren't built —
   Phase 1b adds a mocked interface with FTI-style safeguards applied.

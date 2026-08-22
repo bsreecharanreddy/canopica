@@ -1,0 +1,49 @@
+{
+  "realm": "ies-citizens",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "accessTokenLifespan": 900,
+  "clients": [
+    {
+      "clientId": "ies-portal-web-citizen",
+      "name": "IES Portal (citizen realm, browser PKCE)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "test-customer",
+      "name": "Automated test client -- fetches tokens for pytest/Maven test suites, never used by a real user",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "test-customer-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "citizen.jordan@ies.local",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "citizen.jordan@ies.local",
+      "firstName": "Jordan",
+      "lastName": "Citizen",
+      "credentials": [{ "type": "password", "value": "IesCitizen123!", "temporary": false }],
+      "requiredActions": []
+    }
+  ]
+}

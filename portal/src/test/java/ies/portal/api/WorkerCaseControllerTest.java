@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ies.portal.AbstractApiTest;
 import ies.portal.AbstractPostgresTest;
 import ies.portal.CaseFixtures;
 import ies.portal.determination.DeterminationService;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * this suite hits is never empty or exclusively this test's data -- every assertion below finds its own
  * fixture by id rather than assuming list length or position.
  */
-class WorkerCaseControllerTest extends AbstractPostgresTest {
+class WorkerCaseControllerTest extends AbstractApiTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -35,7 +37,7 @@ class WorkerCaseControllerTest extends AbstractPostgresTest {
         determinationService.determine(
                 ids.programRequestId(), LocalDate.of(2025, 6, 15), LocalDate.of(2025, 6, 1), "SYSTEM");
 
-        String response = mvc.perform(get("/api/worker/cases").header("X-IES-Role", "WORKER"))
+        String response = mvc.perform(get("/api/worker/cases").header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -54,7 +56,7 @@ class WorkerCaseControllerTest extends AbstractPostgresTest {
         UUID secondId = determinationService.determine(
                 ids.programRequestId(), LocalDate.of(2025, 6, 20), LocalDate.of(2025, 6, 1), "SYSTEM");
 
-        mvc.perform(get("/api/program-requests/" + ids.programRequestId()).header("X-IES-Role", "WORKER"))
+        mvc.perform(get("/api/program-requests/" + ids.programRequestId()).header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.determinations.length()").value(2))
                 .andExpect(jsonPath("$.determinations[0].determinationId").value(secondId.toString()))
@@ -72,7 +74,7 @@ class WorkerCaseControllerTest extends AbstractPostgresTest {
                 ids.programRequestId(), LocalDate.of(2025, 6, 15), LocalDate.of(2025, 6, 1), "SYSTEM");
 
         String response = mvc.perform(get("/api/determinations/" + determinationId + "/trace")
-                        .header("X-IES-Role", "WORKER"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 

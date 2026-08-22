@@ -69,8 +69,9 @@ that's a design bug, not an implementation detail to work around.
 `docs/STATUS.md` holds it, at task granularity. Deliberately not duplicated
 here — two places to record the same thing means one of them is wrong.
 
-At the coarsest level: **Phase 1a done, verified end-to-end. Phase 1b not
-started.**
+At the coarsest level: **Phase 1a done, verified end-to-end. Phase 1b
+in progress (Task 1 of 10 done — real Keycloak identity has replaced the
+hardcoded role header).**
 
 ## Phase plan
 
