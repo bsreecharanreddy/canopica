@@ -1,0 +1,15 @@
+# Committed, no secrets -- DuckDB is a local file, not a server with
+# credentials. Default paths are relative to this file's own directory
+# (dbt/canopica_warehouse/), matching how dbt is actually invoked (`cd
+# dbt/canopica_warehouse && dbt build`); the ingestion CLI and CI both set
+# CANOPICA_WAREHOUSE_ROOT/CANOPICA_DUCKDB_PATH explicitly so they aren't sensitive to
+# the caller's own working directory.
+canopica_warehouse:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('CANOPICA_DUCKDB_PATH', '../../warehouse/canopica.duckdb') }}"
+      schema: main
+      extensions: [delta]
+      threads: 4

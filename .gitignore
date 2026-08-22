@@ -24,6 +24,7 @@ data-platform/warehouse/
 target/
 dbt_packages/
 logs/
+.user.yml
 
 # Local environment
 .env

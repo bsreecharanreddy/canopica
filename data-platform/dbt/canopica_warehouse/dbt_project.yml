@@ -1,0 +1,22 @@
+name: canopica_warehouse
+version: "1.0.0"
+config-version: 2
+
+profile: canopica_warehouse
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  canopica_warehouse:
+    silver:
+      +materialized: table
+      +schema: silver
+    gold:
+      +materialized: table
+      +schema: gold

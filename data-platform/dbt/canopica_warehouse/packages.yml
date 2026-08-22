@@ -1,0 +1,6 @@
+# No external packages yet -- every generic test this project uses
+# (not_null, unique, relationships, accepted_values, no_pii_in_gold) is
+# either dbt-core built-in or defined locally in macros/ and tests/generic/.
+# Phase 1b is the more likely place to reach for dbt_utils/dbt_expectations
+# once the medallion coverage widens.
+packages: []

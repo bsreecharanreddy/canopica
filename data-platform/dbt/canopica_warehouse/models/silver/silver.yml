@@ -1,0 +1,163 @@
+version: 2
+
+models:
+  - name: dim_person
+    description: One row per person, deduplicated to the latest bronze landing.
+    columns:
+      - name: person_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: ssn_token
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: birth_year
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: sex
+        meta: { classification: SENSITIVE }
+      - name: is_us_citizen
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: name_hash
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: dim_household
+    description: One row per household (case), deduplicated to the latest bronze landing.
+    columns:
+      - name: household_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: head_person_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('dim_person'), field: person_key }
+        meta: { classification: PUBLIC }
+      - name: county
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: state
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: zip_code
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: dim_policy_parameter_set
+    description: SCD-2 dimension over the immutable, effective-dated policy_parameter_set rows.
+    columns:
+      - name: parameter_set_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: version_label
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: program_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["SNAP"] }
+        meta: { classification: PUBLIC }
+      - name: valid_from
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: valid_to
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: is_current
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: source_citation
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: fct_program_request
+    description: One row per program request, deduplicated to the latest bronze landing.
+    columns:
+      - name: program_request_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: application_key
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: program_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["SNAP"] }
+        meta: { classification: PUBLIC }
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  ["SUBMITTED", "PENDING_VERIFICATION", "DETERMINED", "WITHDRAWN"]
+        meta: { classification: PUBLIC }
+      - name: requested_on
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: is_expedited
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: fct_eligibility_determination
+    description: One row per determination, deduplicated to the latest bronze landing.
+    columns:
+      - name: determination_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: program_request_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('fct_program_request'), field: program_request_key }
+        meta: { classification: PUBLIC }
+      - name: parameter_set_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('dim_policy_parameter_set'), field: parameter_set_key }
+        meta: { classification: PUBLIC }
+      - name: benefit_month
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: as_of_date
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: eligible
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: benefit_amount
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: reason_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - "ELIGIBLE"
+                  - "GROSS_INCOME_EXCEEDS_LIMIT"
+                  - "NET_INCOME_EXCEEDS_LIMIT"
+                  - "ZERO_BENEFIT_AMOUNT"
+        meta: { classification: PUBLIC }
+      - name: policy_parameter_version
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: decided_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }

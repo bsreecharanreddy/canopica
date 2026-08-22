@@ -17,7 +17,10 @@ class Settings(BaseSettings):
 
     operational_dsn: str = "postgresql://canopica_app:canopica_app@localhost:5432/canopica_operational"
     serving_dsn: str = "postgresql://canopica_app:canopica_app@localhost:5432/canopica_serving"
-    warehouse_root: Path = Path("data-platform/warehouse")
+    # Relative to cwd, not the repo root: every entry point here runs via
+    # `uv run` from inside data-platform/ (see the Makefile), so "warehouse"
+    # is data-platform/warehouse in practice.
+    warehouse_root: Path = Path("warehouse")
 
     @property
     def bronze_root(self) -> Path:
