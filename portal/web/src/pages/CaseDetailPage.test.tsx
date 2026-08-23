@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { vi } from 'vitest';
+import { axe } from 'vitest-axe';
 import * as client from '../api/client';
 import type { CaseDetailResponse, DeterminationResponse } from '../api/types';
 import CaseDetailPage from './CaseDetailPage';
@@ -41,12 +42,13 @@ function renderAtCase() {
 test('shows the determination outcome, benefit amount, reason code, and policy parameter version', async () => {
   vi.spyOn(client, 'getCase').mockResolvedValue(caseDetail);
 
-  renderAtCase();
+  const { container } = renderAtCase();
 
   expect(await screen.findByText('Eligible')).toBeInTheDocument();
   expect(screen.getByText(/649\.00/)).toBeInTheDocument();
   expect(screen.getByText('ELIGIBLE')).toBeInTheDocument();
   expect(screen.getByText('SNAP-FY2025')).toBeInTheDocument();
+  expect(await axe(container)).toHaveNoViolations();
 });
 
 test('running a determination calls the API and re-renders with the new result', async () => {
@@ -57,7 +59,7 @@ test('running a determination calls the API and re-renders with the new result',
     benefitAmount: '700.00',
   });
 
-  renderAtCase();
+  const { container } = renderAtCase();
   await screen.findByText('Eligible');
 
   await userEvent.click(screen.getByRole('button', { name: /run determination/i }));
@@ -66,6 +68,7 @@ test('running a determination calls the API and re-renders with the new result',
   expect(await screen.findByText(/700\.00/)).toBeInTheDocument();
   // The original determination is still there -- history is appended to, not replaced.
   expect(screen.getByText(/649\.00/)).toBeInTheDocument();
+  expect(await axe(container)).toHaveNoViolations();
 });
 
 test('the trace panel lists each DMN decision name and value in evaluation order once expanded', async () => {
@@ -77,7 +80,7 @@ test('the trace panel lists each DMN decision name and value in evaluation order
     policyParameterVersion: 'SNAP-FY2025',
   });
 
-  renderAtCase();
+  const { container } = renderAtCase();
   await screen.findByText('Eligible');
 
   await userEvent.click(screen.getByText(/dmn evaluation trace/i));
@@ -87,4 +90,5 @@ test('the trace panel lists each DMN decision name and value in evaluation order
   expect(list).toHaveTextContent('PASS');
   expect(list).toHaveTextContent('Net Income');
   expect(list).toHaveTextContent('1200');
+  expect(await axe(container)).toHaveNoViolations();
 });

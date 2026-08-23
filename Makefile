@@ -24,7 +24,7 @@ test: ## Run every unit/integration suite that does not need the Compose stack
 
 lint: ## Type-check and lint every language
 	cd data-platform && uv run ruff check . && uv run mypy src tests
-	cd portal/web && npm run typecheck
+	cd portal/web && npm run typecheck && npm run lint
 
 up: ## Bring up the full local stack
 	docker compose -f infra/docker-compose.yml up -d --build

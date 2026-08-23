@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
+import { axe } from 'vitest-axe';
 import * as client from '../api/client';
 import WorkerCasesPage from './WorkerCasesPage';
 
@@ -15,7 +16,7 @@ test('renders an accessible table of cases, with column headers and a link per r
     },
   ]);
 
-  render(
+  const { container } = render(
     <MemoryRouter>
       <WorkerCasesPage />
     </MemoryRouter>,
@@ -27,4 +28,5 @@ test('renders an accessible table of cases, with column headers and a link per r
 
   const link = screen.getByRole('link', { name: /dana reyes/i });
   expect(link).toHaveAttribute('href', '/cases/pr-1');
+  expect(await axe(container)).toHaveNoViolations();
 });

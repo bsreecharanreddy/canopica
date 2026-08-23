@@ -113,14 +113,15 @@ dashboard) runs end to end against real infrastructure, proven by
 `data-platform/tests/test_end_to_end.py` and walkable by hand in
 [`docs/demo.md`](docs/demo.md). Phase 1b (hardening) is in progress —
 identity, row-level authorization, mocked external verification, Airflow
-orchestration, full medallion coverage, widened reporting, and governance
-(PII tokenization, `docs/design/compliance-mapping.md`) are done;
-accessibility and observability remain.
+orchestration, full medallion coverage, widened reporting, governance
+(PII tokenization, `docs/design/compliance-mapping.md`), and accessibility
+(axe-clean portal pages, `jsx-a11y` lint in CI) are done; observability
+remains.
 
 | Phase | Focus | Status |
 |---|---|---|
 | 1a | Walking skeleton — intake → rules-engine determination → audit trail → warehouse → report page, end to end | Done |
-| 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability | In progress (4/10 tasks) |
+| 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability | In progress (8/10 tasks) |
 | 2 | Policy Intelligence & Analytics AI — RAG-based policy Q&A, rule-authoring copilot, natural-language analytics | Planned |
 | 3 | Case Intake & Communication AI — document classification/extraction, AI-drafted correspondence, localization | Planned |
 | 4 | Compliance & Integrity AI — fraud risk triage, SLA/QC monitoring, caseworker SOP copilot | Planned |
@@ -133,20 +134,19 @@ task-level detail.
 ## Honest limitations of what's built so far
 
 Phase 1a is a real, working slice, not a demo shell, and Phase 1b's first
-four tasks — Keycloak identity, caseload-scoped row-level authorization,
-the mocked external verification interface, and Airflow orchestration —
-have already closed several of its original gaps. What's still
-deliberately thin is worth stating plainly rather than leaving a reader to
-discover:
+eight tasks — Keycloak identity, caseload-scoped row-level authorization,
+the mocked external verification interface, Airflow orchestration, full
+medallion coverage, widened reporting, governance (PII tokenization), and
+accessibility — have already closed several of its original gaps. What's
+still deliberately thin is worth stating plainly rather than leaving a
+reader to discover:
 
 - **A narrow rules-engine scope.** SNAP only, one program; several real
   deductions/rules (asset test, child-support-paid deduction, homeless
   shelter deduction, ABAWD work requirements, broad-based categorical
   eligibility) aren't modeled, and household size is capped at 8.
-- **A narrow bronze layer.** Seven operational tables, not the full
-  medallion table set — Phase 1b's Task 5.
-- **No accessibility or observability work yet** — Section 508/WCAG and
-  OpenTelemetry are Phase 1b's Tasks 8 and 9.
+- **No observability work yet** — OpenTelemetry tracing/metrics across
+  the API and pipeline is Phase 1b's Task 9.
 
 Every one of these is a scoping decision, not an oversight — see the plan's
 own "Deferred out of Phase 1a, on purpose" list
