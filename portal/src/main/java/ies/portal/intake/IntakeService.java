@@ -4,6 +4,7 @@ import ies.portal.api.dto.IntakeExpenseDto;
 import ies.portal.api.dto.IntakeIncomeDto;
 import ies.portal.api.dto.IntakePersonDto;
 import ies.portal.api.dto.IntakeRequest;
+import ies.portal.api.dto.IntakeResourceDto;
 import ies.portal.audit.AuditEventType;
 import ies.portal.audit.AuditService;
 import ies.portal.domain.Application;
@@ -14,6 +15,7 @@ import ies.portal.domain.IncomeRecord;
 import ies.portal.domain.LivingArrangement;
 import ies.portal.domain.Person;
 import ies.portal.domain.ProgramRequest;
+import ies.portal.domain.ResourceRecord;
 import ies.portal.domain.Verification;
 import ies.portal.repo.ApplicationRepository;
 import ies.portal.repo.ExpenseRecordRepository;
@@ -23,7 +25,9 @@ import ies.portal.repo.IncomeRecordRepository;
 import ies.portal.repo.LivingArrangementRepository;
 import ies.portal.repo.PersonRepository;
 import ies.portal.repo.ProgramRequestRepository;
+import ies.portal.repo.ResourceRecordRepository;
 import ies.portal.repo.VerificationRepository;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,6 +35,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,15 +54,26 @@ public class IntakeService {
     private final LivingArrangementRepository livingArrangements;
     private final IncomeRecordRepository incomeRecords;
     private final ExpenseRecordRepository expenseRecords;
+    private final ResourceRecordRepository resourceRecords;
     private final ApplicationRepository applications;
     private final ProgramRequestRepository programRequests;
     private final VerificationRepository verifications;
     private final AuditService auditService;
     private final Clock clock;
 
+    // 7 CFR 273.2(i)(1)(iii)'s "rent or mortgage and utility expenses" leg --
+    // FactAssembler's own shelterCost/utilityCost split (RENT_OR_MORTGAGE/
+    // PROPERTY_TAX/HOME_INSURANCE vs. UTILITIES) is for the DMN's shelter
+    // deduction; the expedited-processing test in the regulation bundles
+    // rent/mortgage and utilities together, so this list is deliberately
+    // broader than either of FactAssembler's two individual buckets.
+    private static final Set<String> SHELTER_EXPENSE_TYPES =
+            Set.of("RENT_OR_MORTGAGE", "PROPERTY_TAX", "HOME_INSURANCE", "UTILITIES");
+
     IntakeService(PersonRepository persons, HouseholdRepository households,
                   HouseholdMemberRepository householdMembers, LivingArrangementRepository livingArrangements,
                   IncomeRecordRepository incomeRecords, ExpenseRecordRepository expenseRecords,
+                  ResourceRecordRepository resourceRecords,
                   ApplicationRepository applications, ProgramRequestRepository programRequests,
                   VerificationRepository verifications, AuditService auditService, Clock clock) {
         this.persons = persons;
@@ -66,6 +82,7 @@ public class IntakeService {
         this.livingArrangements = livingArrangements;
         this.incomeRecords = incomeRecords;
         this.expenseRecords = expenseRecords;
+        this.resourceRecords = resourceRecords;
         this.applications = applications;
         this.programRequests = programRequests;
         this.verifications = verifications;
@@ -123,12 +140,19 @@ public class IntakeService {
             }
         }
 
+        for (IntakeResourceDto resource : request.resources()) {
+            resourceRecords.save(new ResourceRecord(UUID.randomUUID(), householdId, resource.resourceType(),
+                    resource.amount(), resource.effectiveFrom(), resource.effectiveTo()));
+        }
+
+        boolean expedited = isExpedited(request);
+
         UUID applicationId = UUID.randomUUID();
         applications.save(new Application(applicationId, householdId, Instant.now(clock), request.channelOrDefault()));
 
         UUID programRequestId = UUID.randomUUID();
         programRequests.save(new ProgramRequest(
-                programRequestId, applicationId, "SNAP", "SUBMITTED", today, false));
+                programRequestId, applicationId, "SNAP", "SUBMITTED", today, expedited));
 
         // 7 CFR 273.2(f)(1): households must be given at least 10 days to provide verification. Only
         // INCOME is requested at intake today (design doc §2.2) -- the other data_element values the
@@ -143,5 +167,31 @@ public class IntakeService {
                 "program_request", programRequestId, payload);
 
         return new IntakeResult(applicationId, programRequestId);
+    }
+
+    /**
+     * Computed directly from the just-submitted request, not a re-query of what
+     * was just persisted -- every income/expense/resource on this submission is
+     * "as of now" by construction, so there is nothing an effective-dated
+     * as-of query would filter out that summing the request itself doesn't
+     * already give.
+     */
+    private static boolean isExpedited(IntakeRequest request) {
+        BigDecimal grossMonthlyIncome = request.members().stream()
+                .flatMap(member -> member.incomes().stream())
+                .map(IntakeIncomeDto::monthlyAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal shelterCost = request.members().stream()
+                .flatMap(member -> member.expenses().stream())
+                .filter(expense -> SHELTER_EXPENSE_TYPES.contains(expense.expenseType()))
+                .map(IntakeExpenseDto::monthlyAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal liquidResources = request.resources().stream()
+                .map(IntakeResourceDto::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return ExpeditedEligibility.isExpedited(grossMonthlyIncome, liquidResources, shelterCost);
     }
 }

@@ -53,9 +53,14 @@ def test_dbt_build_produces_the_gold_mart(seeded_operational_dsn: str, tmp_path:
         assert row_count is not None
         assert row_count[0] == 1
 
-        # Task 5's three new marts -- each seeded to produce exactly one row
-        # by conftest.py's seeded_operational_dsn.
-        for mart in ("mart_worker_caseload", "mart_access_review", "mart_payment_accuracy"):
+        # Task 5's three new marts plus Task 6's mart_processing_timeliness --
+        # each seeded to produce exactly one row by conftest.py's
+        # seeded_operational_dsn. mart_processing_timeliness's own real
+        # expedited/late coverage lives in test_mart_processing_timeliness.py,
+        # against a dedicated fixture -- this assertion only proves the model
+        # itself builds and produces a row, same as its three siblings here.
+        for mart in ("mart_worker_caseload", "mart_access_review", "mart_payment_accuracy",
+                     "mart_processing_timeliness"):
             mart_row_count = con.execute(f"select count(*) from main_gold.{mart}").fetchone()
             assert mart_row_count is not None
             assert mart_row_count[0] == 1, mart

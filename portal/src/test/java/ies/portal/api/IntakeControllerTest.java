@@ -67,6 +67,53 @@ class IntakeControllerTest extends AbstractApiTest {
     }
 
     @Test
+    void submittingALowIncomeLowResourceApplicationIsExpedited() throws Exception {
+        String response = mvc.perform(post("/api/applications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(TestPayloads.expeditedHouseholdIntake()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID programRequestId = UUID.fromString(objectMapper.readTree(response).get("programRequestId").asText());
+
+        assertThat(jdbc.queryForObject(
+                "select is_expedited from program_request where id = ?",
+                Boolean.class, programRequestId)).isTrue();
+    }
+
+    @Test
+    void submittingTheStandardHouseholdIsNotExpedited() throws Exception {
+        String response = mvc.perform(post("/api/applications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(TestPayloads.threePersonWorkingHouseholdIntake()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID programRequestId = UUID.fromString(objectMapper.readTree(response).get("programRequestId").asText());
+
+        assertThat(jdbc.queryForObject(
+                "select is_expedited from program_request where id = ?",
+                Boolean.class, programRequestId)).isFalse();
+    }
+
+    @Test
+    void submittedLiquidResourcesArePersistedAgainstTheHousehold() throws Exception {
+        String response = mvc.perform(post("/api/applications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(TestPayloads.expeditedHouseholdIntake()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID applicationId = UUID.fromString(objectMapper.readTree(response).get("applicationId").asText());
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from resource_record rr "
+                        + "join application a on a.household_id = rr.household_id "
+                        + "where a.id = ? and rr.resource_type = 'CASH' and rr.amount = 50.00",
+                Integer.class, applicationId)).isEqualTo(1);
+    }
+
+    @Test
     void rejectsAnIntakeWithNoHouseholdMembers() throws Exception {
         mvc.perform(post("/api/applications").header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
                         .contentType(MediaType.APPLICATION_JSON)

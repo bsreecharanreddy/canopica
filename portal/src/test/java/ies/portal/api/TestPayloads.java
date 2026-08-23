@@ -43,6 +43,33 @@ final class TestPayloads {
                 """;
     }
 
+    /** Low income, low liquid resources -- qualifies for expedited (7-day) processing under 7 CFR 273.2(i)(1)(i). */
+    static String expeditedHouseholdIntake() {
+        return """
+                {
+                  "county": "Test County",
+                  "addressLine1": "123 Test St",
+                  "city": "Testville",
+                  "state": "TS",
+                  "zipCode": "00000",
+                  "channel": "ONLINE",
+                  "arrangementType": "RENTS",
+                  "members": [
+                    {
+                      "firstName": "Jordan", "lastName": "Lee", "dateOfBirth": "1985-01-01",
+                      "sex": "X", "relationship": "SELF",
+                      "incomes": [
+                        {"incomeType": "UNEMPLOYMENT", "earned": false, "monthlyAmount": "100.00", "effectiveFrom": "2025-01-01"}
+                      ]
+                    }
+                  ],
+                  "resources": [
+                    {"resourceType": "CASH", "amount": "50.00", "effectiveFrom": "2025-01-01"}
+                  ]
+                }
+                """;
+    }
+
     static String intakeWithNoMembers() {
         return """
                 {

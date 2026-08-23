@@ -112,3 +112,38 @@ models:
         tests: [not_null]
       - name: reviewed
         tests: [not_null]
+
+  - name: mart_processing_timeliness
+    description: >
+      One row per determination, against SNAP's real 30-day/7-day
+      processing standards (7 CFR 273.2), now that is_expedited (Task 6)
+      is real.
+    tests:
+      - no_pii_in_gold
+    columns:
+      - name: determination_key
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments: { to: ref('fct_eligibility_determination'), field: determination_key }
+      - name: program_request_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('fct_program_request'), field: program_request_key }
+      - name: is_expedited
+        tests: [not_null]
+      - name: submitted_at
+        tests: [not_null]
+      - name: decided_at
+        tests: [not_null]
+      - name: processing_days
+        tests: [not_null]
+      - name: standard_days
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: [7, 30] }
+      - name: missed_standard
+        tests: [not_null]

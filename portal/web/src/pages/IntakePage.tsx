@@ -25,6 +25,7 @@ export default function IntakePage() {
   const [arrangementType, setArrangementType] = useState<string>(ARRANGEMENT_TYPES[0]);
   const [paysUtilitiesSeparately, setPaysUtilitiesSeparately] = useState(false);
   const [members, setMembers] = useState<IntakePerson[]>(initialMembers());
+  const [liquidResources, setLiquidResources] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -44,6 +45,9 @@ export default function IntakePage() {
       arrangementType,
       paysUtilitiesSeparately,
       members,
+      resources: liquidResources
+        ? [{ resourceType: 'BANK_ACCOUNT', amount: liquidResources, effectiveFrom: todayIso() }]
+        : [],
     };
 
     try {
@@ -122,6 +126,14 @@ export default function IntakePage() {
           />
           Pays utilities separately from rent
         </label>
+
+        <label htmlFor="liquidResources">Cash and bank accounts on hand ($)</label>
+        <input
+          id="liquidResources"
+          inputMode="decimal"
+          value={liquidResources}
+          onChange={(e) => setLiquidResources(e.target.value)}
+        />
       </fieldset>
 
       <HouseholdMemberFields members={members} onChange={setMembers} />

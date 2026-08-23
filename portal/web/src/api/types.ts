@@ -30,6 +30,15 @@ export type IntakePerson = {
   expenses: IntakeExpense[];
 };
 
+// Household-level (unlike income/expense, which are per member) -- feeds
+// expedited (7-day) SNAP processing eligibility, 7 CFR 273.2(i).
+export type IntakeResource = {
+  resourceType: string;
+  amount: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+};
+
 export type IntakeRequest = {
   county: string;
   addressLine1: string;
@@ -41,6 +50,7 @@ export type IntakeRequest = {
   arrangementType: string;
   paysUtilitiesSeparately?: boolean;
   members: IntakePerson[];
+  resources: IntakeResource[];
 };
 
 export type IntakeResponse = {
