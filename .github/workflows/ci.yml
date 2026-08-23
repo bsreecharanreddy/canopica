@@ -192,6 +192,17 @@ jobs:
       # OpenSearch/Ollama services above (conftest.py's indexed_corpus
       # fixture) -- no separate setup step needed here.
       - run: cd ai && uv sync --dev && uv run pytest -m e2e
+      # Ollama (running as root in its container) writes its own identity
+      # key and an internal cache file into this bind mount at 0600 --
+      # real failure hit live (2026-08-23): actions/cache's own save step
+      # runs as the unprivileged `runner` user and can't read root-owned
+      # 0600 files, so it silently warned "Permission denied" and skipped
+      # saving -- the job still went green (a cache-save failure doesn't
+      # fail the job), but the cache was never actually populated, quietly
+      # defeating the whole point of caching it. `if: always()` so a
+      # failed test run still leaves a saveable cache behind.
+      - if: always()
+        run: sudo chmod -R a+rX infra/ollama-models
       - if: always()
         run: free -h && docker stats --no-stream
       - if: always()
