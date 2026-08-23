@@ -62,6 +62,10 @@ class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health")
                         .permitAll()
+                        // Prometheus (infra's `prometheus` service) has no JWT to present -- same
+                        // "infra tooling, not a role-bearing caller" rationale as /actuator/health above.
+                        .requestMatchers("/actuator/prometheus")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/program-requests/*/determinations")
                         .hasRole("WORKER")
                         // A SUPERVISOR can view any case (design doc §2.1) -- the caseload-scoped check

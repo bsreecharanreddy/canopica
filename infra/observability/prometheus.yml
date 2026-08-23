@@ -1,0 +1,14 @@
+# Scrapes the portal API's own Micrometer-exposed metrics -- see
+# portal/pom.xml's micrometer-registry-prometheus dependency and
+# application.yml's `management.endpoints.web.exposure.include` for what
+# turns /actuator/prometheus on. The pipeline/Airflow side isn't scraped
+# here: those are one-shot/short-lived processes, a poor fit for Prometheus's
+# pull model -- their observability story is traces (Jaeger), not metrics.
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: canopica-portal
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["portal-api:8080"]

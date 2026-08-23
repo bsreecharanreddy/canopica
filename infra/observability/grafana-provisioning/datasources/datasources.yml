@@ -1,0 +1,13 @@
+# uid is fixed (not left to Grafana's auto-generated default) so the
+# dashboard JSON under ../dashboards/json/ can reference it by a stable id
+# instead of a name string that provisioning may or may not resolve.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

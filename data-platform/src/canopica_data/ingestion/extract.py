@@ -14,6 +14,8 @@ from pathlib import Path
 import polars as pl
 from deltalake import write_deltalake
 
+from canopica_data.observability.tracing import traced
+
 # Phase 1a's narrow seven, widened here (Phase 1b Task 5) to the rest of
 # roadmap §3.4.2's table list. `application` and `benefit_month` land too,
 # even though the Task 5 plan's own parenthetical only named the other
@@ -47,20 +49,21 @@ def extract_to_bronze(
 ) -> dict[str, int]:
     """Land each operational table as an append-only Delta table under
     ``bronze_root``. Returns {table_name: rows_written}."""
-    resolved_batch_id = str(batch_id or uuid.uuid4())
-    ingested_at = datetime.now(UTC)
-    counts: dict[str, int] = {}
+    with traced("extract"):
+        resolved_batch_id = str(batch_id or uuid.uuid4())
+        ingested_at = datetime.now(UTC)
+        counts: dict[str, int] = {}
 
-    for table in tables:
-        # table name always comes from ALL_TABLES, never user input
-        query = f"select * from {table}"
-        frame = pl.read_database_uri(query=query, uri=dsn)
-        frame = frame.with_columns(
-            pl.lit(ingested_at).alias("_ingested_at"),
-            pl.lit(table).alias("_source_table"),
-            pl.lit(resolved_batch_id).alias("_batch_id"),
-        )
-        write_deltalake(str(bronze_root / table), frame.to_arrow(), mode="append")
-        counts[table] = frame.height
+        for table in tables:
+            # table name always comes from ALL_TABLES, never user input
+            query = f"select * from {table}"
+            frame = pl.read_database_uri(query=query, uri=dsn)
+            frame = frame.with_columns(
+                pl.lit(ingested_at).alias("_ingested_at"),
+                pl.lit(table).alias("_source_table"),
+                pl.lit(resolved_batch_id).alias("_batch_id"),
+            )
+            write_deltalake(str(bronze_root / table), frame.to_arrow(), mode="append")
+            counts[table] = frame.height
 
-    return counts
+        return counts

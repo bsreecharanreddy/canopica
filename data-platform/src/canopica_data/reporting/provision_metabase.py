@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 import httpx
 
 from canopica_data.config import Settings
+from canopica_data.observability.tracing import traced
 
 DATABASE_NAME = "Canopica Serving"
 CARD_NAME = "Determinations by month and outcome"
@@ -152,7 +153,10 @@ def _find_or_create_dashboard_with_card(client: httpx.Client, card_id: int) -> i
 def provision(settings: Settings) -> int:
     """Runs the full idempotent provisioning flow against a running Metabase
     instance. Returns the "SNAP determinations" dashboard's id."""
-    with httpx.Client(base_url=settings.metabase_url, timeout=30.0) as client:
+    with (
+        traced("provision_metabase"),
+        httpx.Client(base_url=settings.metabase_url, timeout=30.0) as client,
+    ):
         session_id = _complete_setup_if_needed(
             client, settings.metabase_user, settings.metabase_password
         )

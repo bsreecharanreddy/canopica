@@ -46,6 +46,51 @@
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
     <dependency>
+      <!-- Bridges Spring's Observation API (already emitting spans for every
+           HTTP request/JDBC call via the actuator starter above) onto the
+           OpenTelemetry SDK: no manual span code needed for auto-instrumented
+           HTTP/JDBC (Task 9, Step 2). -->
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-tracing-bridge-otel</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Ships the OtlpHttpSpanExporter Spring Boot's OtlpAutoConfiguration
+           registers once management.otlp.tracing.endpoint is set
+           (application.yml): the actual wire format spans leave the JVM in,
+           read by Jaeger's OTLP/HTTP receiver on :4318. -->
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Plan gap found during Task 9: the plan's own pom.xml diff (only the
+           two tracing dependencies above) would leave /actuator/prometheus
+           404ing. Micrometer's actuator autoconfiguration needs a concrete
+           MeterRegistry implementation on the classpath before it exposes a
+           scrape endpoint at all, and none of the starters already present
+           bring one. This is what actually turns Spring's already-automatic
+           HTTP/JVM metrics into something Prometheus can scrape, satisfying
+           this task's "metrics in Grafana" deliverable, not just its traces
+           one. See docs/STATUS.md's Task 9 verification-log row. -->
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Second plan gap found live, verified against a real running stack
+           (docker compose): a real request against portal-api produced only
+           HTTP/security-filter spans in Jaeger, no database span at all.
+           The plan's Step 2 claim ("no manual span code needed for
+           auto-instrumented HTTP/JDBC") holds for HTTP, but Spring Boot's
+           own Observation auto-configuration does not instrument JDBC/
+           Hibernate query execution on its own; this (the community/
+           now-Spring-endorsed project under github.com/jdbc-observations,
+           formerly ttddyy) is what actually wraps the DataSource and emits
+           a span per query. Not managed by the Spring Boot BOM: version
+           pinned explicitly, same as testcontainers-keycloak above. -->
+      <groupId>net.ttddyy.observation</groupId>
+      <artifactId>datasource-micrometer-spring-boot</artifactId>
+      <version>1.1.1</version>
+    </dependency>
+    <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
     </dependency>

@@ -21,11 +21,27 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # prometheus: scraped by infra/observability/prometheus.yml's
+        # canopica-portal job (Task 9) -- needs micrometer-registry-prometheus on
+        # the classpath (portal/pom.xml) to exist at all; see that
+        # dependency's own comment for why it isn't in the plan's own list.
+        include: health, prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  otlp:
+    tracing:
+      # infra/docker-compose.yml overrides this to http://jaeger:4318/v1/traces
+      # for portal-api's own container; localhost default matches local
+      # (non-Docker) dev against a `make up` stack's host-published port.
+      endpoint: ${CANOPICA_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+  tracing:
+    sampling:
+      # 1.0 = every request traced. A real production deployment samples far
+      # below this (see the tradeoffs doc's Observability row) -- fine here
+      # since this is a local demo stack, not a production traffic volume.
+      probability: 1.0
 
 canopica:
   # Benefit months, effective dating, and the annual October parameter change

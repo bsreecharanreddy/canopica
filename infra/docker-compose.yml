@@ -37,6 +37,10 @@ x-airflow-common: &airflow-common
     CANOPICA_METABASE_URL: http://metabase:3000
     CANOPICA_METABASE_USER: admin@canopica.local
     CANOPICA_METABASE_PASSWORD: CanopicaAdmin123!
+    # Every canopica_data pipeline stage's span (Task 9) exports here -- the
+    # container-network address for the `jaeger` service below, not the
+    # host-published one Settings' own default points at.
+    CANOPICA_OTEL_EXPORTER_ENDPOINT: http://jaeger:4318/v1/traces
   volumes:
     - ../infra/airflow/dags:/opt/airflow/dags
   depends_on:
@@ -127,6 +131,10 @@ services:
       # SecurityConfig.lazyJwksDecoder's comment for the full reasoning.
       CANOPICA_KEYCLOAK_WORKERS_JWKS_URI: http://keycloak:8080/realms/canopica-workers/protocol/openid-connect/certs
       CANOPICA_KEYCLOAK_CITIZENS_JWKS_URI: http://keycloak:8080/realms/canopica-citizens/protocol/openid-connect/certs
+      # Container-network address for the `jaeger` service below --
+      # application.yml's own default (localhost:4318) is for local,
+      # non-Docker dev only. See management.otlp.tracing.endpoint (Task 9).
+      CANOPICA_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
     ports:
       - "8080:8080"
     depends_on:
@@ -134,6 +142,8 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     # Healthcheck itself lives in portal/Dockerfile (needs curl, installed
     # there) -- nothing to repeat here.
 
@@ -160,11 +170,49 @@ services:
       CANOPICA_METABASE_URL: http://metabase:3000
       CANOPICA_METABASE_USER: admin@canopica.local
       CANOPICA_METABASE_PASSWORD: CanopicaAdmin123!
+      CANOPICA_OTEL_EXPORTER_ENDPOINT: http://jaeger:4318/v1/traces
     depends_on:
       postgres:
         condition: service_healthy
       metabase:
         condition: service_healthy
+
+  # Jaeger v2 (v1 reached EOL 2025-12-31): a single binary built on the
+  # OpenTelemetry Collector, run here with its own built-in default config
+  # (in-memory storage, OTLP gRPC/HTTP receivers, UI+query API on 16686) --
+  # no config file needed for this stack's purposes, same "lightweight,
+  # $0, docker compose up" fit as every other service here (design doc
+  # §2.5). In-memory storage means traces don't survive a restart, an
+  # accepted tradeoff for a local demo, not a production deployment.
+  jaeger:
+    image: jaegertracing/jaeger:2.20.0
+    ports:
+      - "16686:16686" # UI + query API (data-platform/tests/test_observability.py hits this)
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver -- what both portal-api and canopica_data actually export to
+
+  prometheus:
+    image: prom/prometheus:v3.13.0
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - portal-api
+
+  grafana:
+    image: grafana/grafana:12.3.0
+    environment:
+      # Dev-mode credential, same "$0, self-hosted, local-first" tradeoff
+      # every other service's admin login in this stack already makes.
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: CanopicaGrafanaAdmin123!
+    volumes:
+      - ./observability/grafana-provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3002:3000"
+    depends_on:
+      - prometheus
 
   # One-shot: `airflow db migrate` (idempotent, safe to re-run on every
   # boot) then create the admin user. `airflow users create` is *not*

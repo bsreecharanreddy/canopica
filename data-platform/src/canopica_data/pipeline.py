@@ -16,6 +16,7 @@ from pathlib import Path
 from canopica_data.config import Settings
 from canopica_data.governance.tokenize import tokenize_person_names
 from canopica_data.ingestion.extract import ALL_TABLES, extract_to_bronze
+from canopica_data.observability.tracing import traced
 from canopica_data.reporting.provision_metabase import provision
 from canopica_data.serving.materialize import materialize_gold
 
@@ -42,20 +43,21 @@ def main() -> None:
     # profiles.yml's env_var() calls read, and the same ones Settings
     # derives warehouse_root/duckdb_path from, so one set of container env
     # vars keeps dbt and this module pointed at the same warehouse file.
-    subprocess.run(
-        [
-            "dbt",
-            "build",
-            "--project-dir",
-            str(DBT_PROJECT_DIR),
-            "--profiles-dir",
-            str(DBT_PROJECT_DIR),
-            "--target",
-            "local",
-        ],
-        cwd=DATA_PLATFORM_ROOT,
-        check=True,
-    )
+    with traced("dbt_build"):
+        subprocess.run(
+            [
+                "dbt",
+                "build",
+                "--project-dir",
+                str(DBT_PROJECT_DIR),
+                "--profiles-dir",
+                str(DBT_PROJECT_DIR),
+                "--target",
+                "local",
+            ],
+            cwd=DATA_PLATFORM_ROOT,
+            check=True,
+        )
 
     mart_counts = materialize_gold(settings.duckdb_path, settings.serving_dsn)
     for mart, count in mart_counts.items():

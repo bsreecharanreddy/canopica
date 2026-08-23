@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # a real production secret in this file.
     pii_encryption_key: str = "canopica-local-dev-pii-vault-key"
 
+    # OTLP/HTTP traces endpoint every pipeline stage's span exports to (see
+    # canopica_data.observability.tracing). Defaults to the host-published port
+    # for a local, non-Docker `pytest` run; infra/docker-compose.yml
+    # overrides this to the container-network `jaeger` hostname for the
+    # `pipeline` and `airflow-*` services.
+    otel_exporter_endpoint: str = "http://localhost:4318/v1/traces"
+
     @property
     def bronze_root(self) -> Path:
         """Append-only Delta landings of the operational tables."""
