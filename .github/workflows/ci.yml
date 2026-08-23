@@ -129,7 +129,20 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - run: docker compose -f infra/docker-compose.yml up -d --build --wait
+      # `ollama-init` is a one-shot job (see infra/docker-compose.yml) that
+      # nothing else depends on, unlike `airflow-init` -- `up --wait` treats
+      # any container that exits during its convergence check as a failure
+      # unless another service vouches for that exit via `depends_on:
+      # condition: service_completed_successfully` (docker/compose#10596,
+      # reproduced live in this project's own CI: exit code 0, but
+      # `up --wait` still returned 1). Fix is Compose's own documented
+      # pattern: exclude it from the health-waited bring-up, start it
+      # separately, then block on its own exit code with `compose wait`.
+      - run: |
+          services=$(docker compose -f infra/docker-compose.yml config --services | grep -v '^ollama-init$')
+          docker compose -f infra/docker-compose.yml up -d --build --wait $services
+          docker compose -f infra/docker-compose.yml up -d ollama-init
+          docker compose -f infra/docker-compose.yml wait ollama-init
       - run: cd data-platform && uv sync --dev && uv run pytest -m e2e
       # Provisions its own corpus index + search pipeline against the
       # OpenSearch/Ollama services above (conftest.py's indexed_corpus

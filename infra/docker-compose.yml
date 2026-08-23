@@ -229,8 +229,14 @@ services:
   # names (`ollama_embedding_model`/`ollama_generation_model`) into the
   # `ollama` service's own named volume. `ollama pull` is idempotent --
   # already-pulled tags are a fast no-op re-check, not a re-download -- so
-  # this is safe to run on every `make up`, same shape as `airflow-init`
-  # above.
+  # this is safe to run on every `make up`. Unlike `airflow-init` above,
+  # nothing here declares `depends_on: condition: service_completed_
+  # successfully` on this service, because nothing in this compose file
+  # actually needs the models present to start -- only the `ai/` test
+  # suite, run outside Compose, does. That means `docker compose up --wait`
+  # cannot be pointed at this service the way it can at `airflow-init`
+  # (see the `e2e` job in `.github/workflows/ci.yml` for how CI waits on
+  # this one instead: `compose wait`, not `up --wait`).
   ollama-init:
     image: ollama/ollama:0.32.15
     entrypoint: /bin/sh
