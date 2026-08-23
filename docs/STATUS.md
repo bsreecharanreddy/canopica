@@ -273,7 +273,7 @@ reasoning lives in the design docs.
 | Policy parameters | Effective-dated and immutable once published | Roadmap §3.5 |
 | AI scope | All nine components stay in committed scope | Roadmap §5 |
 | Cloud target | Azure Government by design; commercial Azure for any live demo | Roadmap §3.7 |
-| Repo visibility | Stays private, deliberately left without branch rulesets/protection — GitHub only allows those on a private repo with GitHub Pro (personal-account Free-plan limit, confirmed against the API), and the alternative (make it public) was offered and declined 2026-08-22. Revisit if either constraint changes. | — |
+| Repo visibility | Stays private during active development, deliberately left without branch rulesets/protection — GitHub only allows those on a private repo with GitHub Pro (personal-account Free-plan limit, confirmed against the API). Going public was offered and declined 2026-08-22; confirmed 2026-08-23 the plan is to flip to public once development is complete (not before), at which point branch protection becomes free again and the README's CI badge — added 2026-08-23, harmless while private, invisible to a signed-out viewer until the flip — starts rendering for anyone. | — |
 | Java build tool | Maven (not Gradle) — dominant in the enterprise/government Java shops this repo targets; committed `./mvnw` wrapper is what CI runs | Phase 1a plan, "Versions pinned" |
 | Python version | 3.12 via `uv`, not the system 3.14 — dbt-core support lags new releases | Phase 1a plan, "Versions pinned" |
 | Bronze storage, Phase 1a | Local filesystem Delta tables; MinIO/S3 is a `storage_options` swap in Phase 1b | Phase 1a plan, Task 10 |
