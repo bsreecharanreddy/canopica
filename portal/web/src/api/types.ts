@@ -114,3 +114,11 @@ export type ApiFieldError = {
   field?: string;
   message: string;
 };
+
+// Mirrors canopica_ai.policy_intelligence.qa.service.QaAnswer (the Python AI
+// service, not the Java portal) -- Task 2's Policy Q&A response shape.
+export type QaAnswer = {
+  answer: string;
+  citations: string[];
+  abstained: boolean;
+};

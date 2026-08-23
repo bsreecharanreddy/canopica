@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     cfr_search_pipeline: str = "cfr-hybrid-rerank"
     embedding_dimension: int = 768
 
+    # Same shared Postgres canopica_data.config.Settings already writes to (e.g.
+    # the pii_token vault) -- ai.policy_qa_answer reuses that instance
+    # rather than standing up a second database, per design doc §2.2.
+    operational_dsn: str = "postgresql://canopica_app:canopica_app@localhost:5432/canopica_operational"
+
+    # Portal API's own base URL -- answer_denial() forwards the citizen's
+    # bearer token here to read their own determination trace server-side.
+    portal_api_url: str = "http://localhost:8080"
+
     # Relative to cwd, not the repo root: every entry point here runs via
     # `uv run` from inside ai/ (see the Makefile), matching data-platform's
     # own warehouse_root convention.

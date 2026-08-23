@@ -6,8 +6,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jwt.JWTParser;
 import canopica.portal.AbstractApiTest;
 import canopica.portal.AbstractPostgresTest;
+import java.text.ParseException;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -111,6 +113,34 @@ class IntakeControllerTest extends AbstractApiTest {
                         + "join application a on a.household_id = rr.household_id "
                         + "where a.id = ? and rr.resource_type = 'CASH' and rr.amount = 50.00",
                 Integer.class, applicationId)).isEqualTo(1);
+    }
+
+    @Test
+    void submittingAnApplicationLinksOnlyTheHeadPersonToTheSubmittingCitizen() throws Exception {
+        String citizenSubject = JWTParser.parse(citizenToken()).getJWTClaimsSet().getSubject();
+
+        String response = mvc.perform(post("/api/applications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(TestPayloads.threePersonWorkingHouseholdIntake()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UUID applicationId = UUID.fromString(objectMapper.readTree(response).get("applicationId").asText());
+
+        assertThat(jdbc.queryForObject(
+                "select p.keycloak_subject from application a "
+                        + "join household h on h.id = a.household_id "
+                        + "join person p on p.id = h.head_person_id "
+                        + "where a.id = ?",
+                String.class, applicationId)).isEqualTo(citizenSubject);
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from application a "
+                        + "join household h on h.id = a.household_id "
+                        + "join household_member hm on hm.household_id = h.id "
+                        + "join person p on p.id = hm.person_id "
+                        + "where a.id = ? and p.id != h.head_person_id and p.keycloak_subject is not null",
+                Integer.class, applicationId)).isZero();
     }
 
     @Test

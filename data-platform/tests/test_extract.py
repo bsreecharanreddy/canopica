@@ -2,10 +2,11 @@
 instance with real operational rows, since the point is proving extraction
 lands actual table bytes plus ingest metadata, not a mocked shape."""
 
+import shutil
 from pathlib import Path
 
 import pytest
-from deltalake import DeltaTable
+from deltalake import DeltaTable, write_deltalake
 
 from canopica_data.ingestion.extract import extract_to_bronze
 
@@ -63,3 +64,32 @@ def test_extract_appends_rather_than_overwrites(
     dt = DeltaTable(str(tmp_path / "person"))
     assert dt.version() == 1  # two commits, second is version 1
     assert dt.to_pyarrow_table().num_rows == 2 * SEEDED_PERSON_COUNT
+
+
+@pytest.mark.integration
+def test_extract_tolerates_a_source_table_gaining_a_column(
+    seeded_operational_dsn: str, tmp_path: Path
+) -> None:
+    """A real bug hit live (2026-08-23): Task 2's migration added
+    `person.keycloak_subject`, and the next Airflow run of this exact
+    function failed with deltalake's `SchemaMismatchError` trying to append
+    a 12-column frame onto bronze/person's existing 11-column history.
+    `select *` (this module's own docstring: "no reshaping") means any
+    bronze-covered table gaining a column is normal, expected schema
+    evolution, not a reason every later extract run should start failing --
+    simulated here by writing a copy of a real extract with the column
+    stripped back out, standing in for "bronze data written before this
+    migration existed", then extracting again for real."""
+    extract_to_bronze(seeded_operational_dsn, tmp_path, ["person"])
+    narrowed = DeltaTable(str(tmp_path / "person")).to_pyarrow_table().drop_columns(
+        ["keycloak_subject"]
+    )
+    shutil.rmtree(tmp_path / "person")
+    write_deltalake(str(tmp_path / "person"), narrowed, mode="append")
+
+    counts = extract_to_bronze(seeded_operational_dsn, tmp_path, ["person"])
+
+    assert counts["person"] == SEEDED_PERSON_COUNT
+    table = DeltaTable(str(tmp_path / "person")).to_pyarrow_table()
+    assert table.num_rows == 2 * SEEDED_PERSON_COUNT
+    assert "keycloak_subject" in table.column_names

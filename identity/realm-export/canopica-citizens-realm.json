@@ -44,6 +44,16 @@
       "lastName": "Citizen",
       "credentials": [{ "type": "password", "value": "CanopicaCitizen123!", "temporary": false }],
       "requiredActions": []
+    },
+    {
+      "username": "citizen.morgan@canopica.local",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "citizen.morgan@canopica.local",
+      "firstName": "Morgan",
+      "lastName": "Citizen",
+      "credentials": [{ "type": "password", "value": "CanopicaCitizen456!", "temporary": false }],
+      "requiredActions": []
     }
   ]
 }

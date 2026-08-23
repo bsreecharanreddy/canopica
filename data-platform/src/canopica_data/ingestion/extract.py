@@ -63,7 +63,17 @@ def extract_to_bronze(
                 pl.lit(table).alias("_source_table"),
                 pl.lit(resolved_batch_id).alias("_batch_id"),
             )
-            write_deltalake(str(bronze_root / table), frame.to_arrow(), mode="append")
+            # schema_mode="merge": bronze does "no reshaping" (module
+            # docstring) of what a source table currently looks like, and a
+            # source table gaining a column over time (e.g. V12's
+            # person.keycloak_subject) is normal schema evolution, not a
+            # reason an append onto that table's existing history should
+            # start failing -- hit live (2026-08-23) as deltalake's own
+            # SchemaMismatchError the first Airflow run after that column
+            # landed, since plain "append" is schema-strict by default.
+            write_deltalake(
+                str(bronze_root / table), frame.to_arrow(), mode="append", schema_mode="merge"
+            )
             counts[table] = frame.height
 
         return counts

@@ -35,16 +35,28 @@ class SecurityConfig {
     @Order(1)
     SecurityFilterChain citizenFilterChain(
             HttpSecurity http,
+            KeycloakCitizenLinkFilter keycloakCitizenLinkFilter,
             @Value("${canopica.keycloak.citizens-issuer-uri}") String citizensIssuerUri,
             @Value("${canopica.keycloak.citizens-jwks-uri}") String citizensJwksUri)
             throws Exception {
         JwtDecoder decoder = lazyJwksDecoder(citizensJwksUri, citizensIssuerUri);
-        http.securityMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/applications"))
+        // Task 2 widened this chain from POST /api/applications alone to also cover the citizen's own
+        // read routes -- still every one of them CUSTOMER-only; the ownership check itself (which
+        // household(s) this specific caller may read) is data-driven, in CitizenController, the same
+        // "role gate here, data-driven gate in the controller" split the worker chain's own comment
+        // already documents for WorkerCaseController.
+        http.securityMatchers(matchers -> matchers.requestMatchers(
+                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/applications"),
+                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/api/my/program-requests"),
+                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/api/my/determinations/*/trace")))
                 .csrf(csrf -> csrf.disable()) // stateless, bearer-token API -- no browser session/cookie to forge
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().hasRole("CUSTOMER"))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(
-                        jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(citizenAuthenticationConverter())));
+                        jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(citizenAuthenticationConverter())))
+                // Runs after JWT auth has populated the SecurityContext, so it can read the token's claims;
+                // scoped to this chain only, mirroring keycloakWorkerSyncFilter's own wiring below.
+                .addFilterAfter(keycloakCitizenLinkFilter, BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 

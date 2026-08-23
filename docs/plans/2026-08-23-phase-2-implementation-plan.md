@@ -399,7 +399,7 @@ alter table person add column keycloak_subject text unique;
 -- shape KeycloakWorkerSyncFilter already established for workers.
 ```
 
-- [ ] **Step 1: Link citizens to their own data.** `V12` migration adds
+- [x] **Step 1: Link citizens to their own data.** `V12` migration adds
       `person.keycloak_subject`. `IntakeController`'s existing handler
       (already behind `citizenFilterChain`, already has the JWT via
       `Authentication`) sets it on the submitting person when creating
@@ -407,7 +407,7 @@ alter table person add column keycloak_subject text unique;
       write path, not a new provisioning filter (unlike
       `KeycloakWorkerSyncFilter`, there's no "first login creates the
       row" case here; the row is always created at submission time).
-- [ ] **Step 2: `CitizenController` + `KeycloakCitizenLinkFilter`.** New
+- [x] **Step 2: `CitizenController` + `KeycloakCitizenLinkFilter`.** New
       `GET /api/my/program-requests` (lists the caller's own, resolved by
       `keycloak_subject`) and `GET /api/my/determinations/{id}/trace`
       (same shape as `WorkerCaseController`'s existing trace endpoint,
@@ -417,23 +417,23 @@ alter table person add column keycloak_subject text unique;
       resolves `Authentication#getName()` (the JWT `sub`) to a `person_id`
       once per request, mirroring the read pattern
       `KeycloakWorkerSyncFilter` already established for the write case.
-- [ ] **Step 3: `SecurityConfig` route additions.** Both new `GET` routes
+- [x] **Step 3: `SecurityConfig` route additions.** Both new `GET` routes
       added to `citizenFilterChain`'s `authorizeHttpRequests`,
       `hasRole("CUSTOMER")` — the ownership check itself stays in
       `CitizenController`, same "role gate here, data-driven gate in the
       controller" split `workerFilterChain`'s own comment already
       documents for `WorkerCaseController`.
-- [ ] **Step 4: `CitizenDeterminationAccessTest`.** A citizen can read
+- [x] **Step 4: `CitizenDeterminationAccessTest`.** A citizen can read
       their own trace (200); a different citizen's token against the
       same determination id gets 403; an unauthenticated request gets
       401 — the same three-case shape Phase 1b's own row-level-auth test
       used for workers.
-- [ ] **Step 5: `grounding.py`.** `citation_grounded(answer_citations:
+- [x] **Step 5: `grounding.py`.** `citation_grounded(answer_citations:
       list[str], retrieved_chunk_ids: list[str]) -> bool` — the
       deterministic pre-check from design doc §2.6, written once here so
       both this task's live serving path and Task 7's eval harness import
       the same function rather than each reimplementing it.
-- [ ] **Step 6: `llm_client.py` + `answer_general()`.** `LlmClient`
+- [x] **Step 6: `llm_client.py` + `answer_general()`.** `LlmClient`
       (protocol: `generate(prompt: str, **params) -> LlmResponse`) and
       its sole implementation for now, `OllamaClient` — every later call
       site in this task, and every LLM call in Tasks 3/5/6, takes an
@@ -450,7 +450,7 @@ alter table person add column keycloak_subject text unique;
       applicant-submitted, so the whole context is trusted, but the
       delimiting convention is established here for Step 7 to reuse where
       it matters more).
-- [ ] **Step 7: `answer_denial()`.** Calls the new
+- [x] **Step 7: `answer_denial()`.** Calls the new
       `GET /api/my/determinations/{id}/trace` endpoint, extracts which
       DMN test failed from the trace's `decisionResults`, retrieves the
       CFR section governing that specific test (a targeted `hybrid_search`
@@ -459,7 +459,7 @@ alter table person add column keycloak_subject text unique;
       numbers (inserted as trusted data) plus the retrieved regulation
       text — the model never recomputes a number, only composes prose
       around numbers already decided.
-- [ ] **Step 8: `provenance.py`.** Persists every answer (both entry
+- [x] **Step 8: `provenance.py`.** Persists every answer (both entry
       points) to a new `ai.policy_qa_answer` table in `canopica_operational`
       (a new schema in the existing shared Postgres — no new database,
       same "reuse existing infra" posture as pgmq/tokenize) via `psycopg`,
@@ -473,7 +473,7 @@ alter table person add column keycloak_subject text unique;
       `generation_model`, `generation_params` (jsonb), `retrieved_chunk_ids`
       (array), `determination_id` (nullable — set only for the denial
       path), `created_at`.
-- [ ] **Step 9: `api.py` + `PolicyQaPage.tsx`.** FastAPI router:
+- [x] **Step 9: `api.py` + `PolicyQaPage.tsx`.** FastAPI router:
       `POST /qa/ask` (general), `POST /qa/why-was-i-denied` (forwards the
       citizen's own bearer token to the portal's new trace endpoint
       server-side — the AI service never receives a token it can use for
@@ -482,13 +482,13 @@ alter table person add column keycloak_subject text unique;
       abstained) the plain "insufficient information" message rendered
       distinctly from a real answer, not just plain text a user could
       mistake for a normal response.
-- [ ] **Step 10: `test_policy_qa.py`.** A grounded-answer case (question
+- [x] **Step 10: `test_policy_qa.py`.** A grounded-answer case (question
       with a clear corpus match, citations present, `abstained=False`); an
       abstention case (question with no relevant corpus match);
       `answer_denial` against a seeded determination trace produces a
       citation from the correct CFR section for the specific test that
       failed; provenance row is written and complete for every answer.
-- [ ] **Step 11: Full suite + commit.**
+- [x] **Step 11: Full suite + commit.**
 
 ---
 

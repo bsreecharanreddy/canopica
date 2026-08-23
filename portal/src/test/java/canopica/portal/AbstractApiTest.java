@@ -56,6 +56,7 @@ public abstract class AbstractApiTest extends AbstractPostgresTest {
     private static String cachedWorkerToken;
     private static String cachedSupervisorToken;
     private static String cachedCitizenToken;
+    private static String cachedOtherCitizenToken;
 
     protected static synchronized String workerToken() {
         if (cachedWorkerToken == null) {
@@ -78,6 +79,16 @@ public abstract class AbstractApiTest extends AbstractPostgresTest {
                     "canopica-citizens", "test-customer", "test-customer-secret", "citizen.jordan@canopica.local", "CanopicaCitizen123!");
         }
         return cachedCitizenToken;
+    }
+
+    // A second, distinct citizen identity -- needed to prove ownership checks actually deny a different
+    // citizen, not just prove the same one succeeds.
+    protected static synchronized String otherCitizenToken() {
+        if (cachedOtherCitizenToken == null) {
+            cachedOtherCitizenToken = fetchToken(
+                    "canopica-citizens", "test-customer", "test-customer-secret", "citizen.morgan@canopica.local", "CanopicaCitizen456!");
+        }
+        return cachedOtherCitizenToken;
     }
 
     private static String fetchToken(String realm, String clientId, String clientSecret, String username, String password) {

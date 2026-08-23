@@ -107,10 +107,14 @@ public class IntakeService {
         }
 
         List<UUID> memberPersonIds = new ArrayList<>(members.size());
-        for (IntakePersonDto member : members) {
+        for (int i = 0; i < members.size(); i++) {
+            IntakePersonDto member = members.get(i);
             UUID personId = UUID.randomUUID();
+            // Only the head's row carries the submitter's identity -- see Person.keycloakSubject's own
+            // javadoc for why the other members' rows stay unlinked.
+            String keycloakSubject = i == headIndex ? actorId : null;
             persons.save(new Person(personId, member.firstName(), member.lastName(), member.dateOfBirth(),
-                    "tok-" + personId, member.sex(), member.isUsCitizenOrDefault()));
+                    "tok-" + personId, member.sex(), member.isUsCitizenOrDefault(), keycloakSubject));
             memberPersonIds.add(personId);
         }
         UUID headPersonId = memberPersonIds.get(headIndex);

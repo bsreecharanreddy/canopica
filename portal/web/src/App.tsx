@@ -3,11 +3,13 @@ import { CanopicaAuthProvider, useIesAuth } from './auth/AuthContext';
 import IntakePage from './pages/IntakePage';
 import WorkerCasesPage from './pages/WorkerCasesPage';
 import CaseDetailPage from './pages/CaseDetailPage';
+import PolicyQaPage from './pages/PolicyQaPage';
 
 function Nav({ role }: { role: 'CUSTOMER' | 'WORKER' }) {
   return (
     <nav aria-label="Main">
       {role === 'CUSTOMER' && <NavLink to="/apply">Apply</NavLink>}
+      {role === 'CUSTOMER' && <NavLink to="/ask">Ask about policy</NavLink>}
       {role === 'WORKER' && <NavLink to="/cases">Cases</NavLink>}
     </nav>
   );
@@ -27,6 +29,7 @@ function AuthedAppShell({ role, signOut }: { role: 'CUSTOMER' | 'WORKER'; signOu
         <Routes>
           <Route path="/" element={<Navigate to={role === 'WORKER' ? '/cases' : '/apply'} replace />} />
           <Route path="/apply" element={<IntakePage />} />
+          <Route path="/ask" element={<PolicyQaPage />} />
           <Route path="/cases" element={<WorkerCasesPage />} />
           <Route path="/cases/:programRequestId" element={<CaseDetailPage />} />
         </Routes>

@@ -5,9 +5,18 @@ import type {
   DeterminationResponse,
   IntakeRequest,
   IntakeResponse,
+  QaAnswer,
   TraceResponse,
   ApiFieldError,
 } from './types';
+
+// A separate origin from the Java portal API above -- the Python ai/
+// service (canopica_ai.policy_intelligence.qa.api). No committed Compose
+// service/Dockerfile serves it yet (Task 9's "public hosted demo" is
+// where this AI layer actually gets deployed); this default is for
+// running `uvicorn canopica_ai.policy_intelligence.qa.api:app --port 8000`
+// locally in the meantime.
+const AI_API_URL = 'http://localhost:8000';
 
 // The real access token from whichever realm the user is currently signed into -- set by AuthBridge
 // (src/auth/AuthContext.tsx) whenever react-oidc-context's own auth state changes. No storage/persistence
@@ -81,4 +90,18 @@ export function runDetermination(
 
 export function getTrace(determinationId: string): Promise<TraceResponse> {
   return request<TraceResponse>(`/api/determinations/${determinationId}/trace`);
+}
+
+export function askPolicyQuestion(question: string): Promise<QaAnswer> {
+  return request<QaAnswer>(`${AI_API_URL}/qa/ask`, {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  });
+}
+
+export function askWhyWasIDenied(determinationId: string): Promise<QaAnswer> {
+  return request<QaAnswer>(`${AI_API_URL}/qa/why-was-i-denied`, {
+    method: 'POST',
+    body: JSON.stringify({ determinationId }),
+  });
 }

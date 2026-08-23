@@ -33,6 +33,13 @@ public class Person {
     @Column(name = "is_us_citizen", nullable = false)
     private boolean usCitizen;
 
+    // Set only on the household's head person, at the submission that created their row (IntakeService) --
+    // the JWT `sub` of whichever citizen actually submitted. Null for every other member of that household;
+    // not unique (see V12's own comment) since the same real citizen submitting again over time legitimately
+    // produces another person row carrying the same subject.
+    @Column(name = "keycloak_subject")
+    private String keycloakSubject;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -42,6 +49,11 @@ public class Person {
 
     public Person(UUID id, String firstName, String lastName, LocalDate dateOfBirth,
                   String ssnToken, String sex, boolean usCitizen) {
+        this(id, firstName, lastName, dateOfBirth, ssnToken, sex, usCitizen, null);
+    }
+
+    public Person(UUID id, String firstName, String lastName, LocalDate dateOfBirth,
+                  String ssnToken, String sex, boolean usCitizen, String keycloakSubject) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -49,6 +61,7 @@ public class Person {
         this.ssnToken = ssnToken;
         this.sex = sex;
         this.usCitizen = usCitizen;
+        this.keycloakSubject = keycloakSubject;
     }
 
     public UUID getId() {
@@ -77,6 +90,10 @@ public class Person {
 
     public boolean isUsCitizen() {
         return usCitizen;
+    }
+
+    public String getKeycloakSubject() {
+        return keycloakSubject;
     }
 
     public Instant getCreatedAt() {
