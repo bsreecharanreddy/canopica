@@ -18,6 +18,7 @@ from __future__ import annotations
 import subprocess
 import uuid
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psycopg
@@ -226,6 +227,93 @@ def seeded_operational_dsn(migrated_dsn: str) -> Iterator[str]:
             "values ('CASE_VIEWED', %s, 'program_request', %s, %s::jsonb)",
             (worker_keycloak_subject, program_request_id, '{"in_assignment": true}'),
         )
+
+    yield migrated_dsn
+
+
+@pytest.fixture
+def seeded_timeliness_dsn(migrated_dsn: str) -> Iterator[str]:
+    """migrated_dsn with four determination chains seeded directly via SQL,
+    one for each combination Task 6's mart_processing_timeliness plan step
+    calls for: expedited-on-time, expedited-late, standard-on-time,
+    standard-late. Separate from seeded_operational_dsn (which is fixed at
+    exactly one row, relied on by every other dbt-build test's own row-count
+    assertion) since this fixture's whole point is multiple rows with
+    different is_expedited/timing combinations.
+    """
+    person_id = str(uuid.uuid4())
+    household_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+
+    scenarios = [
+        # (is_expedited, submitted_at, decided_at) -- 3/10 days elapsed for the
+        # expedited pair (standard is 7 days), 15/35 for the standard pair
+        # (standard is 30 days).
+        (True, now - timedelta(days=3), now),
+        (True, now - timedelta(days=10), now),
+        (False, now - timedelta(days=15), now),
+        (False, now - timedelta(days=35), now),
+    ]
+
+    with psycopg.connect(migrated_dsn, autocommit=True) as conn, conn.cursor() as cur:
+        # audit_event/worker/case_assignment/verification/verification_response/
+        # benefit_month aren't written by this fixture, but still need
+        # truncating: migrated_dsn's underlying container is a session-wide
+        # singleton (only Flyway re-runs per call, idempotently, against the
+        # same live tables), so a stale CASE_VIEWED row left behind by an
+        # earlier test's own fixture (e.g. seeded_operational_dsn) can
+        # otherwise reference a program_request_id this fixture's own
+        # truncate just deleted -- a real orphaned-row failure caught by
+        # mart_access_review's relationships test the first time this
+        # fixture ran after Task 5's own audit_event-seeding fixture.
+        cur.execute(
+            "truncate table determination_trace, eligibility_determination, "
+            "verification_response, verification, benefit_month, case_assignment, "
+            "program_request, application, household_member, household, person, "
+            "worker, audit_event "
+            "restart identity cascade"
+        )
+        cur.execute(
+            "insert into person (id, first_name, last_name, date_of_birth, ssn_token, sex) "
+            "values (%s, 'Timeliness', 'Fixture', date '1990-01-01', %s, 'X')",
+            (person_id, f"tok-{person_id}"),
+        )
+        cur.execute(
+            "insert into household "
+            "(id, head_person_id, county, address_line1, city, state, zip_code) "
+            "values (%s, %s, 'Test County', '1 Main St', 'Testville', 'WY', '82001')",
+            (household_id, person_id),
+        )
+        cur.execute(
+            "insert into household_member "
+            "(id, household_id, person_id, relationship, effective_from) "
+            "values (%s, %s, %s, 'SELF', date '2026-01-01')",
+            (str(uuid.uuid4()), household_id, person_id),
+        )
+        for is_expedited, submitted_at, decided_at in scenarios:
+            application_id = str(uuid.uuid4())
+            program_request_id = str(uuid.uuid4())
+            cur.execute(
+                "insert into application (id, household_id, submitted_at, channel) "
+                "values (%s, %s, %s, 'ONLINE')",
+                (application_id, household_id, submitted_at),
+            )
+            cur.execute(
+                "insert into program_request "
+                "(id, application_id, program_code, status, requested_on, is_expedited) "
+                "values (%s, %s, 'SNAP', 'DETERMINED', %s, %s)",
+                (program_request_id, application_id, submitted_at.date(), is_expedited),
+            )
+            cur.execute(
+                "insert into eligibility_determination "
+                "(id, program_request_id, benefit_month, as_of_date, eligible, benefit_amount, "
+                "reason_code, policy_parameter_set_id, policy_parameter_version, "
+                "decided_by, decided_at) "
+                "values (%s, %s, date '2026-01-01', %s, true, 292, 'ELIGIBLE', "
+                "%s, 'SNAP-FY2025', 'test-fixture', %s)",
+                (str(uuid.uuid4()), program_request_id, decided_at.date(),
+                 SNAP_FY2025_PARAMETER_SET_ID, decided_at),
+            )
 
     yield migrated_dsn
 

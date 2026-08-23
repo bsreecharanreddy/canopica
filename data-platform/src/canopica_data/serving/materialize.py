@@ -20,6 +20,7 @@ GOLD_MARTS = (
     "mart_worker_caseload",
     "mart_access_review",
     "mart_payment_accuracy",
+    "mart_processing_timeliness",
 )
 
 

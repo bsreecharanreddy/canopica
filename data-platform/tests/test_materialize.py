@@ -50,10 +50,11 @@ def test_gold_mart_materializes_into_the_serving_database(
 
     counts = materialize_gold(duckdb_path=duckdb_path, serving_dsn=serving_dsn)
     assert counts["mart_determination_outcomes"] == 1
-    # Task 5's three new marts, materialized the same way.
+    # Task 5's three new marts plus Task 6's, materialized the same way.
     assert counts["mart_worker_caseload"] == 1
     assert counts["mart_access_review"] == 1
     assert counts["mart_payment_accuracy"] == 1
+    assert counts["mart_processing_timeliness"] == 1
 
     with psycopg.connect(serving_dsn) as conn:
         gold_total = conn.execute(
@@ -112,3 +113,4 @@ def test_materialize_is_rerunnable(
     assert counts["mart_worker_caseload"] == 1
     assert counts["mart_access_review"] == 1
     assert counts["mart_payment_accuracy"] == 1
+    assert counts["mart_processing_timeliness"] == 1

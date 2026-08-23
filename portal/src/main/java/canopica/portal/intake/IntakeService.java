@@ -4,6 +4,7 @@ import canopica.portal.api.dto.IntakeExpenseDto;
 import canopica.portal.api.dto.IntakeIncomeDto;
 import canopica.portal.api.dto.IntakePersonDto;
 import canopica.portal.api.dto.IntakeRequest;
+import canopica.portal.api.dto.IntakeResourceDto;
 import canopica.portal.audit.AuditEventType;
 import canopica.portal.audit.AuditService;
 import canopica.portal.domain.Application;
@@ -14,6 +15,7 @@ import canopica.portal.domain.IncomeRecord;
 import canopica.portal.domain.LivingArrangement;
 import canopica.portal.domain.Person;
 import canopica.portal.domain.ProgramRequest;
+import canopica.portal.domain.ResourceRecord;
 import canopica.portal.domain.Verification;
 import canopica.portal.repo.ApplicationRepository;
 import canopica.portal.repo.ExpenseRecordRepository;
@@ -23,7 +25,9 @@ import canopica.portal.repo.IncomeRecordRepository;
 import canopica.portal.repo.LivingArrangementRepository;
 import canopica.portal.repo.PersonRepository;
 import canopica.portal.repo.ProgramRequestRepository;
+import canopica.portal.repo.ResourceRecordRepository;
 import canopica.portal.repo.VerificationRepository;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,6 +35,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,15 +54,26 @@ public class IntakeService {
     private final LivingArrangementRepository livingArrangements;
     private final IncomeRecordRepository incomeRecords;
     private final ExpenseRecordRepository expenseRecords;
+    private final ResourceRecordRepository resourceRecords;
     private final ApplicationRepository applications;
     private final ProgramRequestRepository programRequests;
     private final VerificationRepository verifications;
     private final AuditService auditService;
     private final Clock clock;
 
+    // 7 CFR 273.2(i)(1)(iii)'s "rent or mortgage and utility expenses" leg --
+    // FactAssembler's own shelterCost/utilityCost split (RENT_OR_MORTGAGE/
+    // PROPERTY_TAX/HOME_INSURANCE vs. UTILITIES) is for the DMN's shelter
+    // deduction; the expedited-processing test in the regulation bundles
+    // rent/mortgage and utilities together, so this list is deliberately
+    // broader than either of FactAssembler's two individual buckets.
+    private static final Set<String> SHELTER_EXPENSE_TYPES =
+            Set.of("RENT_OR_MORTGAGE", "PROPERTY_TAX", "HOME_INSURANCE", "UTILITIES");
+
     IntakeService(PersonRepository persons, HouseholdRepository households,
                   HouseholdMemberRepository householdMembers, LivingArrangementRepository livingArrangements,
                   IncomeRecordRepository incomeRecords, ExpenseRecordRepository expenseRecords,
+                  ResourceRecordRepository resourceRecords,
                   ApplicationRepository applications, ProgramRequestRepository programRequests,
                   VerificationRepository verifications, AuditService auditService, Clock clock) {
         this.persons = persons;
@@ -66,6 +82,7 @@ public class IntakeService {
         this.livingArrangements = livingArrangements;
         this.incomeRecords = incomeRecords;
         this.expenseRecords = expenseRecords;
+        this.resourceRecords = resourceRecords;
         this.applications = applications;
         this.programRequests = programRequests;
         this.verifications = verifications;
@@ -123,12 +140,19 @@ public class IntakeService {
             }
         }
 
+        for (IntakeResourceDto resource : request.resources()) {
+            resourceRecords.save(new ResourceRecord(UUID.randomUUID(), householdId, resource.resourceType(),
+                    resource.amount(), resource.effectiveFrom(), resource.effectiveTo()));
+        }
+
+        boolean expedited = isExpedited(request);
+
         UUID applicationId = UUID.randomUUID();
         applications.save(new Application(applicationId, householdId, Instant.now(clock), request.channelOrDefault()));
 
         UUID programRequestId = UUID.randomUUID();
         programRequests.save(new ProgramRequest(
-                programRequestId, applicationId, "SNAP", "SUBMITTED", today, false));
+                programRequestId, applicationId, "SNAP", "SUBMITTED", today, expedited));
 
         // 7 CFR 273.2(f)(1): households must be given at least 10 days to provide verification. Only
         // INCOME is requested at intake today (design doc §2.2) -- the other data_element values the
@@ -143,5 +167,31 @@ public class IntakeService {
                 "program_request", programRequestId, payload);
 
         return new IntakeResult(applicationId, programRequestId);
+    }
+
+    /**
+     * Computed directly from the just-submitted request, not a re-query of what
+     * was just persisted -- every income/expense/resource on this submission is
+     * "as of now" by construction, so there is nothing an effective-dated
+     * as-of query would filter out that summing the request itself doesn't
+     * already give.
+     */
+    private static boolean isExpedited(IntakeRequest request) {
+        BigDecimal grossMonthlyIncome = request.members().stream()
+                .flatMap(member -> member.incomes().stream())
+                .map(IntakeIncomeDto::monthlyAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal shelterCost = request.members().stream()
+                .flatMap(member -> member.expenses().stream())
+                .filter(expense -> SHELTER_EXPENSE_TYPES.contains(expense.expenseType()))
+                .map(IntakeExpenseDto::monthlyAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal liquidResources = request.resources().stream()
+                .map(IntakeResourceDto::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return ExpeditedEligibility.isExpedited(grossMonthlyIncome, liquidResources, shelterCost);
     }
 }

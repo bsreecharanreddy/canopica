@@ -39,7 +39,7 @@ class SchemaMigrationTest extends AbstractPostgresTest {
         List<String> effectiveDated = List.of(
                 "household_member", "income_record", "expense_record",
                 "living_arrangement", "work_activity", "disability_record",
-                "case_assignment");
+                "case_assignment", "resource_record");
         for (String table : effectiveDated) {
             List<String> columns = jdbc.queryForList(
                     "select column_name from information_schema.columns "
