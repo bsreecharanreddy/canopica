@@ -72,10 +72,7 @@ class VerificationControllerTest extends AbstractApiTest {
         var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
         UUID verificationId = CaseFixtures.insertVerification(jdbc, ids.programRequestId(), "INCOME");
         UUID otherWorkerId = CaseFixtures.insertWorker(jdbc, "Someone Else", "WORKER");
-        jdbc.update(
-                "insert into case_assignment (id, household_id, worker_id, effective_from) "
-                        + "values (?, ?, ?, current_date)",
-                UUID.randomUUID(), ids.householdId(), otherWorkerId);
+        CaseFixtures.insertCaseAssignment(jdbc, ids.householdId(), otherWorkerId);
 
         mvc.perform(get("/api/program-requests/" + ids.programRequestId() + "/verifications")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
