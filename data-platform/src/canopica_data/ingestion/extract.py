@@ -14,17 +14,27 @@ from pathlib import Path
 import polars as pl
 from deltalake import write_deltalake
 
-# The bronze/silver/gold shape this task establishes for Phase 1b to widen
-# (roadmap §3.4.2's full table list) -- these seven are what the operational
-# schema has through Task 9 and what dbt's sources.yml reads.
+# Phase 1a's narrow seven, widened here (Phase 1b Task 5) to the rest of
+# roadmap §3.4.2's table list. `application` and `benefit_month` land too,
+# even though the Task 5 plan's own parenthetical only named the other
+# five -- fct_application and fct_benefit_month (design doc §3.4.2's silver
+# list) need a bronze source that didn't otherwise exist; a plan gap filled
+# during implementation, not scope creep.
 ALL_TABLES = (
     "person",
     "household",
     "household_member",
+    "application",
     "program_request",
     "eligibility_determination",
     "policy_parameter_set",
     "policy_parameter",
+    "worker",
+    "case_assignment",
+    "verification",
+    "verification_response",
+    "benefit_month",
+    "audit_event",
 )
 
 

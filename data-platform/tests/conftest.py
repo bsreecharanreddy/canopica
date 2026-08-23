@@ -124,17 +124,32 @@ def seeded_operational_dsn(migrated_dsn: str) -> Iterator[str]:
     eligibility_determination/determination_trace. Reuses the FY2025
     policy_parameter_set V4's migration already seeded rather than inserting
     a second one.
+
+    Phase 1b Task 5 widened this to also seed one row each of
+    worker/case_assignment/verification/verification_response/benefit_month/
+    audit_event, tied to the same household/program_request/worker identity
+    (case_assignment.worker_id, audit_event.actor_id == worker.keycloak_
+    subject) -- otherwise the new dim_worker/fct_verification/fct_benefit_
+    month/fct_audit_event silver models and the mart_worker_caseload/
+    mart_access_review gold marts would only ever be exercised against an
+    empty table, which proves the SQL parses but not that a real join
+    produces a real row.
     """
     person_ids = [str(uuid.uuid4()) for _ in range(SEEDED_PERSON_COUNT)]
     household_id = str(uuid.uuid4())
     application_id = str(uuid.uuid4())
     program_request_id = str(uuid.uuid4())
     determination_id = str(uuid.uuid4())
+    worker_id = str(uuid.uuid4())
+    worker_keycloak_subject = "fixture-worker-sub"
+    verification_id = str(uuid.uuid4())
 
     with psycopg.connect(migrated_dsn, autocommit=True) as conn, conn.cursor() as cur:
         cur.execute(
             "truncate table determination_trace, eligibility_determination, "
-            "program_request, application, household_member, household, person "
+            "verification_response, verification, benefit_month, case_assignment, "
+            "program_request, application, household_member, household, person, "
+            "worker, audit_event "
             "restart identity cascade"
         )
         for i, person_id in enumerate(person_ids):
@@ -180,6 +195,36 @@ def seeded_operational_dsn(migrated_dsn: str) -> Iterator[str]:
             "values (%s, %s, '{}'::jsonb, '{}'::jsonb, 'snap-eligibility', "
             "'test-hash', 'test-1.0')",
             (str(uuid.uuid4()), determination_id),
+        )
+        cur.execute(
+            "insert into worker (id, full_name, email, role, keycloak_subject) "
+            "values (%s, 'Fixture Worker', 'fixture.worker@example.gov', 'WORKER', %s)",
+            (worker_id, worker_keycloak_subject),
+        )
+        cur.execute(
+            "insert into case_assignment (id, household_id, worker_id, effective_from) "
+            "values (%s, %s, %s, date '2026-01-01')",
+            (str(uuid.uuid4()), household_id, worker_id),
+        )
+        cur.execute(
+            "insert into verification (id, program_request_id, data_element, status, due_on) "
+            "values (%s, %s, 'INCOME', 'RECEIVED', date '2026-01-15')",
+            (verification_id, program_request_id),
+        )
+        cur.execute(
+            "insert into verification_response (id, verification_id, outcome, raw_payload) "
+            "values (%s, %s, 'MATCHES', '{}'::jsonb)",
+            (str(uuid.uuid4()), verification_id),
+        )
+        cur.execute(
+            "insert into benefit_month (id, program_request_id, benefit_month) "
+            "values (%s, %s, date '2026-01-01')",
+            (str(uuid.uuid4()), program_request_id),
+        )
+        cur.execute(
+            "insert into audit_event (event_type, actor_id, subject_type, subject_id, payload) "
+            "values ('CASE_VIEWED', %s, 'program_request', %s, %s::jsonb)",
+            (worker_keycloak_subject, program_request_id, '{"in_assignment": true}'),
         )
 
     yield migrated_dsn

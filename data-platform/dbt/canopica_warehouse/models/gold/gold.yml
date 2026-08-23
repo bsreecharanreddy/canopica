@@ -41,3 +41,74 @@ models:
         tests: [not_null]
       - name: average_benefit_amount
         tests: [not_null]
+
+  - name: mart_worker_caseload
+    description: Active case_assignment count per worker.
+    tests:
+      - no_pii_in_gold
+    columns:
+      - name: worker_key
+        tests: [not_null, unique]
+      - name: worker_name
+        tests: [not_null]
+      - name: role
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["WORKER", "SUPERVISOR", "ADMIN"] }
+      - name: active_case_count
+        tests: [not_null]
+
+  - name: mart_access_review
+    description: >
+      One row per CASE_VIEWED audit event, joined to whether the viewing
+      worker held the case's active assignment.
+    tests:
+      - no_pii_in_gold
+    columns:
+      - name: audit_event_key
+        tests: [not_null, unique]
+      - name: occurred_at
+        tests: [not_null]
+      - name: worker_key
+        tests: [not_null]
+      - name: worker_name
+        tests: [not_null]
+      - name: worker_role
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["WORKER", "SUPERVISOR", "ADMIN"] }
+      - name: program_request_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('fct_program_request'), field: program_request_key }
+      - name: in_assignment
+        tests: [not_null]
+
+  - name: mart_payment_accuracy
+    description: >
+      Placeholder shape for Phase 4's QC / Payment Error Rate Assistant --
+      `reviewed`/`payment_error_amount` are not real logic yet, see the
+      model's own doc comment.
+    tests:
+      - no_pii_in_gold
+    columns:
+      - name: determination_key
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments: { to: ref('fct_eligibility_determination'), field: determination_key }
+      - name: benefit_month
+        tests: [not_null]
+      - name: program_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["SNAP"] }
+      - name: paid_amount
+        tests: [not_null]
+      - name: reviewed
+        tests: [not_null]

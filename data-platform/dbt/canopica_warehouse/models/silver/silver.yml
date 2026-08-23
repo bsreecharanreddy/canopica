@@ -161,3 +161,156 @@ models:
       - name: loaded_at
         tests: [not_null]
         meta: { classification: PUBLIC }
+
+  - name: dim_worker
+    description: One row per worker (caseworker/supervisor/admin), deduplicated to the latest bronze landing.
+    columns:
+      - name: worker_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: worker_name
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: email
+        tests: [not_null, unique]
+        meta: { classification: SENSITIVE }
+      - name: role
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["WORKER", "SUPERVISOR", "ADMIN"] }
+        meta: { classification: PUBLIC }
+      - name: keycloak_subject
+        meta: { classification: SENSITIVE }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: dim_program
+    description: Static dimension over the programs this system determines eligibility for (today, just SNAP).
+    columns:
+      - name: program_code
+        tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments: { values: ["SNAP"] }
+        meta: { classification: PUBLIC }
+      - name: program_name
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: statutory_citation
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: fct_application
+    description: One row per application, deduplicated to the latest bronze landing.
+    columns:
+      - name: application_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: household_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('dim_household'), field: household_key }
+        meta: { classification: PUBLIC }
+      - name: submitted_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: channel
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["ONLINE", "PHONE", "PAPER", "IN_PERSON"] }
+        meta: { classification: PUBLIC }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: fct_verification
+    description: One row per verification checklist item, deduplicated to the latest bronze landing.
+    columns:
+      - name: verification_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: program_request_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('fct_program_request'), field: program_request_key }
+        meta: { classification: PUBLIC }
+      - name: data_element
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  ["IDENTITY", "RESIDENCY", "INCOME", "SHELTER_COST", "MEDICAL_EXPENSE",
+                   "DISABILITY", "HOUSEHOLD_COMPOSITION"]
+        meta: { classification: PUBLIC }
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["OUTSTANDING", "RECEIVED", "WAIVED"] }
+        meta: { classification: PUBLIC }
+      - name: due_on
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: satisfied_on
+        meta: { classification: PUBLIC }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: fct_benefit_month
+    description: One row per benefit month, deduplicated to the latest bronze landing.
+    columns:
+      - name: benefit_month_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: program_request_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('fct_program_request'), field: program_request_key }
+        meta: { classification: PUBLIC }
+      - name: benefit_month
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
+  - name: fct_audit_event
+    description: One row per audit-log event, deduplicated to the latest bronze landing.
+    columns:
+      - name: audit_event_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: occurred_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: event_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  ["APPLICATION_SUBMITTED", "DETERMINATION_MADE", "CASE_VIEWED", "VERIFICATION_UPDATED"]
+        meta: { classification: PUBLIC }
+      - name: actor_id
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: subject_type
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: subject_id
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: payload
+        meta: { classification: SENSITIVE }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }

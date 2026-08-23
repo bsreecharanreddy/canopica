@@ -52,5 +52,12 @@ def test_dbt_build_produces_the_gold_mart(seeded_operational_dsn: str, tmp_path:
         ).fetchone()
         assert row_count is not None
         assert row_count[0] == 1
+
+        # Task 5's three new marts -- each seeded to produce exactly one row
+        # by conftest.py's seeded_operational_dsn.
+        for mart in ("mart_worker_caseload", "mart_access_review", "mart_payment_accuracy"):
+            mart_row_count = con.execute(f"select count(*) from main_gold.{mart}").fetchone()
+            assert mart_row_count is not None
+            assert mart_row_count[0] == 1, mart
     finally:
         con.close()

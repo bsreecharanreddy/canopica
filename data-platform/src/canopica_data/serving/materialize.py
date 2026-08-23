@@ -14,8 +14,13 @@ from pathlib import Path
 import duckdb
 
 # The gold marts this materializes, in main_gold -> reporting.<name>. Widen
-# this tuple as Task 10's gold layer grows further gold models.
-GOLD_MARTS = ("mart_determination_outcomes",)
+# this tuple as the gold layer grows further gold models.
+GOLD_MARTS = (
+    "mart_determination_outcomes",
+    "mart_worker_caseload",
+    "mart_access_review",
+    "mart_payment_accuracy",
+)
 
 
 def materialize_gold(duckdb_path: Path | str, serving_dsn: str) -> dict[str, int]:
