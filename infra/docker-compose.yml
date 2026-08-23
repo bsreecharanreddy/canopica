@@ -223,7 +223,15 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama-data:/root/.ollama
+      # A host bind mount, not a named volume, on purpose: CI (see ci.yml)
+      # caches this exact path with actions/cache so the ~2.3GB
+      # nomic-embed-text + llama3.2:3b pull doesn't hit Ollama's registry
+      # on every single workflow run -- a named volume has no stable host
+      # path actions/cache could target across separate runs on GitHub's
+      # ephemeral runners. `ollama pull` is content-addressed and already
+      # idempotent, so a warm cache just verifies existing blobs in
+      # seconds instead of re-downloading them.
+      - ./ollama-models:/root/.ollama
     healthcheck:
       test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 10s
@@ -343,4 +351,3 @@ services:
 volumes:
   postgres-data:
   opensearch-data:
-  ollama-data:

@@ -117,6 +117,22 @@ jobs:
     needs: [java, python, ai, dbt]
     steps:
       - uses: actions/checkout@v7
+      # ollama-init (below) pulls ~2.3GB (nomic-embed-text + llama3.2:3b)
+      # from Ollama's registry on every single run otherwise -- real
+      # concern raised 2026-08-23 once this task's own repeated CI
+      # attempts made that obvious. infra/docker-compose.yml's `ollama`
+      # service bind-mounts this exact path (not a named volume, which has
+      # no stable host path across separate runs) so it can be cached
+      # here. `ollama pull` is content-addressed and already idempotent --
+      # a warm cache just verifies existing blobs in seconds. Key is a
+      # static string, not a hash of the compose file, since that file
+      # changes for unrelated reasons (memory tuning, service config) far
+      # more often than the pulled model tags do; bump the suffix if
+      # ollama-init's own pull list ever changes.
+      - uses: actions/cache@v6
+        with:
+          path: infra/ollama-models
+          key: ollama-models-nomic-embed-text-llama3.2-3b-v1
       # The full stack (14 services, now including OpenSearch + Ollama +
       # the two models ollama-init pulls at runtime) doesn't fit in the
       # runner's default free disk alongside its preinstalled toolchains.

@@ -30,6 +30,10 @@ logs/
 .env
 !infra/.env.example
 
+# Ollama model blobs — bind-mounted (not a named volume) so CI can cache
+# this path with actions/cache; several GB, never committed
+infra/ollama-models/
+
 # Terraform
 .terraform/
 *.tfstate
