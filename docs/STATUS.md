@@ -11,7 +11,7 @@ Last updated: **2026-08-23**
 
 ## Current position
 
-**Phase 1a complete, verified end-to-end. Phase 1b complete (10 of 10 tasks done).**
+**Phase 1a complete, verified end-to-end. Phase 1b complete (10 of 10 tasks done). Phase 2 design approved; implementation plan not yet written.**
 
 All 13 tasks of `docs/plans/2026-08-21-phase-1a-implementation-plan.md` are
 done. The full walking skeleton — intake → DMN determination (persisted
@@ -161,10 +161,36 @@ real traces in Jaeger from both a request and a pipeline run (Task 9); and
 now `terraform validate`/`fmt -check` clean in CI, with `docs/STATUS.md`,
 `CLAUDE.md`, and `README.md` all updated in this same commit (Task 10).
 
-**Next action:** Awaiting explicit go-ahead to begin Phase 2 (Policy
-Intelligence & Analytics AI) — its own task-level plan isn't written yet,
-per this project's own convention of writing each phase's plan when that
-phase begins, not before.
+**Phase 2 design is approved and settled** —
+`docs/design/2026-08-23-phase-2-policy-intelligence-analytics-ai-design.md`
+covers OpenSearch retrieval, Policy Q&A/explainability RAG (with
+provenance and grounding/abstention), a rule-authoring copilot (narrowed
+from the roadmap's own "DMN diff" wording to `policy_parameter_set`
+values — a real, recorded scope correction), an Analytics Copilot over
+MetricFlow via MCP, dashboard-authoring assist, a RAGAS/DeepEval eval gate,
+the public hosted demo (OpenRouter free-tier models, falling back to a
+cheap paid model under a $5/mo hard cap during real traffic bursts,
+refined after direct discussion from an earlier free-tier-only draft),
+and a closing
+cross-cutting-patterns section (bounded copilots not autonomous agents,
+structured output, public-surface guardrails). Checked against current
+(2026) industry practice before being finalized, via the new
+`canopica-ai-design-review` skill's own first real use — five decisions changed
+as a direct result (retrieval fusion/reranking, RAG provenance, the
+LLM↔semantic-layer integration mechanism, the eval-gating method, an
+observability-spec caveat), recorded inline in the doc rather than
+presented as the original brainstorm's own conclusions. Recorded in all
+three places `canopica-design-decision` calls for: the roadmap doc's §3.3
+cross-cutting table (5 rows added/updated), the tradeoffs doc (a new
+Platform-tier row, §4.16, and the §5 cost paragraph corrected to match
+the free-tier decision), and the decisions table below.
+
+**Next action:** Write Phase 2's task-level implementation plan
+(`docs/plans/`, file-by-file, mirroring `2026-08-22-phase-1b-
+implementation-plan.md`'s shape), then await explicit go-ahead before
+starting Task 1 — per this project's own convention, a plan gets written
+once its phase's design is settled, and implementation starts only when
+asked.
 
 ---
 

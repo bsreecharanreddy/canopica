@@ -189,6 +189,17 @@ anticipatory — no fabricated gotchas for problems this repo hasn't had.
   doc, tradeoffs doc). First used for real recording the pgmq decision
   (commit 683747a) before this skill existed; the skill just makes that
   same shape repeatable without re-deriving it from prose each time.
+- **`canopica-ai-design-review` skill** — a live-research pass against current
+  industry-standard AI design patterns (retrieval, agent/copilot
+  boundaries, evaluation, observability, guardrails), run inside
+  `canopica-design-decision`'s own brainstorm step whenever the decision
+  touches an AI/LLM capability. First used for real on the Phase 2
+  (Policy Intelligence & Analytics AI) design doc, at the user's explicit
+  request, before this skill existed — that pass changed five real
+  decisions (retrieval fusion/reranking, RAG provenance, the LLM↔semantic-
+  layer integration mechanism, the eval-gating method, an observability-
+  spec caveat); the skill makes that same check repeatable for Phase 3/4's
+  AI work without re-deriving it from scratch each time.
 - **`check-status-md-commit.sh` hook** (PreToolUse/Bash) — warns,
   non-blocking, if a `git commit` stages files outside `docs/` without
   `docs/STATUS.md`, enforcing the same-commit rule above mechanically

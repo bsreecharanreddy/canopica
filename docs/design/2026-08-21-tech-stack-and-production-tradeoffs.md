@@ -98,6 +98,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 | Secrets | `.env` + local Keycloak credentials | Key Vault / HashiCorp Vault, HSM-backed, FIPS 140-validated crypto modules, automated rotation | **~** | Substituted for local-run convenience; the *code* reads from an abstraction either way. |
 | Observability | OpenTelemetry → Jaeger (traces) + Prometheus/Grafana (metrics), self-hosted single-host containers | OpenTelemetry → Azure Monitor / **Splunk** (near-standard in government), with 24/7 alerting and on-call rotation | **≈** | Backend swap. Instrumentation code is identical — that's the point of OTel. |
 | CI/CD | GitHub Actions: build, lint, test, dbt tests, fairness gate, eval gate | Azure DevOps / GitLab, plus SAST, DAST, software composition analysis, container scanning, STIG compliance scanning, and a formal change-approval board | **≈** | More gates, slower cadence, human approval boards. |
+| Public-demo inference | OpenRouter free-tier (`:free`) models, falling back to a cheap paid OpenRouter model under a $5/mo hard cap | A production system runs its own hosted/fine-tuned model behind an SLA, or a paid frontier-model API | **~** | Free/cheap-tier models are lower-quality and less consistently available than a paid frontier model a real production system would use — a real fidelity gap, not just a same-shape swap. See §4.16. |
 
 ## 3. What genuinely transfers
 
@@ -228,15 +229,32 @@ the same shape of compromise §4.11 already accepts for `pgmq` — reusing
 existing infrastructure instead of standing up a dedicated service —
 applied here to PII instead of queues.
 
+**4.16 The public demo's paid fallback is real spend, not just an
+emergency backstop.** OpenRouter free-tier models are the primary path,
+but a burst of real traffic (the exact scenario the demo exists for — a
+recruiter or interviewer actually trying it) genuinely falls back to a
+paid model within the $5/mo cap, not just in a hypothetical edge case.
+That's a deliberate choice, refined after direct discussion, over a
+stricter free-tier-only design: real availability exactly when it matters
+most, for a fully bounded, predictable cost, rather than "unavailable"
+being the first thing a real visitor sees the moment free-tier limits are
+hit. Only once both the free tier and the $5/mo paid budget are exhausted
+does the demo fail closed. Stated plainly rather than presenting this as
+either "always free" or "always available" — it's neither, by design.
+
 ## 5. Cost
 
 Running the full stack locally is **$0** and requires no cloud account, no
-API key, and no trial credential that can silently expire. The only
-recurring cost in the project is the hard-capped hosted-inference budget
-for the public demo introduced in Phase 2, which fails closed rather than
-overspending.
+API key, and no trial credential that can silently expire. The public
+demo introduced in Phase 2 runs on OpenRouter's free-tier models first,
+falling back to a cheap paid OpenRouter model under a **$5/mo hard cap**
+during real traffic bursts — a deliberate, bounded recurring cost, not an
+emergency-only backstop expected to sit at $0 — and only fails closed
+once that cap is actually reached.
 
-That constraint drove several choices above — Ollama over a hosted API,
+That constraint drove several choices above — Ollama over a hosted API
+locally (and a free-tier-first, capped-paid-fallback hosted API, not an
+uncapped one, for the one public surface that needs a hosted API at all),
 DuckDB over managed Spark, MinIO over cloud storage, Keycloak over a
 commercial IdP, pgmq over RabbitMQ/Kafka, batch extraction over
 Debezium/CDC, and a `pgcrypto`-backed token vault over a dedicated
