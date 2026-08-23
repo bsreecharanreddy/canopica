@@ -162,6 +162,12 @@ evaluation lives inside the portal service). Everything else is Python.
   STATUS.md rule above: a diagram nobody keeps current is worse than no
   diagram, because it actively misleads a reader instead of just being
   silent.
+- **Changes stay scoped to the task at hand.** Don't reformat, restyle,
+  or "improve" adjacent code, comments, or unrelated lines while touching
+  a file for something else — match the surrounding style even where
+  you'd have written it differently. If you notice pre-existing dead code
+  along the way, say so rather than deleting it silently; only remove
+  what your own change made unused.
 
 ## `.claude/` tooling — added only for real, already-settled things
 
