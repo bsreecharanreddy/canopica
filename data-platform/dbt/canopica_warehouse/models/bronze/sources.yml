@@ -25,3 +25,4 @@ sources:
       - name: verification_response
       - name: benefit_month
       - name: audit_event
+      - name: person_pii_tokens

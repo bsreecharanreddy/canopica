@@ -41,6 +41,18 @@ def extract() -> None:
         print(f"ingested {table}: {count} rows", file=sys.stderr)
 
 
+@task(task_id="tokenize")
+def tokenize() -> None:
+    from canopica_data.config import Settings
+    from canopica_data.governance.tokenize import tokenize_person_names
+
+    settings = Settings()
+    token_count = tokenize_person_names(
+        settings.operational_dsn, settings.bronze_root, settings.pii_encryption_key
+    )
+    print(f"tokenized {token_count} person names", file=sys.stderr)
+
+
 @task(task_id="materialize")
 def materialize() -> None:
     from canopica_data.config import Settings
@@ -77,4 +89,4 @@ with DAG(
         ),
     )
 
-    extract() >> dbt_build >> materialize() >> provision_metabase()
+    extract() >> tokenize() >> dbt_build >> materialize() >> provision_metabase()

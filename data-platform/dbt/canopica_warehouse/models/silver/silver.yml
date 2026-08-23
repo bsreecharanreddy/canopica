@@ -18,7 +18,7 @@ models:
       - name: is_us_citizen
         tests: [not_null]
         meta: { classification: SENSITIVE }
-      - name: name_hash
+      - name: name_token
         tests: [not_null]
         meta: { classification: SENSITIVE }
       - name: loaded_at

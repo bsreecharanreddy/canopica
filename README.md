@@ -112,9 +112,10 @@ determination → hash-chained audit trail → dbt warehouse → Metabase
 dashboard) runs end to end against real infrastructure, proven by
 `data-platform/tests/test_end_to_end.py` and walkable by hand in
 [`docs/demo.md`](docs/demo.md). Phase 1b (hardening) is in progress —
-identity, row-level authorization, mocked external verification, and
-Airflow orchestration are done; governance mapping, accessibility, and
-observability remain.
+identity, row-level authorization, mocked external verification, Airflow
+orchestration, full medallion coverage, widened reporting, and governance
+(PII tokenization, `docs/design/compliance-mapping.md`) are done;
+accessibility and observability remain.
 
 | Phase | Focus | Status |
 |---|---|---|

@@ -203,6 +203,34 @@ the data it protects — the same shape of compromise §4.11's `pgmq`
 tradeoff already accepts for messaging, applied to PII instead of queues.
 Worth stating plainly rather than calling it equivalent to a real vault.
 
+**Correction (2026-08-22, found implementing Task 7):** this section's
+opening premise — "carried into silver in the clear today" — turned out
+to be wrong, the same class of error §2.1/§2.2's corrections already
+caught for a different pair of assumptions. Checking `dim_person.sql` and
+`dim_household.sql` (both Task 10, Phase 1a) directly: `dim_person`
+already stores `sha256(lower(first_name || '|' || last_name))` as
+`name_hash` (a one-way hash) and `extract(year from date_of_birth))` as
+`birth_year` only — never the full date. `dim_household` already drops
+`address_line1`/`address_line2`/`city` entirely, keeping only
+`county`/`state`/`zip_code`. Neither model has been touched since Task 10.
+
+The real gap isn't "raw PII in silver" — it's that a **one-way hash
+forecloses the one thing a token vault is actually for**: recovering the
+real value under an explicit, audited need (correcting a misspelled name,
+an access-review investigation). `birth_year`/`county`/`state`/`zip_code`
+are lossy minimizations, already a stronger posture than a reversible
+token would be, and no planned consumer has a legitimate need to recover
+the exact original DOB or street address from the warehouse.
+
+**Revised decision:** build the `pii_token` vault exactly as designed
+above, but apply it only to upgrade `dim_person`'s `name_hash` (irreversible)
+into a `name_token` (reversible, vault-backed, audited detokenization).
+Leave `birth_year` and `dim_household`'s address handling untouched — they
+already satisfy this section's real intent through a different, arguably
+stronger mechanism (data minimization at the source) than tokenization
+would add. `docs/design/compliance-mapping.md` (also this task) records
+this explicitly rather than silently narrowing scope.
+
 ### 2.4 `mart_fairness_audit` deferred to Phase 4
 
 §3.4.2 lists `mart_fairness_audit` under Phase 1b's "full medallion

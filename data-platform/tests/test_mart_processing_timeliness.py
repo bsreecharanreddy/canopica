@@ -10,10 +10,12 @@ from pathlib import Path
 import duckdb
 import pytest
 
+from canopica_data.governance.tokenize import tokenize_person_names
 from canopica_data.ingestion.extract import ALL_TABLES, extract_to_bronze
 
 DATA_PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 DBT_PROJECT_DIR = DATA_PLATFORM_ROOT / "dbt" / "canopica_warehouse"
+TEST_ENCRYPTION_KEY = "test-pii-vault-key"
 
 
 @pytest.mark.integration
@@ -23,6 +25,9 @@ def test_mart_processing_timeliness_flags_the_right_rows_as_late(
     warehouse_root = tmp_path
     duckdb_path = tmp_path / "canopica.duckdb"
     extract_to_bronze(seeded_timeliness_dsn, warehouse_root / "bronze", list(ALL_TABLES))
+    # dim_person.sql (Task 7) joins against this bronze landing -- must run
+    # before dbt build, same as extract_to_bronze above.
+    tokenize_person_names(seeded_timeliness_dsn, warehouse_root / "bronze", TEST_ENCRYPTION_KEY)
 
     result = subprocess.run(
         [
