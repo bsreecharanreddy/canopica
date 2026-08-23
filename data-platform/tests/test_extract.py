@@ -30,6 +30,30 @@ def test_extract_lands_every_row_with_ingest_metadata(
 
 
 @pytest.mark.integration
+def test_extract_lands_phase_1b_widened_tables(
+    seeded_operational_dsn: str, tmp_path: Path
+) -> None:
+    """Task 5 widened bronze past Phase 1a's narrow seven -- proves each of
+    the new tables lands the one seeded row conftest.py's
+    seeded_operational_dsn now inserts, not just that the query doesn't
+    error against an empty table."""
+    counts = extract_to_bronze(
+        seeded_operational_dsn,
+        tmp_path,
+        ["application", "worker", "case_assignment", "verification",
+         "verification_response", "benefit_month", "audit_event"],
+    )
+
+    assert counts["application"] == 1
+    assert counts["worker"] == 1
+    assert counts["case_assignment"] == 1
+    assert counts["verification"] == 1
+    assert counts["verification_response"] == 1
+    assert counts["benefit_month"] == 1
+    assert counts["audit_event"] == 1
+
+
+@pytest.mark.integration
 def test_extract_appends_rather_than_overwrites(
     seeded_operational_dsn: str, tmp_path: Path
 ) -> None:

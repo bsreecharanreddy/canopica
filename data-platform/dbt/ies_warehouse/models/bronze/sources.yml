@@ -14,7 +14,14 @@ sources:
       - name: person
       - name: household
       - name: household_member
+      - name: application
       - name: program_request
       - name: eligibility_determination
       - name: policy_parameter_set
       - name: policy_parameter
+      - name: worker
+      - name: case_assignment
+      - name: verification
+      - name: verification_response
+      - name: benefit_month
+      - name: audit_event
