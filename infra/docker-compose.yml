@@ -76,7 +76,13 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      # Widened from the original retries: 12 (~150s budget) after a real CI
+      # failure (Task 4): metabase's JVM startup missed that budget by ~12s
+      # once three more containers (the new airflow-* services) were building
+      # and starting concurrently on the same runner -- a resource-contention
+      # near-miss caused by the stack's own added weight, not a metabase
+      # regression, so the fix is headroom, not a metabase config change.
+      retries: 20
       start_period: 30s
 
   # Dev-mode Keycloak: no TLS, a bootstrap admin whose credentials are
