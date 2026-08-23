@@ -27,6 +27,7 @@ import pytest
 
 from canopica_data.audit.verify_chain import verify_chain
 from canopica_data.config import Settings
+from canopica_data.governance.tokenize import tokenize_person_names
 from canopica_data.ingestion.extract import ALL_TABLES, extract_to_bronze
 from canopica_data.serving.materialize import materialize_gold
 from canopica_data.synthetic.generator import generate_households
@@ -66,6 +67,7 @@ class StackFixture:
     serving_dsn: str
     bronze_root: Path
     duckdb_path: Path
+    pii_encryption_key: str
 
 
 @pytest.fixture
@@ -78,6 +80,7 @@ def stack(tmp_path: Path) -> StackFixture:
         serving_dsn=settings.serving_dsn,
         bronze_root=tmp_path / "bronze",
         duckdb_path=tmp_path / "canopica.duckdb",
+        pii_encryption_key=settings.pii_encryption_key,
     )
 
 
@@ -219,6 +222,9 @@ def test_intake_through_determination_audit_warehouse_and_mart(stack: StackFixtu
 
     # 5. Warehouse -- bronze, silver, gold all rebuild from the live database.
     extract_to_bronze(stack.operational_dsn, stack.bronze_root, list(ALL_TABLES))
+    # dim_person.sql (Task 7) joins against this bronze landing -- must run
+    # before dbt build, same as extract_to_bronze above.
+    tokenize_person_names(stack.operational_dsn, stack.bronze_root, stack.pii_encryption_key)
     _run_dbt_build(stack.bronze_root.parent, stack.duckdb_path)
 
     # 6. Mart -- the determination is visible, with the right money, under
