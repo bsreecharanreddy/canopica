@@ -1,0 +1,47 @@
+variable "project_name" {
+  description = "Short, DNS-safe name prefixed onto every resource -- matches this repo's own \"canopica\" naming (e.g. CANOPICA_OPERATIONAL_DSN)."
+  type        = string
+  default     = "canopica"
+}
+
+variable "environment" {
+  description = "Deployment tier suffix (e.g. demo, dev). Never \"prod\" -- this configuration is reference-only, never applied (see README.md)."
+  type        = string
+  default     = "demo"
+}
+
+variable "location" {
+  description = "Azure region. A commercial-Azure region name by default; pair with the usgovcloud provider swap (providers.tf) and a usgovcloud region (e.g. usgovvirginia) to retarget."
+  type        = string
+  default     = "eastus"
+}
+
+variable "postgres_admin_login" {
+  description = "Administrator login for the Postgres Flexible Server. The password is generated (random_password.postgres_admin in main.tf), never a literal here."
+  type        = string
+  default     = "iesadmin"
+}
+
+variable "portal_api_image" {
+  description = "Fully-qualified image ref for the portal API, e.g. <container-registry-login-server>/portal-api:<tag>, pushed to the registry this configuration provisions."
+  type        = string
+}
+
+variable "portal_web_image" {
+  description = "Fully-qualified image ref for the portal web frontend."
+  type        = string
+}
+
+variable "airflow_image" {
+  description = "Fully-qualified image ref shared by the Airflow webserver and scheduler container apps, built from infra/airflow/Dockerfile."
+  type        = string
+}
+
+variable "tags" {
+  description = "Common resource tags applied across every resource in this configuration."
+  type        = map(string)
+  default = {
+    project    = "canopica"
+    managed_by = "terraform"
+  }
+}

@@ -113,3 +113,21 @@ jobs:
         with:
           name: compose-logs
           path: compose-logs.txt
+
+  terraform:
+    name: Reference Terraform for Azure (validate only)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/azure
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: '1.15.8'
+      - run: terraform fmt -check
+      - run: terraform init -backend=false
+      # No plan/apply -- infra/azure/README.md states why (no subscription,
+      # no state backend, reference-only). validate catches type/reference
+      # errors without needing either.
+      - run: terraform validate

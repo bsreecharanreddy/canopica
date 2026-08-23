@@ -70,10 +70,10 @@ that's a design bug, not an implementation detail to work around.
 here — two places to record the same thing means one of them is wrong.
 
 At the coarsest level: **Phase 1a done, verified end-to-end. Phase 1b
-in progress (9 of 10 tasks done — identity, row-level authorization, mock
-external verification, orchestration, full medallion coverage, widened
-reporting, governance, accessibility, and observability; only reference
-Terraform for Azure remains).**
+done (10 of 10 tasks — identity, row-level authorization, mock external
+verification, orchestration, full medallion coverage, widened reporting,
+governance, accessibility, observability, and reference Terraform for
+Azure).**
 
 ## Phase plan
 

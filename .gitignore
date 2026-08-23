@@ -30,5 +30,13 @@ logs/
 .env
 !infra/.env.example
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+# Lock file *is* committed (pins provider versions) — this only ignores
+# the actual per-run state/plan artifacts above.
+
 # OS
 .DS_Store

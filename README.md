@@ -111,18 +111,19 @@ Tear down with `make down` (also removes the Postgres volume).
 determination → hash-chained audit trail → dbt warehouse → Metabase
 dashboard) runs end to end against real infrastructure, proven by
 `data-platform/tests/test_end_to_end.py` and walkable by hand in
-[`docs/demo.md`](docs/demo.md). Phase 1b (hardening) is in progress —
+[`docs/demo.md`](docs/demo.md). **Phase 1b (hardening) is done** —
 identity, row-level authorization, mocked external verification, Airflow
 orchestration, full medallion coverage, widened reporting, governance
 (PII tokenization, `docs/design/compliance-mapping.md`), accessibility
-(axe-clean portal pages, `jsx-a11y` lint in CI), and observability
-(OpenTelemetry traces in Jaeger, Prometheus/Grafana metrics) are done;
-only reference Terraform for Azure remains.
+(axe-clean portal pages, `jsx-a11y` lint in CI), observability
+(OpenTelemetry traces in Jaeger, Prometheus/Grafana metrics), and
+reference Terraform for Azure (`infra/azure/`, validated in CI, never
+applied) are all in place.
 
 | Phase | Focus | Status |
 |---|---|---|
 | 1a | Walking skeleton — intake → rules-engine determination → audit trail → warehouse → report page, end to end | Done |
-| 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability | In progress (9/10 tasks) |
+| 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability, reference Terraform | Done |
 | 2 | Policy Intelligence & Analytics AI — RAG-based policy Q&A, rule-authoring copilot, natural-language analytics | Planned |
 | 3 | Case Intake & Communication AI — document classification/extraction, AI-drafted correspondence, localization | Planned |
 | 4 | Compliance & Integrity AI — fraud risk triage, SLA/QC monitoring, caseworker SOP copilot | Planned |
@@ -134,22 +135,26 @@ task-level detail.
 
 ## Honest limitations of what's built so far
 
-Phase 1a is a real, working slice, not a demo shell, and Phase 1b's first
-nine tasks — Keycloak identity, caseload-scoped row-level authorization,
-the mocked external verification interface, Airflow orchestration, full
-medallion coverage, widened reporting, governance (PII tokenization),
-accessibility, and observability (OpenTelemetry traces in Jaeger,
-Prometheus/Grafana metrics) — have already closed several of its original
-gaps. What's still deliberately thin is worth stating plainly rather than
-leaving a reader to discover:
+Phase 1a is a real, working slice, not a demo shell, and Phase 1b —
+Keycloak identity, caseload-scoped row-level authorization, the mocked
+external verification interface, Airflow orchestration, full medallion
+coverage, widened reporting, governance (PII tokenization), accessibility,
+observability (OpenTelemetry traces in Jaeger, Prometheus/Grafana
+metrics), and reference Terraform for Azure — has already closed several
+of its original gaps. What's still deliberately thin is worth stating
+plainly rather than leaving a reader to discover:
 
 - **A narrow rules-engine scope.** SNAP only, one program; several real
   deductions/rules (asset test, child-support-paid deduction, homeless
   shelter deduction, ABAWD work requirements, broad-based categorical
   eligibility) aren't modeled, and household size is capped at 8.
-- **No real cloud deployment yet** — reference Terraform for Azure
-  (written, `validate`/`fmt`-clean, never applied) is Phase 1b's last
-  remaining task, Task 10.
+- **No real cloud deployment.** `infra/azure/` is reference Terraform
+  only — `validate`/`fmt`-clean in CI, never applied against a live
+  subscription; no state backend, no real secrets. See
+  [`infra/azure/README.md`](infra/azure/README.md) for exactly what's
+  modeled, what's deliberately absent (Keycloak/Metabase/the observability
+  stack among them), and the `usgovcloud` swap this project can't
+  actually exercise itself (§ Compliance & governance below).
 
 Every one of these is a scoping decision, not an oversight — see the plan's
 own "Deferred out of Phase 1a, on purpose" list
