@@ -75,13 +75,13 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <!-- 3.9.1 is the newest release still on Testcontainers 1.x (this
+      <!-- 4.3.1 is the newest release still on Testcontainers 1.x (this
            project's pinned testcontainers.version); 4.x requires
            Testcontainers 2.x. Targets Keycloak 26.4, matching the image
            tag infra/docker-compose.yml's real keycloak service uses. -->
       <groupId>com.github.dasniko</groupId>
       <artifactId>testcontainers-keycloak</artifactId>
-      <version>3.9.1</version>
+      <version>4.3.1</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
