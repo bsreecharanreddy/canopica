@@ -31,21 +31,22 @@ class OllamaClient:
         self._settings = settings or Settings()
 
     def generate(self, prompt: str) -> LlmResponse:
+        settings = self._settings
         response = httpx.post(
-            f"{self._settings.ollama_base_url}/api/generate",
+            f"{settings.ollama_base_url}/api/generate",
             json={
-                "model": self._settings.ollama_generation_model,
+                "model": settings.ollama_generation_model,
                 "prompt": prompt,
                 "stream": False,
+                # Every value here is settings-driven and measured -- see
+                # canopica_ai.config.Settings for why each one is what it is.
+                "options": {
+                    "temperature": settings.ollama_temperature,
+                    "num_predict": settings.ollama_num_predict,
+                },
+                "keep_alive": settings.ollama_keep_alive,
             },
-            # Empirically measured (2026-08-23) against this dev machine's
-            # real CPU-bound generation, sharing a host with OpenSearch/
-            # Keycloak/portal-api: successful /api/generate calls routinely
-            # took 1m10s-1m44s; a 120s timeout actually cut one off at
-            # exactly 2m0s (Ollama logged it as a 500 once the client gave
-            # up). 240s keeps real headroom above the observed worst case
-            # rather than being a guessed round number.
-            timeout=240.0,
+            timeout=settings.ollama_timeout_seconds,
         )
         response.raise_for_status()
         text: str = response.json()["response"]

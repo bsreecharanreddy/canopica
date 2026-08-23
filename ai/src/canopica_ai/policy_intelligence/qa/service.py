@@ -24,7 +24,12 @@ from canopica_ai.policy_intelligence.qa import provenance
 from canopica_ai.policy_intelligence.qa.provenance import PolicyQaAnswerRecord
 from canopica_ai.policy_intelligence.retrieval import RetrievedChunk, hybrid_search
 
-PROMPT_VERSION = "v1"
+# v2 (2026-08-23) added an explicit brevity constraint to both prompts.
+# Bumped rather than edited in place because every recorded answer carries
+# its prompt_version (design doc §2.2's reproducibility requirement) -- an
+# answer generated under v1's open-ended prompt is not reproducible from
+# v2's, so silently reusing "v1" would make the provenance trail lie.
+PROMPT_VERSION = "v2"
 
 ABSTENTION_MESSAGE = "insufficient information in the policy corpus to answer this"
 
@@ -167,7 +172,9 @@ def _general_prompt(question: str, chunks: list[RetrievedChunk]) -> str:
         "You are answering a SNAP (food assistance) policy question using "
         "only the regulation text below. Cite the exact section number(s) "
         "you used (e.g. 273.9(a)) in your answer. If the text doesn't "
-        "answer the question, say so plainly instead of guessing.\n\n"
+        "answer the question, say so plainly instead of guessing.\n"
+        "Answer in at most three sentences. Be direct: no preamble, no "
+        "restating the question, no bulleted summary.\n\n"
         f"Regulation text:\n{_labeled_context(chunks)}\n\n"
         f"Question: {question}\n\nAnswer:"
     )
@@ -200,7 +207,9 @@ def _denial_prompt(trusted_data: dict[str, Any], chunks: list[RetrievedChunk]) -
         "the applicant, in plain language. The numbers below are already "
         "decided and correct -- do not recompute or change them, only "
         "explain them using the regulation text that follows. Cite the "
-        "exact section number(s) you used (e.g. 273.9(a)).\n\n"
+        "exact section number(s) you used (e.g. 273.9(a)).\n"
+        "Keep it to at most four sentences. Be direct: no preamble, no "
+        "bulleted summary.\n\n"
         f"This household's determination: {trusted_data}\n\n"
         f"Regulation text:\n{_labeled_context(chunks)}\n\nExplanation:"
     )

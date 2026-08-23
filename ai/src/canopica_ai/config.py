@@ -26,6 +26,46 @@ class Settings(BaseSettings):
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_generation_model: str = "llama3.2:3b"
 
+    # Generation knobs, settings-driven so CI and a real deployment can tune
+    # them without a code change. All three were set from live measurement
+    # (2026-08-23) against this repo's own corpus and questions, not picked
+    # as round numbers:
+    #   temperature -- Ollama's own default is 0.8, which for a *grounded*
+    #     policy answer is actively wrong: the same question produced 115
+    #     vs 294 tokens across two runs, and on one of three real questions
+    #     the model returned a 20-token non-answer citing nothing at all,
+    #     which costs a whole extra retry generation (see service.py's
+    #     grounding retry) or an abstention. At 0.2 every one of the same
+    #     three questions cited real sections.
+    #   num_predict -- Ollama defaults to unbounded. Real answers measured
+    #     at 47-73 tokens, so this is a backstop against a pathological
+    #     runaway answer, deliberately not the mechanism that keeps answers
+    #     short (the prompt's own brevity instruction is). A cap tight
+    #     enough to truncate normal answers would cut them mid-sentence.
+    #   keep_alive -- deliberately left at Ollama's own 5m default rather
+    #     than extended. A longer window was tried (10m, to avoid a
+    #     measured 14.9s cold load) and reverted: it buys nothing here,
+    #     because this suite's generation calls run back to back and keep
+    #     the model warm well inside 5m anyway, while keeping the
+    #     embedding model resident alongside it for longer on a host that
+    #     is already memory-tight -- and a llama-server killed by the OOM
+    #     killer mid-suite (observed live, `signal: killed`) surfaces as an
+    #     uncited answer, which the grounding retry then turns into a
+    #     spurious abstention. Exposed as a setting so a real deployment
+    #     with headroom can raise it; the default just doesn't spend
+    #     memory this project's own hosts don't have.
+    ollama_temperature: float = 0.2
+    ollama_num_predict: int = 512
+    ollama_keep_alive: str = "5m"
+
+    # Empirically measured (2026-08-23) against real CPU-bound generation
+    # sharing a host with OpenSearch/Keycloak/portal-api: successful calls
+    # took 1m10s-1m44s, and a 120s timeout actually cut one off at exactly
+    # 2m0s (Ollama logged it as a 500 once the client gave up). Keeps real
+    # headroom above the observed worst case rather than being a guessed
+    # round number.
+    ollama_timeout_seconds: float = 240.0
+
     cfr_corpus_index: str = "cfr-part-273"
     cfr_search_pipeline: str = "cfr-hybrid-rerank"
     embedding_dimension: int = 768
