@@ -10,11 +10,13 @@ import duckdb
 import psycopg
 import pytest
 
+from ies_data.governance.tokenize import tokenize_person_names
 from ies_data.ingestion.extract import ALL_TABLES, extract_to_bronze
 from ies_data.serving.materialize import materialize_gold
 
 DATA_PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 DBT_PROJECT_DIR = DATA_PLATFORM_ROOT / "dbt" / "ies_warehouse"
+TEST_ENCRYPTION_KEY = "test-pii-vault-key"
 
 
 @pytest.mark.integration
@@ -24,6 +26,9 @@ def test_gold_mart_materializes_into_the_serving_database(
     warehouse_root = tmp_path
     duckdb_path = tmp_path / "ies.duckdb"
     extract_to_bronze(seeded_operational_dsn, warehouse_root / "bronze", list(ALL_TABLES))
+    # dim_person.sql (Task 7) joins against this bronze landing -- must run
+    # before dbt build, same as extract_to_bronze above.
+    tokenize_person_names(seeded_operational_dsn, warehouse_root / "bronze", TEST_ENCRYPTION_KEY)
 
     result = subprocess.run(
         [
@@ -84,6 +89,7 @@ def test_materialize_is_rerunnable(
     warehouse_root = tmp_path
     duckdb_path = tmp_path / "ies.duckdb"
     extract_to_bronze(seeded_operational_dsn, warehouse_root / "bronze", list(ALL_TABLES))
+    tokenize_person_names(seeded_operational_dsn, warehouse_root / "bronze", TEST_ENCRYPTION_KEY)
     subprocess.run(
         [
             "dbt",

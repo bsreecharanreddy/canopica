@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from ies_data.config import Settings
+from ies_data.governance.tokenize import tokenize_person_names
 from ies_data.ingestion.extract import ALL_TABLES, extract_to_bronze
 from ies_data.reporting.provision_metabase import provision
 from ies_data.serving.materialize import materialize_gold
@@ -28,6 +29,13 @@ def main() -> None:
     counts = extract_to_bronze(settings.operational_dsn, settings.bronze_root, list(ALL_TABLES))
     for table, count in counts.items():
         print(f"ingested {table}: {count} rows", file=sys.stderr)
+
+    # Must run before dbt build -- dim_person.sql joins against the bronze
+    # landing this writes, and a token doesn't exist until this creates it.
+    token_count = tokenize_person_names(
+        settings.operational_dsn, settings.bronze_root, settings.pii_encryption_key
+    )
+    print(f"tokenized {token_count} person names", file=sys.stderr)
 
     # Inherits the process's own environment, which already carries
     # IES_WAREHOUSE_ROOT/IES_DUCKDB_PATH -- the same two env vars

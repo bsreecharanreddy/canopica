@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     metabase_user: str = "admin@ies.local"
     metabase_password: str = "IesAdmin123!"
 
+    # Symmetric key for the pii_token vault's pgcrypto encryption (V11
+    # migration). Same "local-dev default, override via IES_-prefixed env
+    # var in a real deployment" pattern as metabase_password above -- never
+    # a real production secret in this file.
+    pii_encryption_key: str = "ies-local-dev-pii-vault-key"
+
     @property
     def bronze_root(self) -> Path:
         """Append-only Delta landings of the operational tables."""

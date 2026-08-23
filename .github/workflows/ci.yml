@@ -78,7 +78,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --dev
-      - run: uv run pytest -m integration tests/test_extract.py tests/test_dbt_build.py
+      - run: uv run pytest -m integration tests/test_extract.py tests/test_dbt_build.py tests/test_mart_processing_timeliness.py tests/test_tokenize.py
 
   reporting:
     name: Serving-layer materialization (integration)
