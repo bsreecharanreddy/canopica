@@ -198,9 +198,15 @@ services:
       # reranker model tried to deploy (real failure hit during
       # implementation: "Memory Circuit Breaker is open") -- the breaker
       # checks heap-usage percentage, not absolute size, so a small capped
-      # heap fills up fast once a model is loaded into it. 1200m clears
-      # that with real headroom to spare on an 8GB+ dev machine.
-      OPENSEARCH_JAVA_OPTS: "-Xms1200m -Xmx1200m"
+      # heap fills up fast once a model is loaded into it. 1200m cleared
+      # that on an 8GB+ dev machine, but the same "Memory Circuit Breaker
+      # is open" error hit again live in CI (2026-08-23, Phase 2 Task 2) --
+      # ai/'s e2e suite now runs real Ollama generation on top of Task 1's
+      # embeddings-only load, and 1200m didn't clear the same
+      # percentage-of-heap threshold under that heavier, real-generation
+      # session. 2g widens the same margin further rather than guessing a
+      # second small bump.
+      OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
     ports:
       - "9200:9200"
     volumes:

@@ -143,23 +143,27 @@ jobs:
           docker compose -f infra/docker-compose.yml up -d --build --wait $services
           docker compose -f infra/docker-compose.yml up -d ollama-init
           docker compose -f infra/docker-compose.yml wait ollama-init
+      - run: free -h
       - run: cd data-platform && uv sync --dev && uv run pytest -m e2e
-      # Real failure hit live on this runner (2026-08-23): ai/'s e2e suite
-      # re-indexes the corpus and makes real Ollama generation calls (Task
-      # 2's Policy Q&A, unlike Task 1's embeddings-only load), and with the
-      # data-platform services above already resident, OpenSearch's
-      # ml-commons tripped "Memory Circuit Breaker is open" under the
-      # combined pressure -- the same category of failure Task 1's own
-      # 1200m heap bump already fixed once, now recurring because Task 2
-      # adds a materially heavier, real-generation memory consumer on the
-      # same runner. Metabase/Grafana/Prometheus/Airflow aren't needed by
-      # anything ai/'s e2e suite checks, so freeing their memory here mirrors
-      # the exact mitigation that resolved the identical symptom locally.
-      - run: docker compose -f infra/docker-compose.yml stop metabase grafana prometheus airflow-webserver airflow-scheduler
+      # Real failure hit live on this runner (2026-08-23), twice, not
+      # deterministically: ai/'s e2e suite re-indexes the corpus and makes
+      # real Ollama generation calls (Task 2's Policy Q&A, unlike Task 1's
+      # embeddings-only load), and OpenSearch's ml-commons tripped "Memory
+      # Circuit Breaker is open" under the combined pressure -- the first
+      # occurrence looked data-platform-service-related and stopping
+      # Metabase/Grafana/Prometheus/Airflow (unneeded by anything ai/'s
+      # e2e suite checks) alone wasn't sufficient the very next run, so
+      # Jaeger/portal-web (also unneeded here) are freed too for
+      # whatever margin they're worth, and `free -h` brackets this step so
+      # a future recurrence has real numbers instead of another guess.
+      - run: docker compose -f infra/docker-compose.yml stop metabase grafana prometheus airflow-webserver airflow-scheduler jaeger portal-web
+      - run: free -h
       # Provisions its own corpus index + search pipeline against the
       # OpenSearch/Ollama services above (conftest.py's indexed_corpus
       # fixture) -- no separate setup step needed here.
       - run: cd ai && uv sync --dev && uv run pytest -m e2e
+      - if: always()
+        run: free -h && docker stats --no-stream
       - if: always()
         run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs.txt
       - if: always()
