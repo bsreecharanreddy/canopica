@@ -5,7 +5,59 @@ on:
     branches: [main]
   pull_request:
 
+# Pushing a follow-up commit supersedes the run already in flight -- without
+# this, a quick series of commits queues several full ~20min e2e runs whose
+# results nobody will read anyway, delaying the one that matters and burning
+# this private repo's finite Actions minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # This repo's own convention commits docs/STATUS.md constantly (often as
+  # its own commit, e.g. recording a CI result), and each of those was
+  # triggering the full end-to-end Compose stack -- ~20min to prove that
+  # unchanged code still behaves unchanged. The eight fast jobs below all
+  # still run on a docs-only commit (they total under two minutes, and this
+  # project's standard is to verify even a docs-only change); only the two
+  # expensive e2e jobs are gated on real code having changed.
+  #
+  # Deliberately a deny-list, not an allow-list of code paths: a new
+  # top-level directory nobody remembered to add here still counts as code
+  # and still runs e2e. The failure mode is a wasted run, not a silently
+  # skipped one.
+  changes:
+    name: Detect whether any code changed
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          else
+            before="${{ github.event.before }}"
+            if [ -n "$before" ] && git cat-file -e "$before^{commit}" 2>/dev/null; then
+              changed=$(git diff --name-only "$before" HEAD)
+            else
+              # First push to a branch, or a force-push that orphaned the
+              # old tip: no reliable diff base, so fall back to running.
+              changed=""
+            fi
+          fi
+          echo "Changed files:"
+          echo "$changed"
+          # Empty (unknown diff base) deliberately falls through to `true`.
+          if [ -z "$changed" ] || echo "$changed" | grep -qvE '^(docs/|[^/]*\.md$)'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   java:
     name: Java (portal + rules engine)
     runs-on: ubuntu-latest
@@ -111,82 +163,90 @@ jobs:
       - run: uv sync --dev
       - run: uv run pytest -m integration tests/test_materialize.py
 
-  e2e:
-    name: End-to-end (full Compose stack)
+  # Split from one serial job into two parallel ones (2026-08-23). The
+  # combined job spent ~21min: it stood up all 14 services, ran
+  # data-platform's e2e, then STOPPED seven of them and ran ai/'s e2e --
+  # each suite waiting on services the other one needs and it never
+  # touches. Verified from the suites' own port usage: data-platform's e2e
+  # hits portal-api/portal-web/metabase/keycloak/airflow/jaeger and never
+  # OpenSearch or Ollama; ai/'s hits OpenSearch/Ollama/portal-api and never
+  # Metabase/Airflow/Grafana/portal-web. Running them side by side on lean
+  # stacks makes wall-clock max(a, b) instead of a + b, and drops the two
+  # heaviest services (OpenSearch's 2g heap, Ollama's ~3GB model) out of
+  # the data-platform job entirely -- which also removes, structurally,
+  # the memory contention behind this task's own three-times-recurring
+  # "Memory Circuit Breaker is open" failures, rather than continuing to
+  # tune margins around it.
+  e2e-data-platform:
+    name: End-to-end -- data platform
     runs-on: ubuntu-latest
-    needs: [java, python, ai, dbt]
+    needs: [changes, java, python, dbt]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v7
-      # ollama-init (below) pulls ~2.3GB (nomic-embed-text + llama3.2:3b)
-      # from Ollama's registry on every single run otherwise -- real
-      # concern raised 2026-08-23 once this task's own repeated CI
-      # attempts made that obvious. infra/docker-compose.yml's `ollama`
-      # service bind-mounts this exact path (not a named volume, which has
-      # no stable host path across separate runs) so it can be cached
-      # here. `ollama pull` is content-addressed and already idempotent --
-      # a warm cache just verifies existing blobs in seconds. Key is a
-      # static string, not a hash of the compose file, since that file
-      # changes for unrelated reasons (memory tuning, service config) far
-      # more often than the pulled model tags do; bump the suffix if
+      # These preinstalled toolchains are used nowhere in this repo, and
+      # the Compose images don't fit alongside them on the runner's disk.
+      - name: Free disk space for the Compose stack
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # postgres/keycloak/jaeger/airflow-init come along via depends_on.
+      # No `ollama-init` here, so none of the docker/compose#10596
+      # one-shot-service handling the ai job below still needs.
+      - run: docker compose -f infra/docker-compose.yml up -d --build --wait portal-api portal-web metabase prometheus grafana airflow-webserver airflow-scheduler
+      - run: cd data-platform && uv sync --dev && uv run pytest -m e2e
+      - if: always()
+        run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs-data-platform.txt
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compose-logs-data-platform
+          path: compose-logs-data-platform.txt
+
+  e2e-ai:
+    name: End-to-end -- AI layer
+    runs-on: ubuntu-latest
+    needs: [changes, java, ai]
+    if: needs.changes.outputs.code == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      # ollama-init pulls ~2.3GB (nomic-embed-text + llama3.2:3b) from
+      # Ollama's registry on every run otherwise. infra/docker-compose.yml
+      # bind-mounts this exact path (not a named volume, which has no
+      # stable host path across separate runs) so it can be cached here.
+      # `ollama pull` is content-addressed and idempotent -- a warm cache
+      # just verifies existing blobs in seconds. Static key, not a hash of
+      # the compose file: that file changes for unrelated reasons far more
+      # often than the pulled model tags do. Bump the suffix if
       # ollama-init's own pull list ever changes.
       - uses: actions/cache@v6
         with:
           path: infra/ollama-models
           key: ollama-models-nomic-embed-text-llama3.2-3b-v1
-      # The full stack (14 services, now including OpenSearch + Ollama +
-      # the two models ollama-init pulls at runtime) doesn't fit in the
-      # runner's default free disk alongside its preinstalled toolchains.
-      # None of these toolchains are used anywhere in this repo, so it's
-      # safe to reclaim their space rather than move to a bigger runner.
       - name: Free disk space for the Compose stack
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          docker image prune -af
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      # `ollama-init` is a one-shot job (see infra/docker-compose.yml) that
-      # nothing else depends on, unlike `airflow-init` -- `up --wait` treats
-      # any container that exits during its convergence check as a failure
-      # unless another service vouches for that exit via `depends_on:
-      # condition: service_completed_successfully` (docker/compose#10596,
-      # reproduced live in this project's own CI: exit code 0, but
-      # `up --wait` still returned 1). Fix is Compose's own documented
-      # pattern: exclude it from the health-waited bring-up, start it
-      # separately, then block on its own exit code with `compose wait`.
+      # `ollama-init` is a one-shot job nothing else depends on, unlike
+      # `airflow-init` -- `up --wait` treats any container that exits
+      # during its convergence check as a failure unless another service
+      # vouches for that exit via `depends_on: condition:
+      # service_completed_successfully` (docker/compose#10596, reproduced
+      # live in this project's own CI: exit code 0, but `up --wait` still
+      # returned 1). Fix is Compose's own documented pattern: exclude it
+      # from the health-waited bring-up, start it separately, then block on
+      # its own exit code with `compose wait`.
+      # postgres/keycloak/jaeger come along via portal-api's depends_on --
+      # ai/'s TestAnswerDenial submits a real application and decides a
+      # real determination through the live portal API under real Keycloak
+      # tokens, so those three are genuinely required, unlike the seven
+      # services this job no longer starts at all.
       - run: |
-          services=$(docker compose -f infra/docker-compose.yml config --services | grep -v '^ollama-init$')
-          docker compose -f infra/docker-compose.yml up -d --build --wait $services
+          docker compose -f infra/docker-compose.yml up -d --build --wait opensearch ollama portal-api
           docker compose -f infra/docker-compose.yml up -d ollama-init
           docker compose -f infra/docker-compose.yml wait ollama-init
-      - run: free -h
-      - run: cd data-platform && uv sync --dev && uv run pytest -m e2e
-      # Real failure hit live on this runner (2026-08-23), three times, not
-      # deterministically: ai/'s e2e suite re-indexes the corpus and makes
-      # real Ollama generation calls (Task 2's Policy Q&A, unlike Task 1's
-      # embeddings-only load), and OpenSearch's ml-commons tripped "Memory
-      # Circuit Breaker is open" under the combined pressure. Stopping
-      # Metabase/Grafana/Prometheus/Airflow/Jaeger/portal-web (unneeded by
-      # anything ai/'s e2e suite checks) and doubling OpenSearch's heap
-      # (1200m -> 2g) each helped -- the third attempt got to test 13 of 15
-      # before tripping, versus roughly half before -- but still failed.
-      # `docker stats` at that third failure showed Ollama itself at
-      # 3.18GiB (its 3b generation model, bigger than OpenSearch's own
-      # 2.4GiB heap+overhead), and `free -h` showed available memory
-      # collapse from 4.8Gi right after the stop below to 569Mi by the time
-      # ai/'s suite finished -- consumed *during* ai/'s own run, not
-      # carried in from data-platform's. The real gap: OpenSearch and
-      # Ollama had been running continuously since before data-platform's
-      # e2e even started, so ai/'s suite never got the clean JVM/model-
-      # cache state it gets locally, where this exact suite passes
-      # reliably against a freshly-started stack on a Docker Desktop VM
-      # with an almost identical ~7.65GB ceiling to this runner's ~7.8GB.
-      # Recreating both containers reproduces that same clean-start
-      # condition -- data survives in their named volumes, and the corpus
-      # re-indexes itself idempotently via conftest.py's own fixture --
-      # instead of guessing at a third heap number.
-      - run: docker compose -f infra/docker-compose.yml stop metabase grafana prometheus airflow-webserver airflow-scheduler jaeger portal-web
-      - run: docker compose -f infra/docker-compose.yml up -d --force-recreate --wait opensearch ollama
       - run: free -h
       # Provisions its own corpus index + search pipeline against the
       # OpenSearch/Ollama services above (conftest.py's indexed_corpus
@@ -194,24 +254,24 @@ jobs:
       - run: cd ai && uv sync --dev && uv run pytest -m e2e
       # Ollama (running as root in its container) writes its own identity
       # key and an internal cache file into this bind mount at 0600 --
-      # real failure hit live (2026-08-23): actions/cache's own save step
-      # runs as the unprivileged `runner` user and can't read root-owned
-      # 0600 files, so it silently warned "Permission denied" and skipped
-      # saving -- the job still went green (a cache-save failure doesn't
-      # fail the job), but the cache was never actually populated, quietly
-      # defeating the whole point of caching it. `if: always()` so a
-      # failed test run still leaves a saveable cache behind.
+      # real failure hit live (2026-08-23): actions/cache's save step runs
+      # as the unprivileged `runner` user and can't read root-owned 0600
+      # files, so it warned "Permission denied" and skipped saving -- the
+      # job still went green (a cache-save failure doesn't fail the job),
+      # but the cache never populated, quietly defeating the point of
+      # caching it. `if: always()` so a failed test run still leaves a
+      # saveable cache behind.
       - if: always()
         run: sudo chmod -R a+rX infra/ollama-models
       - if: always()
         run: free -h && docker stats --no-stream
       - if: always()
-        run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs.txt
+        run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs-ai.txt
       - if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: compose-logs
-          path: compose-logs.txt
+          name: compose-logs-ai
+          path: compose-logs-ai.txt
 
   terraform:
     name: Reference Terraform for Azure (validate only)
