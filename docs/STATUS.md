@@ -311,6 +311,14 @@ reasoning lives in the design docs.
 | `mart_fairness_audit` timing | Deferred from Phase 1b to Phase 4, built alongside fraud-triage so it has both comparison axes from day one | Phase 1b design doc §2.4 |
 | Observability stack | Jaeger (traces) + Prometheus/Grafana (metrics), self-hosted single-host — not a heavier collector/Tempo/Loki stack | Phase 1b design doc §2.5; tech-stack doc's Observability row |
 | Reference Terraform compute | Azure Container Apps, not AKS (the plan's own explicit either/or) — simpler to reference without a Kubernetes manifest layer, consistent with this project's containers-not-clusters posture elsewhere; resource list matches the plan's "Resources modeled" exactly (Keycloak/Metabase/Jaeger-Prometheus-Grafana deliberately absent) | Phase 1b plan Task 10; `infra/azure/README.md`; STATUS.md's Task 10 verification row |
+| Policy corpus | Real public 7 CFR Part 273 text (eCFR/GovInfo), scoped to just the sections this project's own rules engine implements, chunked at CFR subsection level | Phase 2 design doc §2.1 |
+| Retrieval pipeline | Hybrid (BM25 + k-NN) via Reciprocal Rank Fusion, then a cross-encoder reranking pass — not hybrid search alone | Phase 2 design doc §2.1; tech-stack doc's Embeddings + retrieval row |
+| RAG answer provenance | Every answer records corpus/embedding-model/prompt/generation-config versions plus the retrieved chunk IDs — same reproducibility discipline as determinations | Phase 2 design doc §2.1/§2.2 |
+| Rule-authoring copilot scope | Proposes new `policy_parameter_set` values, not DMN decision-table restructuring — a real narrowing from the roadmap's own "DMN diff" wording | Phase 2 design doc §2.3; roadmap doc §3.3 |
+| Analytics Copilot mechanism | MetricFlow exposed over MCP as callable tools; authorization resolved at tool-exposure time, before query compilation; `canopica_analytics_ro` as a defense-in-depth backstop, not the sole gate | Phase 2 design doc §2.4; roadmap doc §3.3 |
+| Eval-gate method | RAGAS metrics (faithfulness, context precision/recall) gated via DeepEval with baseline-relative thresholds, plus a deterministic citation-existence pre-check | Phase 2 design doc §2.6; roadmap doc §3.3 |
+| Public demo inference | OpenRouter free-tier models first, falling back to a cheap paid OpenRouter model under a $5/mo hard cap during real traffic, only failing closed once both are exhausted — refined from an earlier free-tier-only draft after direct discussion | Phase 2 design doc §2.7; roadmap doc §3.3; tech-stack doc's Public-demo inference row + §4.16 |
+| AI capability architecture | Every AI feature is a fixed, bounded pipeline (retrieve→generate, or NL→tool-call→execute) — never an open-ended autonomous agent | Phase 2 design doc §2.10; roadmap doc §3.3 |
 
 ## Open questions
 
