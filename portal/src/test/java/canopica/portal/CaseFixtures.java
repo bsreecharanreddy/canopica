@@ -60,6 +60,28 @@ public final class CaseFixtures {
     }
 
     /**
+     * A {@code case_assignment} row, already active as of "today" under any interpretation of "today" --
+     * {@code effective_from} is {@link #BASE_EFFECTIVE_FROM} (a fixed past date), not SQL's {@code
+     * current_date}. Tests that seeded a pre-existing assignment with raw {@code current_date} intermittently
+     * failed on CI: Postgres evaluates {@code current_date} in the container's own (UTC) timezone, while the
+     * application's own {@code CaseAssignmentService} always compares against {@code LocalDate.now(clock)}
+     * using {@code canopica.timezone=America/New_York} (application.yml) -- during the ~4-6 hours every day where
+     * UTC has already rolled to the next calendar date but US Eastern hasn't, a row written with {@code
+     * current_date} lands "tomorrow" from the application's own point of view, so {@code findEffectiveOn}
+     * (which requires {@code effectiveFrom <= asOf}) silently fails to see it as active -- reproduced only on
+     * CI (UTC host) since local Docker Desktop's own current_date happened to stay aligned with local wall-
+     * clock date. A fixed past date sidesteps the whole class of bug rather than picking a "less wrong" clock.
+     */
+    public static UUID insertCaseAssignment(JdbcTemplate jdbc, UUID householdId, UUID workerId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "insert into case_assignment (id, household_id, worker_id, effective_from) "
+                        + "values (?, ?, ?, ?)",
+                id, householdId, workerId, BASE_EFFECTIVE_FROM);
+        return id;
+    }
+
+    /**
      * An OUTSTANDING verification row -- {@link #threePersonWorkingHousehold} doesn't create one itself
      * (it bypasses {@code IntakeService} entirely), so tests that need one seed it directly, same reason
      * {@link #insertWorker} exists.

@@ -26,10 +26,7 @@ class SupervisorControllerTest extends AbstractApiTest {
         var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
         UUID originalWorkerId = CaseFixtures.insertWorker(jdbc, "Original Worker", "WORKER");
         UUID newWorkerId = CaseFixtures.insertWorker(jdbc, "New Worker", "WORKER");
-        jdbc.update(
-                "insert into case_assignment (id, household_id, worker_id, effective_from) "
-                        + "values (?, ?, ?, current_date)",
-                UUID.randomUUID(), ids.householdId(), originalWorkerId);
+        CaseFixtures.insertCaseAssignment(jdbc, ids.householdId(), originalWorkerId);
 
         mvc.perform(post("/api/supervisor/households/" + ids.householdId() + "/reassign")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + supervisorToken())

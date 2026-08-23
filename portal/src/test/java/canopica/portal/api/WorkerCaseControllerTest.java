@@ -107,10 +107,7 @@ class WorkerCaseControllerTest extends AbstractApiTest {
     void workerNotHoldingTheActiveAssignmentGets403() throws Exception {
         var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
         UUID otherWorkerId = CaseFixtures.insertWorker(jdbc, "Someone Else", "WORKER");
-        jdbc.update(
-                "insert into case_assignment (id, household_id, worker_id, effective_from) "
-                        + "values (?, ?, ?, current_date)",
-                UUID.randomUUID(), ids.householdId(), otherWorkerId);
+        CaseFixtures.insertCaseAssignment(jdbc, ids.householdId(), otherWorkerId);
 
         mvc.perform(get("/api/program-requests/" + ids.programRequestId())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
