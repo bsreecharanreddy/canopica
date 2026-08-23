@@ -177,6 +177,72 @@ services:
       metabase:
         condition: service_healthy
 
+  # Phase 2's AI capability layer infrastructure: a policy-corpus search
+  # engine (OpenSearch) and a local LLM/embedding runtime (Ollama) -- both
+  # $0, self-hosted, local-first, same posture as every other service here.
+  # OpenSearch needs the host's vm.max_map_count >= 262144 (its own
+  # documented minimum) -- already satisfied by Docker Desktop's default
+  # Linux VM as of this writing; if the container fails its healthcheck
+  # with a "max virtual memory areas" error on another machine, raise it
+  # there (`docker run --rm --privileged alpine sysctl -w
+  # vm.max_map_count=262144`, or Docker Desktop's own VM settings).
+  opensearch:
+    image: opensearchproject/opensearch:2.19.6
+    environment:
+      discovery.type: single-node
+      # No TLS, no auth -- same "$0, dev-mode, local-first" tradeoff
+      # postgres/keycloak above already make for themselves.
+      DISABLE_SECURITY_PLUGIN: "true"
+      # 512m (this corpus's own indexing/query load needs far less) tripped
+      # ml-commons' memory circuit breaker the moment the cross-encoder
+      # reranker model tried to deploy (real failure hit during
+      # implementation: "Memory Circuit Breaker is open") -- the breaker
+      # checks heap-usage percentage, not absolute size, so a small capped
+      # heap fills up fast once a model is loaded into it. 1200m clears
+      # that with real headroom to spare on an 8GB+ dev machine.
+      OPENSEARCH_JAVA_OPTS: "-Xms1200m -Xmx1200m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  ollama:
+    image: ollama/ollama:0.32.15
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  # One-shot: pulls the two pinned model tags `canopica_ai.config.Settings`
+  # names (`ollama_embedding_model`/`ollama_generation_model`) into the
+  # `ollama` service's own named volume. `ollama pull` is idempotent --
+  # already-pulled tags are a fast no-op re-check, not a re-download -- so
+  # this is safe to run on every `make up`, same shape as `airflow-init`
+  # above.
+  ollama-init:
+    image: ollama/ollama:0.32.15
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - "ollama pull nomic-embed-text && ollama pull llama3.2:3b"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+
   # Jaeger v2 (v1 reached EOL 2025-12-31): a single binary built on the
   # OpenTelemetry Collector, run here with its own built-in default config
   # (in-memory storage, OTLP gRPC/HTTP receivers, UI+query API on 16686) --
@@ -264,3 +330,5 @@ services:
 
 volumes:
   postgres-data:
+  opensearch-data:
+  ollama-data:

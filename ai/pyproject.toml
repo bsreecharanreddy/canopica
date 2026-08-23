@@ -1,0 +1,56 @@
+[project]
+name = "canopica-ai"
+version = "0.1.0"
+description = "Canopica AI capability layer: Policy Intelligence & Analytics AI (Phase 2)"
+readme = "README.md"
+authors = [
+    { name = "Sree", email = "283869510+bsreecharanreddy@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "defusedxml>=0.7.1",
+    "httpx>=0.28.1",
+    "opensearch-py>=3.0.0",
+    "opentelemetry-exporter-otlp>=1.39.0",
+    "opentelemetry-sdk>=1.39.0",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.15.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.4",
+    "types-defusedxml>=0.7.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PL", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Magic-number comparisons against expected fixture values are normal and
+# readable in test assertions; naming every one as a constant hurts more
+# than it helps.
+"tests/**/*.py" = ["PLR2004"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "e2e: needs the full Compose stack (OpenSearch + Ollama, real models pulled)",
+]

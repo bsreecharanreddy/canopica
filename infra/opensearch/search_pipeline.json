@@ -1,0 +1,25 @@
+{
+  "description": "Hybrid BM25+kNN fused by RRF, then reranked by a local cross-encoder",
+  "phase_results_processors": [
+    {
+      "score-ranker-processor": {
+        "combination": {
+          "technique": "rrf",
+          "rank_constant": 60
+        }
+      }
+    }
+  ],
+  "response_processors": [
+    {
+      "rerank": {
+        "ml_opensearch": {
+          "model_id": "REPLACED_AT_SETUP_TIME"
+        },
+        "context": {
+          "document_fields": ["text"]
+        }
+      }
+    }
+  ]
+}

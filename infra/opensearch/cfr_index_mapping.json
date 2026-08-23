@@ -1,0 +1,24 @@
+{
+  "settings": {
+    "index": {
+      "knn": true
+    }
+  },
+  "mappings": {
+    "properties": {
+      "cfr_section": { "type": "keyword" },
+      "heading": { "type": "text" },
+      "text": { "type": "text" },
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 768,
+        "method": {
+          "name": "hnsw",
+          "engine": "lucene",
+          "space_type": "cosinesimil",
+          "parameters": { "ef_construction": 128, "m": 16 }
+        }
+      }
+    }
+  }
+}

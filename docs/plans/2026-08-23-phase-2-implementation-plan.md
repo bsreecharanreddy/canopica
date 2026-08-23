@@ -128,12 +128,14 @@ local-first, $0 by default). Phase 2 adds:
 
 ### Prerequisites before Task 1
 
-- [ ] Docker Desktop running (`docker info` succeeds) — OpenSearch and
+- [x] Docker Desktop running (`docker info` succeeds) — OpenSearch and
       Ollama both add new containers to `infra/docker-compose.yml`;
       OpenSearch in particular wants real memory headroom (`vm.max_map_count`
       may need raising on the host, standard OpenSearch requirement — check
       and document in `infra/README` or the compose file's own comment if
-      so).
+      so). Verified: this host's Docker Desktop VM already reports
+      `vm.max_map_count=262144` (the exact minimum), documented in
+      `infra/docker-compose.yml`'s own comment for a host that doesn't.
 - [ ] An OpenRouter account exists and its API key is available for
       `.env` (used only by Task 9's public-demo path; every earlier task
       runs entirely against local Ollama and needs no external account).
@@ -293,13 +295,13 @@ this task proves retrieval alone returns the right chunks.
 }
 ```
 
-- [ ] **Step 1: `ai/` project scaffold.** `uv init` at `ai/`, package
+- [x] **Step 1: `ai/` project scaffold.** `uv init` at `ai/`, package
       `canopica_ai`; `pyproject.toml` mirrors `data-platform/pyproject.toml`'s
       `[tool.ruff]`/`[tool.mypy]` blocks (`strict = true`, `target py312`)
       so both projects hold the same bar. Add to `Makefile`'s `test`/`lint`
       targets and a new `ai` job in `ci.yml` (same shape as the existing
       `dbt`/Python job).
-- [ ] **Step 2: Compose services.** `opensearch` (single-node,
+- [x] **Step 2: Compose services.** `opensearch` (single-node,
       `discovery.type=single-node`, security plugin disabled for local
       dev — same "no TLS locally" posture the compliance-mapping doc
       already states as a known gap for `postgres`) and `ollama`
@@ -307,7 +309,7 @@ this task proves retrieval alone returns the right chunks.
       container or `docker compose run --rm ollama ollama pull <tag>`
       documented in `infra/README`/`Makefile` for pulling the pinned
       generation + embedding models on first `make up`).
-- [ ] **Step 3: CFR ingestion.** `cfr_fetch.py` pulls the real text for
+- [x] **Step 3: CFR ingestion.** `cfr_fetch.py` pulls the real text for
       the sections design doc §2.1 scopes (gross/net income tests, the
       standard/earned-income/dependent-care/medical/shelter deductions,
       categorical eligibility, expedited processing/273.2(i)) from eCFR's
@@ -317,7 +319,7 @@ this task proves retrieval alone returns the right chunks.
       network call on every `make up`). `chunk.py` splits at CFR
       subsection boundaries (e.g. `273.9(c)(1)`), producing one document
       per subsection with `cfr_section`/`heading`/`text`.
-- [ ] **Step 4: Index + embed.** `index.py`'s CLI
+- [x] **Step 4: Index + embed.** `index.py`'s CLI
       (`uv run python -m canopica_ai.policy_intelligence.corpus.index`)
       creates the OpenSearch index from `cfr_index_mapping.json`,
       embeds each chunk's `text` via Ollama, and bulk-indexes. Idempotent
@@ -325,7 +327,7 @@ this task proves retrieval alone returns the right chunks.
       a duplicate-append (delete-and-recreate the index each run, since
       corpus size is small and this only runs at ingestion time, not per
       request).
-- [ ] **Step 5: Search pipeline.** `search_pipeline.json` defines an
+- [x] **Step 5: Search pipeline.** `search_pipeline.json` defines an
       OpenSearch search pipeline: a `normalization-processor` with
       `technique: rrf` combining the BM25 and k-NN sub-queries, followed
       by a `rerank` response processor referencing the ml-commons
@@ -335,18 +337,18 @@ this task proves retrieval alone returns the right chunks.
       check-before-create). Document the exact model tag chosen at
       implementation time in this file's own comment, same as every
       other pinned-at-implementation-time value in this repo.
-- [ ] **Step 6: `hybrid_search()`.** `retrieval.py` issues one hybrid
+- [x] **Step 6: `hybrid_search()`.** `retrieval.py` issues one hybrid
       query (BM25 sub-query + k-NN sub-query over the query's own
       embedding) through the pipeline from Step 5, returns the top-k
       reranked chunks as `RetrievedChunk` Pydantic models.
-- [ ] **Step 7: Tests.** `test_corpus_index.py`: the index exists, has
+- [x] **Step 7: Tests.** `test_corpus_index.py`: the index exists, has
       the expected document count, and a known CFR section's exact text
       round-trips. `test_retrieval.py`: a query about the gross income
       test returns `273.9`-family sections in the top few results before
       reranking changes ordering; confirm reranking actually changes
       result order on at least one query pair (proves the pipeline step
       is live, not a no-op).
-- [ ] **Step 8: Full suite + commit.**
+- [x] **Step 8: Full suite + commit.**
 
 ---
 

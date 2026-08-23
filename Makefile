@@ -21,9 +21,11 @@ test: ## Run every unit/integration suite that does not need the Compose stack
 	# the Java Testcontainers tests above, which hit ./mvnw's own JVM-side
 	# Testcontainers, unaffected by this.
 	cd data-platform && TESTCONTAINERS_RYUK_DISABLED=true uv run pytest -m "not e2e"
+	cd ai && uv run pytest -m "not e2e"
 
 lint: ## Type-check and lint every language
 	cd data-platform && uv run ruff check . && uv run mypy src tests
+	cd ai && uv run ruff check . && uv run mypy src tests
 	cd portal/web && npm run typecheck && npm run lint
 
 up: ## Bring up the full local stack
@@ -41,6 +43,7 @@ pipeline: ## Ingest -> dbt build -> serving materialization -> Metabase provisio
 
 e2e: ## Run the end-to-end slice test against a running stack
 	cd data-platform && uv run pytest -m e2e
+	cd ai && uv run pytest -m e2e
 
 clean: ## Remove build output and the local warehouse
 	./mvnw -B -q clean
