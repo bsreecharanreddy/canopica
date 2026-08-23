@@ -117,6 +117,15 @@ jobs:
     needs: [java, python, ai, dbt]
     steps:
       - uses: actions/checkout@v7
+      # The full stack (14 services, now including OpenSearch + Ollama +
+      # the two models ollama-init pulls at runtime) doesn't fit in the
+      # runner's default free disk alongside its preinstalled toolchains.
+      # None of these toolchains are used anywhere in this repo, so it's
+      # safe to reclaim their space rather than move to a bigger runner.
+      - name: Free disk space for the Compose stack
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
