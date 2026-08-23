@@ -145,18 +145,32 @@ jobs:
           docker compose -f infra/docker-compose.yml wait ollama-init
       - run: free -h
       - run: cd data-platform && uv sync --dev && uv run pytest -m e2e
-      # Real failure hit live on this runner (2026-08-23), twice, not
+      # Real failure hit live on this runner (2026-08-23), three times, not
       # deterministically: ai/'s e2e suite re-indexes the corpus and makes
       # real Ollama generation calls (Task 2's Policy Q&A, unlike Task 1's
       # embeddings-only load), and OpenSearch's ml-commons tripped "Memory
-      # Circuit Breaker is open" under the combined pressure -- the first
-      # occurrence looked data-platform-service-related and stopping
-      # Metabase/Grafana/Prometheus/Airflow (unneeded by anything ai/'s
-      # e2e suite checks) alone wasn't sufficient the very next run, so
-      # Jaeger/portal-web (also unneeded here) are freed too for
-      # whatever margin they're worth, and `free -h` brackets this step so
-      # a future recurrence has real numbers instead of another guess.
+      # Circuit Breaker is open" under the combined pressure. Stopping
+      # Metabase/Grafana/Prometheus/Airflow/Jaeger/portal-web (unneeded by
+      # anything ai/'s e2e suite checks) and doubling OpenSearch's heap
+      # (1200m -> 2g) each helped -- the third attempt got to test 13 of 15
+      # before tripping, versus roughly half before -- but still failed.
+      # `docker stats` at that third failure showed Ollama itself at
+      # 3.18GiB (its 3b generation model, bigger than OpenSearch's own
+      # 2.4GiB heap+overhead), and `free -h` showed available memory
+      # collapse from 4.8Gi right after the stop below to 569Mi by the time
+      # ai/'s suite finished -- consumed *during* ai/'s own run, not
+      # carried in from data-platform's. The real gap: OpenSearch and
+      # Ollama had been running continuously since before data-platform's
+      # e2e even started, so ai/'s suite never got the clean JVM/model-
+      # cache state it gets locally, where this exact suite passes
+      # reliably against a freshly-started stack on a Docker Desktop VM
+      # with an almost identical ~7.65GB ceiling to this runner's ~7.8GB.
+      # Recreating both containers reproduces that same clean-start
+      # condition -- data survives in their named volumes, and the corpus
+      # re-indexes itself idempotently via conftest.py's own fixture --
+      # instead of guessing at a third heap number.
       - run: docker compose -f infra/docker-compose.yml stop metabase grafana prometheus airflow-webserver airflow-scheduler jaeger portal-web
+      - run: docker compose -f infra/docker-compose.yml up -d --force-recreate --wait opensearch ollama
       - run: free -h
       # Provisions its own corpus index + search pipeline against the
       # OpenSearch/Ollama services above (conftest.py's indexed_corpus
