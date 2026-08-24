@@ -98,3 +98,25 @@ class Settings(BaseSettings):
     # `uv run` from inside ai/ (see the Makefile), matching data-platform's
     # own warehouse_root convention.
     corpus_raw_dir: Path = Path("src/canopica_ai/policy_intelligence/corpus/raw")
+
+    # Analytics Copilot (Phase 2 Task 5). Same JWKS/issuer URIs
+    # portal-api's own SecurityConfig.java validates against (application.yml,
+    # env vars CANOPICA_KEYCLOAK_WORKERS_*) -- this service is its own resource
+    # server, not routed through the portal, so it fetches and verifies
+    # signing keys independently rather than trusting a forwarded identity.
+    keycloak_workers_jwks_uri: str = (
+        "http://localhost:8081/realms/canopica-workers/protocol/openid-connect/certs"
+    )
+    keycloak_workers_issuer_uri: str = "http://localhost:8081/realms/canopica-workers"
+
+    # Sibling project, not a dependency: MetricFlow binds semantic models to
+    # dbt's own compiled manifest (design doc 2026-08-24-analytics-semantic-
+    # layer-execution-and-authorization.md), and that manifest is
+    # data-platform's own build artifact -- ai/ reads it via data-platform's
+    # already-built `mf` binary rather than re-vendoring dbt-metricflow's
+    # heavy dependency stack a second time. A real production split would
+    # expose this as its own queryable service rather than a monorepo-local
+    # path assumption; recorded here rather than hidden as a magic default.
+    data_platform_dbt_project_dir: Path = Path("../data-platform/dbt/canopica_warehouse")
+    mf_binary_path: Path = Path("../data-platform/.venv/bin/mf")
+    duckdb_path: Path = Path("../data-platform/warehouse/canopica.duckdb")

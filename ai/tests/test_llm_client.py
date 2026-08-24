@@ -9,13 +9,13 @@ output, which `test_policy_qa.py`'s e2e tests already cover.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 import pytest
 from pydantic import BaseModel
 
-from canopica_ai.common.llm_client import OllamaClient, PromptTooLongError
+from canopica_ai.common.llm_client import NoToolCallError, OllamaClient, PromptTooLongError, ToolSpec
 from canopica_ai.config import Settings
 
 
@@ -157,6 +157,118 @@ class TestPromptFitsTheContextWindow:
         OllamaClient(Settings()).generate("x" * 10_200)
 
         assert captured_request["json"]["prompt"].startswith("x")
+
+
+@pytest.fixture
+def captured_chat_request(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Same capture-not-mock approach as `captured_request`, against
+    `/api/chat` -- Ollama's tool-calling endpoint (Task 5's Analytics
+    Copilot) is a different route with a different response envelope than
+    `/api/generate`, so it needs its own fixture rather than reusing that
+    one's fixed `{"response": ...}` body."""
+    captured: dict[str, Any] = {}
+
+    def fake_post(url: str, *, json: dict[str, Any], timeout: float) -> httpx.Response:
+        captured["url"] = url
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return httpx.Response(
+            200,
+            json={
+                "message": {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "query_metric",
+                                "arguments": {"metric_name": "avg_processing_days"},
+                            }
+                        }
+                    ],
+                }
+            },
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    return captured
+
+
+class TestToolCallingGeneration:
+    """Task 5's Analytics Copilot: the model's only job is picking a tool
+    and its arguments, never writing SQL -- see design doc §2.4. Ollama's
+    tool-calling mode lives on `/api/chat`, a different endpoint and
+    request/response shape than prose or schema-constrained `/api/generate`."""
+
+    _TOOLS: ClassVar[list[ToolSpec]] = [
+        ToolSpec(
+            name="query_metric",
+            description="Query one governed metric from the semantic layer.",
+            parameters={
+                "type": "object",
+                "properties": {"metric_name": {"type": "string"}},
+                "required": ["metric_name"],
+            },
+        )
+    ]
+
+    def test_the_tool_schema_is_sent_in_ollamas_tools_format(
+        self, captured_chat_request: dict[str, Any]
+    ) -> None:
+        OllamaClient(Settings()).generate_tool_call("average processing time?", self._TOOLS)
+
+        [tool] = captured_chat_request["json"]["tools"]
+        assert tool["type"] == "function"
+        assert tool["function"]["name"] == "query_metric"
+        assert tool["function"]["parameters"]["required"] == ["metric_name"]
+
+    def test_the_prompt_is_sent_as_a_single_user_message(
+        self, captured_chat_request: dict[str, Any]
+    ) -> None:
+        OllamaClient(Settings()).generate_tool_call("average processing time?", self._TOOLS)
+
+        [message] = captured_chat_request["json"]["messages"]
+        assert message == {"role": "user", "content": "average processing time?"}
+
+    def test_a_selected_tool_call_is_parsed_into_name_and_arguments(
+        self, captured_chat_request: dict[str, Any]
+    ) -> None:
+        call = OllamaClient(Settings()).generate_tool_call("question", self._TOOLS)
+
+        assert call.name == "query_metric"
+        assert call.arguments == {"metric_name": "avg_processing_days"}
+
+    def test_tool_calling_reuses_the_same_bounded_options_as_prose(
+        self, captured_chat_request: dict[str, Any]
+    ) -> None:
+        # Compared against the settings directly, not a second live call:
+        # `captured_request` and `captured_chat_request` both monkeypatch
+        # the same `httpx.post`, so requesting both in one test would let
+        # whichever fixture applies last silently swallow the other's call.
+        settings = Settings(ollama_temperature=0.1, ollama_num_predict=64)
+
+        OllamaClient(settings).generate_tool_call("question", self._TOOLS)
+
+        options = captured_chat_request["json"]["options"]
+        assert options["temperature"] == 0.1
+        assert options["num_predict"] == 64
+        assert options["num_ctx"] == settings.ollama_num_ctx
+        assert captured_chat_request["json"]["keep_alive"] == settings.ollama_keep_alive
+
+    def test_no_tool_call_in_the_response_raises_rather_than_returning_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_post(url: str, *, json: dict[str, Any], timeout: float) -> httpx.Response:
+            message = {"role": "assistant", "content": "I'm not sure.", "tool_calls": []}
+            return httpx.Response(
+                200, json={"message": message}, request=httpx.Request("POST", url)
+            )
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        with pytest.raises(NoToolCallError, match="not sure"):
+            OllamaClient(Settings()).generate_tool_call("question", self._TOOLS)
 
 
 class TestGenerationDefaults:

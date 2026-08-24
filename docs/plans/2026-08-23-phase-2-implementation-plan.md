@@ -728,7 +728,7 @@ authorization resolved before any query compiles.
   without separate tooling, since it's MetricFlow's own compiled output,
   never LLM-written.
 
-- [ ] **Step 1: `tools.py`.** Builds the MCP tool list *per caller role*
+- [x] **Step 1: `tools.py`.** Builds the MCP tool list *per caller role*
       — resolved from the JWT's realm roles before any tool is even
       offered to the LLM, not filtered after (design doc §2.4's
       "authorization before query compilation"). For Phase 2's scope,
@@ -738,23 +738,23 @@ authorization resolved before any query compiles.
       any future metric that needs narrowing, not because today's metrics
       differ by role — stated explicitly so a later reader doesn't wonder
       why the check looks like a no-op today.
-- [ ] **Step 2: `mcp_server.py`.** Exposes each metric from Task 4's
+- [x] **Step 2: `mcp_server.py`.** Exposes each metric from Task 4's
       manifest as one MCP tool (`query_metric`, with `metric_name`,
       `group_by`, `filters` as typed parameters, validated against the
       exact names in Task 4's `metrics.yml` — an LLM-hallucinated metric
       name fails tool-argument validation before `mf query` ever runs).
-- [ ] **Step 3: `service.py`.** `ask()` runs the LLM (local Ollama, tool-
+- [x] **Step 3: `service.py`.** `ask()` runs the LLM (local Ollama, tool-
       calling mode) against the role-scoped tool list from Step 1; the
       model's only job is picking a tool + arguments, never writing SQL
       itself. The selected tool call executes via MetricFlow's Python
       query engine; `compiled_sql` comes from MetricFlow's own explain/
       compile output, not from the LLM.
-- [ ] **Step 4: `canopica_analytics_ro` connection.** The MetricFlow query
+- [x] **Step 4: `canopica_analytics_ro` connection.** The MetricFlow query
       engine connects to `canopica_serving` as `canopica_analytics_ro` (Task 4's
       role) — the defense-in-depth backstop design doc §2.4 calls for,
       underneath the tool-exposure-time check from Step 1, not the sole
       gate.
-- [ ] **Step 5: `test_analytics_copilot.py`.** A real NL question
+- [x] **Step 5: `test_analytics_copilot.py`.** A real NL question
       ("what's the average processing time for SNAP determinations last
       month") resolves to the correct metric/dimension and a real,
       correct number against seeded data; a request for a
@@ -762,7 +762,7 @@ authorization resolved before any query compiles.
       silently falls back to something else; a request using
       `canopica_analytics_ro`'s connection to attempt a raw write (test-only,
       proving the backstop) is rejected at the database level.
-- [ ] **Step 6: Full suite + commit.**
+- [x] **Step 6: Full suite + commit.**
 
 ---
 
