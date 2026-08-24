@@ -262,6 +262,23 @@ services:
       # honored, not assumed: the limit in that same log line reads
       # `512.000 MiB` with this set.
       LLAMA_ARG_CACHE_RAM: "512"
+      # Quantized K/V cache, to pay back the memory that raising num_ctx from
+      # the 2048 default to 4096 cost. That raise is not optional -- at 2048
+      # Ollama was silently truncating this system's real prompts (see
+      # canopica_ai.config.Settings.ollama_num_ctx for the measurement) -- but it
+      # widened the KV cache enough to tip OpenSearch's ml-commons native
+      # memory circuit breaker on the CI runner, whose threshold is a
+      # percentage of *host* memory, so Ollama growing is directly what trips
+      # it (run 32688091165: 9 failures, all `circuit_breaking_exception`).
+      # Measured here rather than assumed: llama3.2:3b at num_ctx=4096 uses
+      # 2.733GiB with the f16 default and 2.524GiB at q8_0, so this returns
+      # ~209MB of the ~235MB the raise cost. Verified honored by reading
+      # Ollama's own launch line for `--cache-type-k q8_0 --cache-type-v
+      # q8_0`, not inferred from the variable being set. q8_0 is the
+      # conservative quantization (not q4_0) and needs flash attention, set
+      # below.
+      OLLAMA_KV_CACHE_TYPE: "q8_0"
+      OLLAMA_FLASH_ATTENTION: "1"
     ports:
       - "11434:11434"
     volumes:
