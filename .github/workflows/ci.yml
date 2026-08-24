@@ -122,6 +122,13 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --dev
+      # The Analytics Copilot (Task 5) shells out to data-platform's own
+      # already-built `mf`/`dbt` binaries rather than re-vendoring
+      # dbt-metricflow's dependency stack a second time (config.py's own
+      # comment on `mf_binary_path`) -- a real cross-project coupling, so
+      # this job needs that project's venv to exist too, not just its own.
+      - run: uv sync --dev
+        working-directory: data-platform
       - run: uv run ruff check .
       - run: uv run mypy src tests
       - run: uv run pytest -m "not e2e"
@@ -287,6 +294,10 @@ jobs:
           docker compose -f infra/docker-compose.yml up -d ollama-init
           docker compose -f infra/docker-compose.yml wait ollama-init
       - run: free -h
+      # The Analytics Copilot (Task 5) shells out to data-platform's own
+      # `mf`/`dbt` binaries (see the `ai` job above) -- needed here too,
+      # since this is a separate job with its own checkout/venv state.
+      - run: cd data-platform && uv sync --dev
       # Provisions its own corpus index + search pipeline against the
       # OpenSearch/Ollama services above (conftest.py's indexed_corpus
       # fixture) -- no separate setup step needed here.
