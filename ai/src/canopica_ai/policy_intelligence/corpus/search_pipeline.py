@@ -69,6 +69,24 @@ def ensure_ml_commons_settings(client: OpenSearch) -> None:
                 "plugins.ml_commons.only_run_on_ml_node": "false",
                 "plugins.ml_commons.model_access_control_enabled": "true",
                 "plugins.ml_commons.native_memory_threshold": "99",
+                # ml-commons has *two* memory circuit breakers and both emit
+                # the byte-for-byte identical "Memory Circuit Breaker is
+                # open" message, which is why this took several rounds to
+                # find: `native_memory_threshold` above measures host RAM,
+                # and `jvm_heap_memory_threshold` here measures JVM heap.
+                # Only the first was ever raised, so every earlier fix
+                # attempt (freeing host services, quantizing Ollama's KV
+                # cache, splitting the e2e jobs) targeted a resource that
+                # was not the binding one -- with host memory at 92% against
+                # a 99% threshold, that breaker was never the one tripping.
+                # Measured on this stack's own container: with the
+                # cross-encoder reranker deployed into the 2g heap, heap sits
+                # at 73% immediately after indexing and before any query
+                # load, one allocation burst from the 85% default. 92 keeps a
+                # real margin and still sits below OpenSearch's own parent
+                # breaker (`indices.breaker.total.limit`, 95% of heap), which
+                # remains the backstop against actually exhausting the JVM.
+                "plugins.ml_commons.jvm_heap_memory_threshold": "92",
             }
         },
     )
@@ -114,8 +132,21 @@ def ensure_model_group(client: OpenSearch) -> str:
 
 
 def ensure_reranker_model(client: OpenSearch, model_group_id: str) -> str:
-    """Returns the pinned cross-encoder's model_id, registering and
-    deploying it first if it isn't already deployed under this group."""
+    """Returns the pinned cross-encoder's model_id, registering it first if
+    this group has no copy of it yet and deploying it if the copy it has
+    isn't loaded.
+
+    Registration and deployment are deliberately two separate decisions.
+    An earlier version asked one question -- "is there a DEPLOYED copy?" --
+    and registered a fresh one whenever the answer was no, which makes a
+    model left behind in any other state invisible rather than reusable.
+    DEPLOY_FAILED is exactly what a tripped memory circuit breaker leaves
+    behind, so that path is directly reachable from this stack's own most
+    common failure: the run after a breaker trip would register a second
+    copy of a ~90MB model rather than redeploying the one already there,
+    adding heap pressure to a cluster that just ran out of it. CI cannot
+    catch this -- its OpenSearch volume is created fresh every run, so
+    there is never a second run to be wrong about."""
     search_response = _request(
         client,
         "POST",
@@ -126,7 +157,6 @@ def ensure_reranker_model(client: OpenSearch, model_group_id: str) -> str:
                     "must": [
                         {"term": {"name.keyword": RERANKER_MODEL_NAME}},
                         {"term": {"model_group_id": model_group_id}},
-                        {"term": {"model_state": "DEPLOYED"}},
                     ]
                 }
             }
@@ -134,7 +164,10 @@ def ensure_reranker_model(client: OpenSearch, model_group_id: str) -> str:
     )
     hits = search_response.get("hits", {}).get("hits", [])
     if hits:
-        return str(hits[0]["_id"])
+        model_id = str(hits[0]["_id"])
+        if hits[0].get("_source", {}).get("model_state") == "DEPLOYED":
+            return model_id
+        return _deploy(client, model_id)
 
     register_task = _request(
         client,
@@ -148,8 +181,10 @@ def ensure_reranker_model(client: OpenSearch, model_group_id: str) -> str:
         },
     )
     registered = _poll_task(client, register_task["task_id"])
-    model_id = str(registered["model_id"])
+    return _deploy(client, str(registered["model_id"]))
 
+
+def _deploy(client: OpenSearch, model_id: str) -> str:
     deploy_task = _request(client, "POST", f"/_plugins/_ml/models/{model_id}/_deploy")
     _poll_task(client, deploy_task["task_id"])
     return model_id

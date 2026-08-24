@@ -10,7 +10,6 @@ is tested directly, with no infra at all.
 from __future__ import annotations
 
 import re
-import uuid
 from datetime import date
 from typing import Any
 
@@ -21,7 +20,12 @@ import pytest
 from canopica_ai.common.llm_client import LlmResponse
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.qa.grounding import citation_grounded
-from canopica_ai.policy_intelligence.qa.service import ABSTENTION_MESSAGE, answer_denial, answer_general
+from canopica_ai.policy_intelligence.qa.service import (
+    ABSTENTION_MESSAGE,
+    QaAnswer,
+    answer_denial,
+    answer_general,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -180,12 +184,36 @@ class TestCitationGrounded:
         assert citation_grounded([], ["273.9(a)"]) is False
 
 
+@pytest.fixture(scope="class")
+def a_grounded_answer(indexed_corpus: Settings) -> tuple[str, QaAnswer]:
+    """One real generation, shared by the two tests below that each assert
+    a different property of it -- that it is grounded, and that it was
+    persisted with complete provenance.
+
+    Hoisted into a fixture purely for wall clock, without merging the two
+    tests or weakening either assertion. On CI's 4-vCPU runner a single RAG
+    generation is dominated by prompt evaluation over the retrieved context,
+    not by token output, and measured ~110s; running it twice to ask two
+    questions about the same answer made it the most expensive redundancy
+    in this suite.
+
+    The question is deliberately clean prose. The provenance test used to
+    disambiguate its own row by appending a uuid to the question, which is
+    safe when only that test pays for it -- but `answer_general` uses the
+    question verbatim for BM25 retrieval, for the k-NN embedding, *and* in
+    the prompt, so a random token in it is noise on all three. Sharing the
+    uuid-suffixed version would have handed the grounding test below a
+    degraded question it never had before; the provenance test finds its
+    row by recency instead."""
+    question = "What is the gross income test for a household?"
+    return question, answer_general(question, settings=indexed_corpus)
+
+
 class TestAnswerGeneral:
     def test_a_clear_question_is_grounded_with_real_citations(
-        self, indexed_corpus: Settings
+        self, a_grounded_answer: tuple[str, QaAnswer]
     ) -> None:
-        question = "What is the gross income test for a household?"
-        answer = answer_general(question, settings=indexed_corpus)
+        _, answer = a_grounded_answer
 
         assert answer.abstained is False
         assert answer.citations
@@ -204,16 +232,19 @@ class TestAnswerGeneral:
         assert "insufficient information" in answer.answer
 
     def test_every_answer_is_recorded_with_complete_provenance(
-        self, indexed_corpus: Settings
+        self, a_grounded_answer: tuple[str, QaAnswer], indexed_corpus: Settings
     ) -> None:
-        question = f"What is the gross income test for a household? ({uuid.uuid4()})"
-        answer_general(question, settings=indexed_corpus)
+        question, _ = a_grounded_answer
 
         with psycopg.connect(indexed_corpus.operational_dsn) as conn, conn.cursor() as cur:
             cur.execute(
+                # Newest first, so this reads the row the fixture above
+                # just wrote rather than one left by an earlier run against
+                # the same long-lived database.
                 "select corpus_version, embedding_model_version, retrieval_config, "
                 "prompt_version, retrieved_chunk_ids, abstained "
-                "from ai.policy_qa_answer where question = %s",
+                "from ai.policy_qa_answer where question = %s "
+                "order by created_at desc limit 1",
                 (question,),
             )
             row = cur.fetchone()
@@ -264,13 +295,29 @@ class TestGroundingRetryAndAbstention:
         assert answer.answer == ABSTENTION_MESSAGE
 
 
+@pytest.fixture(scope="class")
+def an_explained_denial(indexed_corpus: Settings) -> tuple[str, QaAnswer]:
+    """A real denied determination, decided through the real portal API,
+    plus its one real explanation -- shared for the same reason as
+    `a_grounded_answer` above, and worth more here: each of the two tests
+    below used to submit its own application, run its own DMN
+    determination, and pay for its own generation.
+
+    Sharing it also makes the persistence test below stricter rather than
+    looser. It asserts exactly one stored explanation for this
+    determination, which now genuinely pins "one call, one row" instead of
+    only ever seeing a determination created moments earlier for its
+    exclusive use."""
+    determination_id, citizen_token = _a_denied_determination()
+    answer = answer_denial(determination_id, citizen_token, settings=indexed_corpus)
+    return determination_id, answer
+
+
 class TestAnswerDenial:
     def test_a_denied_determination_cites_the_real_income_section(
-        self, indexed_corpus: Settings
+        self, an_explained_denial: tuple[str, QaAnswer]
     ) -> None:
-        determination_id, citizen_token = _a_denied_determination()
-
-        answer = answer_denial(determination_id, citizen_token, settings=indexed_corpus)
+        _, answer = an_explained_denial
 
         assert answer.abstained is False
         assert citation_grounded(answer.citations, answer.citations)
@@ -280,11 +327,9 @@ class TestAnswerDenial:
         assert any(citation.startswith("273.9(a)") for citation in answer.citations)
 
     def test_the_denial_explanation_is_recorded_against_its_determination(
-        self, indexed_corpus: Settings
+        self, an_explained_denial: tuple[str, QaAnswer], indexed_corpus: Settings
     ) -> None:
-        determination_id, citizen_token = _a_denied_determination()
-
-        answer_denial(determination_id, citizen_token, settings=indexed_corpus)
+        determination_id, _ = an_explained_denial
 
         with psycopg.connect(indexed_corpus.operational_dsn) as conn, conn.cursor() as cur:
             cur.execute(
