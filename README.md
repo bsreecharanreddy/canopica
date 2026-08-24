@@ -62,7 +62,7 @@ flowchart TB
         G["Semantic Layer\n(MetricFlow · TMDL)"] --> D["Power BI · Metabase"]
     end
 
-    E["AI Layer\nPolicy Q&A · Analytics Copilot\nDocument Intake · Fraud Triage\nSOP Copilot · ..."]
+    E["AI Layer\nPolicy Q&A · Rule-Authoring Copilot\nAnalytics Copilot · Document Intake\nFraud Triage · SOP Copilot · ..."]
 
     A --> core
     core --> C1

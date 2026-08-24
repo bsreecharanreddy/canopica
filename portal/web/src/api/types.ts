@@ -122,3 +122,42 @@ export type QaAnswer = {
   citations: string[];
   abstained: boolean;
 };
+
+// Mirrors canopica.portal.api.dto.ParameterProposalResponse (the Java portal) and,
+// for the diff rows, canopica.portal.policy.ProposedParameterValue -- which is the
+// same shape canopica_ai...rule_authoring.schema.ProposedParameter emits, since the
+// portal stores what the copilot returned rather than reshaping it.
+export type ProposedParameterValue = {
+  name: string;
+  householdSize: number | null; // null = the figure is scalar (a rate or a threshold)
+  oldValue: string; // money and rates as strings end to end -- never through a float
+  newValue: string;
+  unit: 'USD_PER_MONTH' | 'RATE' | 'COUNT';
+  rationale: string;
+};
+
+export type ProposalStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+export type ParameterProposal = {
+  id: string;
+  currentParameterSetId: string;
+  currentVersionLabel: string;
+  sourceExcerpt: string;
+  proposedValues: ProposedParameterValue[];
+  status: ProposalStatus;
+  proposedBy: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  publishedParameterSetId: string | null;
+  generationModel: string;
+  promptVersion: string;
+  createdAt: string;
+};
+
+// Required only when accepting. None of it is derivable: an effective date is a
+// policy fact the memo states, and versionLabel is unique by DB constraint.
+export type PublicationDetails = {
+  versionLabel: string;
+  effectiveFrom: string; // ISO date (yyyy-MM-dd)
+  sourceCitation: string;
+};

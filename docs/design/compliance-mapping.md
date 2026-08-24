@@ -47,8 +47,13 @@ role holding the grant.
 
 The hash-chained `audit_event` table (`V6__audit_event.sql`, Task 6 of
 Phase 1a) records `APPLICATION_SUBMITTED`, `DETERMINATION_MADE`,
-`CASE_VIEWED`, and `VERIFICATION_UPDATED` events with actor, subject,
-timestamp, and a structured payload. Task 2 extended `CASE_VIEWED`'s
+`CASE_VIEWED`, `VERIFICATION_UPDATED`, and — added by Phase 2 Task 3
+(`V16`) — `POLICY_PARAMETER_PUBLISHED` events with actor, subject,
+timestamp, and a structured payload. That last one is a configuration-
+change record rather than a case-access one: it names the human who put a
+set of benefit figures into force, which the `policy_parameter_proposal`
+row also records but cannot attest to, being mutable by design.
+Task 2 extended `CASE_VIEWED`'s
 payload with `in_assignment: boolean`, so a supervisor override is a
 distinctly identifiable event, not indistinguishable from routine
 in-caseload access — the exact shape `mart_access_review` (Task 5) reports

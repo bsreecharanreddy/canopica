@@ -295,10 +295,21 @@ models:
       - name: event_type
         tests:
           - not_null
+          # Mirrors audit_event's own CHECK constraint (V6, widened by V16).
+          # These three have to move together -- the migration,
+          # canopica.portal.audit.AuditEventType, and this list -- or the first
+          # event of a new type turns this test red long after the change
+          # that introduced it.
           - accepted_values:
               arguments:
                 values:
-                  ["APPLICATION_SUBMITTED", "DETERMINATION_MADE", "CASE_VIEWED", "VERIFICATION_UPDATED"]
+                  [
+                    "APPLICATION_SUBMITTED",
+                    "DETERMINATION_MADE",
+                    "CASE_VIEWED",
+                    "VERIFICATION_UPDATED",
+                    "POLICY_PARAMETER_PUBLISHED",
+                  ]
         meta: { classification: PUBLIC }
       - name: actor_id
         tests: [not_null]

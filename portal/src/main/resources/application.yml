@@ -65,3 +65,14 @@ canopica:
     # "localhost:8081" meaningfully from inside its own container.
     workers-jwks-uri: ${CANOPICA_KEYCLOAK_WORKERS_JWKS_URI:${canopica.keycloak.workers-issuer-uri}/protocol/openid-connect/certs}
     citizens-jwks-uri: ${CANOPICA_KEYCLOAK_CITIZENS_JWKS_URI:${canopica.keycloak.citizens-issuer-uri}/protocol/openid-connect/certs}
+  ai:
+    # The Python AI capability layer (ai/), a separate service from this one.
+    # Nothing in infra/docker-compose.yml serves it yet -- Task 9's public
+    # hosted demo is where the AI layer actually gets deployed -- so this
+    # default matches running it locally with
+    # `uvicorn canopica_ai.policy_intelligence.rule_authoring.api:app --port 8000`.
+    rule-authoring-url: ${CANOPICA_AI_RULE_AUTHORING_URL:http://localhost:8000}
+    # Behind that endpoint is CPU-bound local inference; see
+    # canopica_ai.config.Settings.ollama_timeout_seconds for the measurements this
+    # matches (successful generations at 1m10s-1m44s on a loaded host).
+    rule-authoring-timeout-seconds: ${CANOPICA_AI_RULE_AUTHORING_TIMEOUT_SECONDS:240}

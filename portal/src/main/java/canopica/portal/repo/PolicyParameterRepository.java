@@ -16,4 +16,12 @@ public interface PolicyParameterRepository extends JpaRepository<PolicyParameter
         """)
     List<PolicyParameter> findForSet(
             @Param("setId") UUID parameterSetId, @Param("size") int householdSize);
+
+    /**
+     * Every figure in a set, unfiltered by household size -- what {@code PolicyParameterPublishService} needs
+     * to copy a set forward, and what the rule-authoring copilot is shown as "what is currently in force".
+     * {@link #findForSet} deliberately narrows to one size because a determination only ever concerns one
+     * household; these two callers concern the whole set.
+     */
+    List<PolicyParameter> findByParameterSetIdOrderByNameAscHouseholdSizeAsc(UUID parameterSetId);
 }

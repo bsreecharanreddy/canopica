@@ -497,12 +497,44 @@ alter table person add column keycloak_subject text unique;
 Proposes new `policy_parameter_set` values from a changed policy document
 — narrowed scope per design doc §2.3, never DMN table restructuring.
 
+**Amended 2026-08-23, during implementation.** Five corrections, each
+found by writing the code rather than by re-reading the plan:
+
+1. **Migration numbers.** `V13` was already taken by Task 2's
+   `policy_qa_answer`. The proposal table is **`V14`**.
+2. **Supersession needs its own migration.** Publishing a superseding
+   parameter set is impossible as `V3` stands — the outgoing `SNAP-FY2026`
+   set is open-ended (`effective_to = null`) and `V3`'s trigger refuses
+   every UPDATE, so a new set would overlap it and `findEffectiveOn` would
+   throw on the next determination. Settled by
+   `docs/design/2026-08-23-policy-parameter-supersession.md` (Option A):
+   add **`V15__policy_parameter_set_closeable.sql`**, narrowing the
+   trigger to permit `effective_to` `null` → date and nothing else.
+   `PolicyParameterImmutabilityTest` gains the boundary cases.
+3. **`propose_parameter_changes` takes a third argument.** The signature
+   below said `(document_excerpt, current_parameter_set_id)`, but Step 1's
+   own prose already required the current values to be passed in (the AI
+   service has no operational-Postgres access). Real signature:
+   `(document_excerpt, current_parameter_set_id, current_values)`.
+4. **No ADMIN user is seeded.** `identity/realm-export/canopica-workers-realm.json`
+   defines the `ADMIN` role but seeds only `worker.sam` and
+   `supervisor.robin`. Task 3's ADMIN-only routes need an admin identity
+   to be testable or demoable at all, so the realm export gains one and
+   `AbstractApiTest` gains an `adminToken()`.
+5. **The proposal table carries provenance.** `generation_model`,
+   `prompt_version` and `proposed_by` beyond the columns sketched below —
+   the same bar `ai.policy_qa_answer` already holds (design doc §2.2),
+   applied to a draft that can end up deciding a benefit amount. "An AI
+   proposed it" is never a complete answer to who changed a figure.
+
 **Files:**
 - Create: `ai/src/canopica_ai/policy_intelligence/rule_authoring/service.py`,
   `schema.py`, `api.py`
-- Create: `ai/tests/test_rule_authoring.py`
+- Create: `ai/tests/test_rule_authoring.py`,
+  `ai/tests/test_rule_authoring_api.py`
 - Create: `portal/src/main/resources/db/migration/
-  V13__policy_parameter_proposal.sql`
+  V14__policy_parameter_proposal.sql`,
+  `V15__policy_parameter_set_closeable.sql`
 - Create: `portal/src/main/java/canopica/portal/policy/
   PolicyParameterPublishService.java`
 - Create: `portal/src/main/java/canopica/portal/api/
@@ -567,6 +599,16 @@ create table policy_parameter_proposal (
       from — then stamps `published_parameter_set_id` on the proposal
       row. No other code path in this service can reach `.save()` on
       those two repositories with proposal data.
+      **Amended:** the new set is *complete*, not a delta — it copies
+      every `policy_parameter` row from the outgoing set and applies the
+      accepted changes over the top, because `PolicyParameterResolver`
+      needs the full parameter list to build a `SnapPolicyParameters`.
+      And the same transaction closes the outgoing set at
+      `newEffectiveFrom - 1 day` (V15, per the supersession design doc),
+      so there is never a window with two open-ended sets. The reviewer
+      supplies `versionLabel`, `effectiveFrom` and `sourceCitation` on
+      accept: an effective date is a policy fact from the memo, not
+      something to infer, and `version_label` is `unique`.
 - [ ] **Step 4: `PolicyParameterProposalController`.**
       `POST /api/policy/proposals` (ADMIN-only, body: excerpt),
       `POST /api/policy/proposals/{id}/review` (ADMIN-only, body:

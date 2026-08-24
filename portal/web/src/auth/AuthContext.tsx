@@ -3,7 +3,40 @@ import { AuthProvider, useAuth } from 'react-oidc-context';
 import { setAccessToken } from '../api/client';
 import { authConfigFor, clearRealmChoice, readRealmChoice, storeRealmChoice, type Realm } from './oidc-config';
 
-type Role = 'CUSTOMER' | 'WORKER';
+type Role = 'CUSTOMER' | 'WORKER' | 'ADMIN';
+
+/**
+ * Reads Keycloak's `realm_access.roles` out of the access token, unverified.
+ *
+ * <p>Unverified is correct here and not a shortcut: this drives which links the UI renders, nothing more.
+ * Every one of those routes is enforced server-side against a signature-checked token (SecurityConfig's
+ * `/api/policy/**` is ADMIN-only), so the worst a tampered token achieves locally is showing someone a link
+ * that 403s. Verifying a signature in the browser would prove nothing extra, since the browser holds the
+ * token either way.
+ *
+ * <p>Realm roles aren't in the ID token by default, so `auth.user.profile` can't answer this -- the access
+ * token is where Keycloak actually puts them.
+ */
+function realmRolesOf(accessToken: string | undefined): string[] {
+  if (!accessToken) return [];
+  try {
+    const payload = accessToken.split('.')[1];
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const claims = JSON.parse(json) as { realm_access?: { roles?: string[] } };
+    return claims.realm_access?.roles ?? [];
+  } catch {
+    // A malformed token is a sign-in problem, surfaced by react-oidc-context itself. Here it just means
+    // "no elevated links", which is the safe direction to fail in.
+    return [];
+  }
+}
+
+function roleFor(realm: Realm, accessToken: string | undefined): Role {
+  if (realm !== 'worker') return 'CUSTOMER';
+  // ADMIN is a distinct realm role, not a superset of WORKER -- an admin holds no caseload and would be
+  // refused by /api/worker/**, so the nav must not offer it to them.
+  return realmRolesOf(accessToken).includes('ADMIN') ? 'ADMIN' : 'WORKER';
+}
 
 type CanopicaAuthValue =
   | { status: 'choosing'; chooseRealm: (realm: Realm) => void }
@@ -60,7 +93,7 @@ function AuthBridge({ realm, onSignedOut, children }: { realm: Realm; onSignedOu
   if (auth.error) {
     value = { status: 'error', message: auth.error.message, signOut };
   } else if (auth.isAuthenticated) {
-    value = { status: 'authenticated', role: realm === 'worker' ? 'WORKER' : 'CUSTOMER', signOut };
+    value = { status: 'authenticated', role: roleFor(realm, auth.user?.access_token), signOut };
   } else {
     value = { status: 'loading' };
   }

@@ -39,6 +39,26 @@ public class PolicyParameter {
         // JPA
     }
 
+    /**
+     * The only way to create a figure in Java. Insert-only by construction -- there is no setter, and V3's
+     * trigger refuses UPDATE and DELETE outright, unnarrowed by V15. Superseding a value means inserting it
+     * again under a new {@link PolicyParameterSet}, which is what determination reproducibility rests on.
+     */
+    public PolicyParameter(UUID id, UUID parameterSetId, String name, Integer householdSize,
+            BigDecimal numericValue, String unit) {
+        this.id = id;
+        this.parameterSetId = parameterSetId;
+        this.name = name;
+        this.householdSize = householdSize;
+        this.numericValue = numericValue;
+        this.unit = unit;
+    }
+
+    /** Copies this figure into a superseding set, optionally with a new value. */
+    public PolicyParameter copyInto(UUID newParameterSetId, BigDecimal value) {
+        return new PolicyParameter(UUID.randomUUID(), newParameterSetId, name, householdSize, value, unit);
+    }
+
     public UUID getId() {
         return id;
     }

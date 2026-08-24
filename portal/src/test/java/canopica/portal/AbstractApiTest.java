@@ -55,6 +55,7 @@ public abstract class AbstractApiTest extends AbstractPostgresTest {
     // round-tripping Keycloak per test method. 900s access-token lifespan comfortably outlives one test run.
     private static String cachedWorkerToken;
     private static String cachedSupervisorToken;
+    private static String cachedAdminToken;
     private static String cachedCitizenToken;
     private static String cachedOtherCitizenToken;
 
@@ -71,6 +72,19 @@ public abstract class AbstractApiTest extends AbstractPostgresTest {
                     fetchToken("canopica-workers", "test-worker", "test-worker-secret", "supervisor.robin", "CanopicaSupervisor123!");
         }
         return cachedSupervisorToken;
+    }
+
+    /**
+     * The one identity allowed to publish a policy parameter version (Phase 2 Task 3). Seeded alongside the
+     * other two in the same realm export -- the ADMIN *role* existed from Phase 1b, but no user held it until
+     * something needed it.
+     */
+    protected static synchronized String adminToken() {
+        if (cachedAdminToken == null) {
+            cachedAdminToken =
+                    fetchToken("canopica-workers", "test-worker", "test-worker-secret", "admin.alex", "CanopicaAdmin123!");
+        }
+        return cachedAdminToken;
     }
 
     protected static synchronized String citizenToken() {

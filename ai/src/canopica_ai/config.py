@@ -58,6 +58,21 @@ class Settings(BaseSettings):
     ollama_num_predict: int = 512
     ollama_keep_alive: str = "5m"
 
+    # Set explicitly rather than left to the model default, because the
+    # default is 2048 and this system's real prompts do not fit in it.
+    # Measured (2026-08-23) against the live stack: the rule-authoring
+    # prompt for the real 39-parameter FY2026 set plus an 8,000-character
+    # excerpt is 12,186 characters, and Ollama reported `prompt_eval_count`
+    # of 1,026 at num_ctx=2048 versus 3,105 at 4,096 -- it discarded two
+    # thirds of the prompt and still answered 200 OK. The parameter list is
+    # at the front of that prompt, so the model would have been diffing
+    # against a list it never saw. Task 2's denial prompt was measured at
+    # 1,849 tokens against the same 2,048 ceiling, close enough that a
+    # slightly longer retrieval would have started truncating there too.
+    # Costs roughly 235MB more KV cache than 2048, which is real on a
+    # memory-tight host and is the right trade against silent truncation.
+    ollama_num_ctx: int = 4096
+
     # Empirically measured (2026-08-23) against real CPU-bound generation
     # sharing a host with OpenSearch/Keycloak/portal-api: successful calls
     # took 1m10s-1m44s, and a 120s timeout actually cut one off at exactly

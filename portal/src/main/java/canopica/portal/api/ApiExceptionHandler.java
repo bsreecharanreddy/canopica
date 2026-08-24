@@ -2,6 +2,7 @@ package canopica.portal.api;
 
 import canopica.portal.intake.InvalidIntakeException;
 import canopica.portal.policy.PolicyParameterNotFoundException;
+import canopica.portal.policy.RuleAuthoringUnavailableException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,14 @@ class ApiExceptionHandler {
     @ExceptionHandler(PolicyParameterNotFoundException.class)
     ResponseEntity<Map<String, Object>> handlePolicyParameterNotFound(PolicyParameterNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of("message", ex.getMessage()));
+    }
+
+    // 502, not 500: the failure is a downstream service (the Python AI capability layer) being unreachable
+    // or declining to draft a proposal, which is a normal outcome an admin should see explained and retry --
+    // not a fault in this application.
+    @ExceptionHandler(RuleAuthoringUnavailableException.class)
+    ResponseEntity<Map<String, Object>> handleRuleAuthoringUnavailable(RuleAuthoringUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", ex.getMessage()));
     }
 
     @ExceptionHandler({NoSuchElementException.class, EmptyResultDataAccessException.class})

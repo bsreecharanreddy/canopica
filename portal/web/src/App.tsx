@@ -4,18 +4,30 @@ import IntakePage from './pages/IntakePage';
 import WorkerCasesPage from './pages/WorkerCasesPage';
 import CaseDetailPage from './pages/CaseDetailPage';
 import PolicyQaPage from './pages/PolicyQaPage';
+import RuleAuthoringPage from './pages/RuleAuthoringPage';
 
-function Nav({ role }: { role: 'CUSTOMER' | 'WORKER' }) {
+type Role = 'CUSTOMER' | 'WORKER' | 'ADMIN';
+
+// Where each role lands with no path of its own. ADMIN is deliberately not sent
+// to /cases: an admin holds no caseload and /api/worker/** would refuse them.
+const HOME_FOR: Record<Role, string> = {
+  CUSTOMER: '/apply',
+  WORKER: '/cases',
+  ADMIN: '/rule-authoring',
+};
+
+function Nav({ role }: { role: Role }) {
   return (
     <nav aria-label="Main">
       {role === 'CUSTOMER' && <NavLink to="/apply">Apply</NavLink>}
       {role === 'CUSTOMER' && <NavLink to="/ask">Ask about policy</NavLink>}
       {role === 'WORKER' && <NavLink to="/cases">Cases</NavLink>}
+      {role === 'ADMIN' && <NavLink to="/rule-authoring">Rule authoring</NavLink>}
     </nav>
   );
 }
 
-function AuthedAppShell({ role, signOut }: { role: 'CUSTOMER' | 'WORKER'; signOut: () => void }) {
+function AuthedAppShell({ role, signOut }: { role: Role; signOut: () => void }) {
   return (
     <>
       <header>
@@ -27,11 +39,12 @@ function AuthedAppShell({ role, signOut }: { role: 'CUSTOMER' | 'WORKER'; signOu
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<Navigate to={role === 'WORKER' ? '/cases' : '/apply'} replace />} />
+          <Route path="/" element={<Navigate to={HOME_FOR[role]} replace />} />
           <Route path="/apply" element={<IntakePage />} />
           <Route path="/ask" element={<PolicyQaPage />} />
           <Route path="/cases" element={<WorkerCasesPage />} />
           <Route path="/cases/:programRequestId" element={<CaseDetailPage />} />
+          <Route path="/rule-authoring" element={<RuleAuthoringPage />} />
         </Routes>
       </main>
     </>

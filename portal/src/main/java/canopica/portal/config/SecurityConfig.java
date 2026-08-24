@@ -96,6 +96,13 @@ class SecurityConfig {
                         .hasAnyRole("WORKER", "SUPERVISOR")
                         .requestMatchers("/api/supervisor/**")
                         .hasRole("SUPERVISOR")
+                        // Rule-authoring review (Phase 2 Task 3). ADMIN, not SUPERVISOR: publishing a
+                        // parameter version changes the figures *every future determination* resolves
+                        // against, which is a categorically bigger blast radius than the per-case work a
+                        // SUPERVISOR does. Narrowest existing role wins; no data-driven check follows this
+                        // one, because there is no per-case scoping to apply -- a parameter set is global.
+                        .requestMatchers("/api/policy/**")
+                        .hasRole("ADMIN")
                         .requestMatchers("/api/worker/**")
                         .hasAnyRole("WORKER", "SUPERVISOR")
                         .anyRequest()

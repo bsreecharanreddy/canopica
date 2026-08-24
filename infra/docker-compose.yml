@@ -135,6 +135,16 @@ services:
       # application.yml's own default (localhost:4318) is for local,
       # non-Docker dev only. See management.otlp.tracing.endpoint (Task 9).
       CANOPICA_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+      # The rule-authoring copilot (ai/) has no Compose service of its own yet
+      # -- Task 9's public hosted demo is where the AI layer actually gets
+      # deployed, and standing up a half-configured one here would preempt that
+      # design. Until then it runs on the host (`uvicorn
+      # canopica_ai.policy_intelligence.rule_authoring.api:app --port 8000`), and
+      # `host.docker.internal` is how this container reaches it. Note this is
+      # the *opposite* direction from Task 2's Policy Q&A, where the caller is
+      # the browser and application.yml's plain localhost default is already
+      # right -- portal-api is in a container, so localhost would be itself.
+      CANOPICA_AI_RULE_AUTHORING_URL: http://host.docker.internal:8000
     ports:
       - "8080:8080"
     depends_on:
@@ -237,6 +247,21 @@ services:
     # with everything else running on the machine). If a local run starts
     # getting killed, set it in a local override rather than here: it is
     # the right trade on a memory-starved laptop and the wrong one in CI.
+    environment:
+      # Caps llama.cpp's prompt-reuse cache, which Ollama does not expose an
+      # OLLAMA_* variable for but does pass LLAMA_ARG_* through to
+      # llama-server. Found by reading Ollama's own logs during Phase 2
+      # Task 3: `cache state: 3 prompts, 584.235 MiB (limits: 8192.000 MiB
+      # ...)`. The default ceiling is 8GB -- more than this whole Docker VM
+      # has (7.65GB) -- so on a host without GPU VRAM to spend it is a cache
+      # that will happily grow until something else is killed, and this
+      # suite's back-to-back similar prompts are exactly the workload that
+      # grows it. 512MB keeps the reuse benefit for consecutive near-
+      # identical prompts (a single cached prompt here measured ~200MB)
+      # while bounding it well below what the model itself needs. Verified
+      # honored, not assumed: the limit in that same log line reads
+      # `512.000 MiB` with this set.
+      LLAMA_ARG_CACHE_RAM: "512"
     ports:
       - "11434:11434"
     volumes:

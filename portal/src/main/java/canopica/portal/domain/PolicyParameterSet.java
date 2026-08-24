@@ -45,6 +45,42 @@ public class PolicyParameterSet {
         // JPA
     }
 
+    /**
+     * Publishes a new, open-ended set. The only way to create one in Java -- every set that existed before
+     * Phase 2 Task 3 was seeded by the V4 migration, and the only caller is {@code
+     * PolicyParameterPublishService}'s accept path, after a human has approved the figures.
+     *
+     * <p>No {@code effectiveTo}: a newly published set is in force until something supersedes it, and
+     * supersession is what {@link #closeAt} is for.
+     */
+    public PolicyParameterSet(UUID id, String programCode, String versionLabel, LocalDate effectiveFrom,
+            String sourceCitation, LocalDate retrievedOn) {
+        this.id = id;
+        this.programCode = programCode;
+        this.versionLabel = versionLabel;
+        this.effectiveFrom = effectiveFrom;
+        this.sourceCitation = sourceCitation;
+        this.retrievedOn = retrievedOn;
+    }
+
+    /**
+     * Closes an open-ended range, the one edit a published set permits (V15 migration; see
+     * {@code docs/design/2026-08-23-policy-parameter-supersession.md}). One-way and one-shot: the guard here
+     * and the trigger in the database say the same thing, so this cannot be reached past the trigger and the
+     * trigger cannot be reached past this.
+     */
+    public void closeAt(LocalDate effectiveTo) {
+        if (this.effectiveTo != null) {
+            throw new IllegalStateException(
+                    versionLabel + " is already closed at " + this.effectiveTo + " and cannot be reopened or moved");
+        }
+        if (effectiveTo.isBefore(effectiveFrom)) {
+            throw new IllegalArgumentException(
+                    versionLabel + " cannot end (" + effectiveTo + ") before it starts (" + effectiveFrom + ")");
+        }
+        this.effectiveTo = effectiveTo;
+    }
+
     public UUID getId() {
         return id;
     }

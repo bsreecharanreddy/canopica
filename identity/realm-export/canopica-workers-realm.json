@@ -62,6 +62,17 @@
       "credentials": [{ "type": "password", "value": "CanopicaSupervisor123!", "temporary": false }],
       "requiredActions": [],
       "realmRoles": ["SUPERVISOR"]
+    },
+    {
+      "username": "admin.alex",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin.alex@canopica.local",
+      "firstName": "Alex",
+      "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "CanopicaAdmin123!", "temporary": false }],
+      "requiredActions": [],
+      "realmRoles": ["ADMIN"]
     }
   ]
 }

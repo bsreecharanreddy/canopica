@@ -5,6 +5,9 @@ import type {
   DeterminationResponse,
   IntakeRequest,
   IntakeResponse,
+  ParameterProposal,
+  ProposalStatus,
+  PublicationDetails,
   QaAnswer,
   TraceResponse,
   ApiFieldError,
@@ -103,5 +106,31 @@ export function askWhyWasIDenied(determinationId: string): Promise<QaAnswer> {
   return request<QaAnswer>(`${AI_API_URL}/qa/why-was-i-denied`, {
     method: 'POST',
     body: JSON.stringify({ determinationId }),
+  });
+}
+
+// Rule-authoring copilot review (ADMIN-only; SecurityConfig gates
+// /api/policy/**). These hit the Java portal, not the AI service directly --
+// the portal owns the parameter data and the publish decision, and asks the
+// copilot for a draft on the admin's behalf.
+export function listProposals(status: ProposalStatus = 'PENDING'): Promise<ParameterProposal[]> {
+  return request<ParameterProposal[]>(`/api/policy/proposals?status=${status}`);
+}
+
+export function proposeParameterChanges(documentExcerpt: string): Promise<ParameterProposal> {
+  return request<ParameterProposal>('/api/policy/proposals', {
+    method: 'POST',
+    body: JSON.stringify({ documentExcerpt }),
+  });
+}
+
+export function reviewProposal(
+  proposalId: string,
+  accept: boolean,
+  publication?: PublicationDetails,
+): Promise<ParameterProposal> {
+  return request<ParameterProposal>(`/api/policy/proposals/${proposalId}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ accept, ...(accept ? publication : {}) }),
   });
 }
