@@ -58,6 +58,8 @@ models:
               arguments: { values: ["WORKER", "SUPERVISOR", "ADMIN"] }
       - name: active_case_count
         tests: [not_null]
+      - name: as_of_date
+        tests: [not_null]
 
   - name: mart_access_review
     description: >

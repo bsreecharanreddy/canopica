@@ -20,3 +20,6 @@ models:
     gold:
       +materialized: table
       +schema: gold
+    semantic:
+      +materialized: table
+      +schema: semantic

@@ -1,0 +1,144 @@
+semantic_models:
+  - name: sem_determination_outcomes
+    description: >
+      Determination counts and benefit totals grouped by benefit month,
+      program, outcome, reason code, and parameter-set version -- already
+      pre-aggregated at that grain, so it has no natural single-row entity.
+    model: ref('mart_determination_outcomes')
+    defaults:
+      agg_time_dimension: benefit_month
+    primary_entity: determination_outcome
+    dimensions:
+      - name: benefit_month
+        type: time
+        type_params:
+          time_granularity: month
+      - name: program_code
+        type: categorical
+      - name: outcome
+        type: categorical
+      - name: reason_code
+        type: categorical
+      - name: policy_parameter_version
+        type: categorical
+    measures:
+      - name: determinations
+        agg: sum
+        expr: determination_count
+      - name: eligible_determinations
+        agg: sum
+        expr: eligible_count
+      - name: total_benefit_amount
+        agg: sum
+        expr: total_benefit_amount
+      - name: average_benefit_amount
+        agg: average
+        expr: average_benefit_amount
+
+  - name: sem_payment_accuracy
+    description: One row per eligible determination (Phase 4 QC placeholder shape).
+    model: ref('mart_payment_accuracy')
+    defaults:
+      agg_time_dimension: benefit_month
+    entities:
+      - name: determination
+        type: primary
+        expr: determination_key
+    dimensions:
+      - name: benefit_month
+        type: time
+        type_params:
+          time_granularity: month
+      - name: program_code
+        type: categorical
+    measures:
+      - name: paid_amount
+        agg: sum
+        expr: paid_amount
+      - name: payment_error_amount
+        agg: sum
+        expr: payment_error_amount
+      - name: reviewed_count
+        agg: sum_boolean
+        expr: reviewed
+
+  - name: sem_access_review
+    description: One row per CASE_VIEWED audit event.
+    model: ref('mart_access_review')
+    defaults:
+      agg_time_dimension: occurred_at
+    entities:
+      - name: audit_event
+        type: primary
+        expr: audit_event_key
+    dimensions:
+      - name: occurred_at
+        type: time
+        type_params:
+          time_granularity: day
+      - name: worker_role
+        type: categorical
+    measures:
+      - name: access_review_count
+        agg: count
+        expr: audit_event_key
+      - name: in_assignment_count
+        agg: sum_boolean
+        expr: in_assignment
+
+  - name: sem_processing_timeliness
+    description: One row per determination, against SNAP's 30-day/7-day standards.
+    model: ref('mart_processing_timeliness')
+    defaults:
+      agg_time_dimension: decided_at
+    entities:
+      - name: determination
+        type: primary
+        expr: determination_key
+      - name: program_request
+        type: foreign
+        expr: program_request_key
+    dimensions:
+      - name: decided_at
+        type: time
+        type_params:
+          time_granularity: day
+      - name: is_expedited
+        type: categorical
+      - name: standard_days
+        type: categorical
+    measures:
+      - name: processing_days_avg
+        agg: average
+        expr: processing_days
+      - name: missed_standard_count
+        agg: sum_boolean
+        expr: missed_standard
+      - name: processing_determination_count
+        agg: count
+        expr: determination_key
+
+  - name: sem_worker_caseload
+    description: >
+      Current active caseload per worker -- a live snapshot rebuilt wholesale
+      each pipeline run, not a real time series. as_of_date (added to the
+      mart for this) is always the run date, standing in for the
+      agg_time_dimension MetricFlow requires on every measure.
+    model: ref('mart_worker_caseload')
+    defaults:
+      agg_time_dimension: as_of_date
+    entities:
+      - name: worker
+        type: primary
+        expr: worker_key
+    dimensions:
+      - name: role
+        type: categorical
+      - name: as_of_date
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: active_case_count
+        agg: sum
+        expr: active_case_count

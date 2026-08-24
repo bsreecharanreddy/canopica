@@ -1,0 +1,96 @@
+metrics:
+  - name: determinations
+    description: Count of determinations.
+    type: simple
+    label: Determinations
+    type_params:
+      measure: determinations
+
+  - name: eligible_determinations
+    description: Count of eligible determinations.
+    type: simple
+    label: Eligible Determinations
+    type_params:
+      measure: eligible_determinations
+
+  - name: total_benefit_amount
+    description: Total benefit dollars authorized.
+    type: simple
+    label: Total Benefit Amount
+    type_params:
+      measure: total_benefit_amount
+
+  - name: total_paid_amount
+    description: Total dollars paid on eligible determinations.
+    type: simple
+    label: Total Paid Amount
+    type_params:
+      measure: paid_amount
+
+  - name: reviewed_count
+    description: Count of payment-accuracy rows reviewed (Phase 4 QC).
+    type: simple
+    label: Reviewed Count
+    type_params:
+      measure: reviewed_count
+
+  - name: access_review_count
+    description: Count of CASE_VIEWED audit events.
+    type: simple
+    label: Access Review Count
+    type_params:
+      measure: access_review_count
+
+  - name: in_assignment_count
+    description: Count of case views where the viewer held the case's active assignment.
+    type: simple
+    label: In-Assignment Count
+    type_params:
+      measure: in_assignment_count
+
+  - name: in_assignment_rate
+    description: >
+      Share of case views by a worker who held the case's active
+      assignment -- a low value is the first thing a real access-review
+      process triages.
+    type: ratio
+    label: In-Assignment Rate
+    type_params:
+      numerator: in_assignment_count
+      denominator: access_review_count
+
+  - name: avg_processing_days
+    description: Average days from application submission to determination.
+    type: simple
+    label: Average Processing Days
+    type_params:
+      measure: processing_days_avg
+
+  - name: missed_standard_count
+    description: Count of determinations that missed their processing standard.
+    type: simple
+    label: Missed Standard Count
+    type_params:
+      measure: missed_standard_count
+
+  - name: processing_determination_count
+    description: Count of determinations with a processing-timeliness row.
+    type: simple
+    label: Processing Determination Count
+    type_params:
+      measure: processing_determination_count
+
+  - name: pct_missed_standard
+    description: Share of determinations that missed their processing standard.
+    type: ratio
+    label: Percent Missed Standard
+    type_params:
+      numerator: missed_standard_count
+      denominator: processing_determination_count
+
+  - name: active_case_count
+    description: Current active caseload per worker.
+    type: simple
+    label: Active Case Count
+    type_params:
+      measure: active_case_count

@@ -670,38 +670,38 @@ alter default privileges for role canopica_app in schema public
     grant select on tables to canopica_analytics_ro;
 ```
 
-- [ ] **Step 1: `semantic_models.yml`.** One `semantic_model:` entry per
+- [x] **Step 1: `semantic_models.yml`.** One `semantic_model:` entry per
       gold mart, declaring its `entities` (primary/foreign keys already
       established by each mart's own grain), `dimensions` (categorical
       and time columns — e.g. `program_code`, `determination_date`), and
       `measures` (the numeric columns each mart exists to report on —
       e.g. `mart_payment_accuracy`'s error-amount columns,
       `mart_processing_timeliness`'s `processing_days`).
-- [ ] **Step 2: `metrics.yml`.** Named, tested metrics built on those
+- [x] **Step 2: `metrics.yml`.** Named, tested metrics built on those
       measures — e.g. `avg_processing_days`, `pct_missed_standard`,
       `determinations_by_outcome` — the vocabulary the NL-to-metric
       service (Task 5) resolves questions into; an unrecognized
       metric/dimension name simply isn't in this file, so the manifest
       itself rejects it (design doc §2.4's "fails validation, doesn't
       silently run against the wrong table").
-- [ ] **Step 3: `canopica_analytics_ro` role.** Added to
+- [x] **Step 3: `canopica_analytics_ro` role.** Added to
       `01-databases.sql`, verified `SELECT`-only (attempting an `INSERT`
       as this role fails) and structurally unable to reach any
       PII-shaped column (gold is already PII-free per Phase 1b's
       `no_pii_in_gold` test — this role inherits that property, doesn't
       need its own check).
-- [ ] **Step 4: `mf validate-configs` + a real local query.** Run
+- [x] **Step 4: `mf validate-configs` + a real local query.** Run
       `mf query --metrics avg_processing_days --group-by program_code`
       (or equivalent) against the local `canopica_serving` database populated
       by `make pipeline`, confirm it returns real, correct numbers —
       this task's own proof the semantic layer is wired to real data, not
       just schema-valid.
-- [ ] **Step 5: `test_metric_semantics.py`.** Validates the manifest,
+- [x] **Step 5: `test_metric_semantics.py`.** Validates the manifest,
       asserts every gold mart has a corresponding `semantic_model:` entry,
       and runs one real `mf query` against a seeded Testcontainers
       database (same fixture pattern as `test_mart_processing_timeliness.py`)
       confirming a known-good expected value.
-- [ ] **Step 6: Full suite + commit.**
+- [x] **Step 6: Full suite + commit.**
 
 ---
 

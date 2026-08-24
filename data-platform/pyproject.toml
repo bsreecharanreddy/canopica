@@ -11,6 +11,7 @@ dependencies = [
     "connectorx>=0.4.5",
     "dbt-core>=1.12.3",
     "dbt-duckdb>=1.11.0",
+    "dbt-metricflow[dbt-duckdb]>=0.14.0",
     "deltalake>=1.6.2",
     "duckdb>=1.5.5",
     "httpx>=0.28.1",

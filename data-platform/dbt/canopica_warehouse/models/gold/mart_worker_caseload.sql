@@ -22,7 +22,11 @@ select
     w.worker_key,
     w.worker_name,
     w.role,
-    count(a.household_id)  as active_case_count
+    count(a.household_id)  as active_case_count,
+    -- Snapshot marker for the MetricFlow semantic layer (Task 4): this mart
+    -- is rebuilt wholesale each run with no history, so "as of" is always
+    -- the run date, not a real event timestamp on any row.
+    current_date            as as_of_date
 from {{ ref('dim_worker') }} w
 left join active_assignment a on a.worker_id = w.worker_key
 group by 1, 2, 3
