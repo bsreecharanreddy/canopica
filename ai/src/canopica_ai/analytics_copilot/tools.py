@@ -13,6 +13,9 @@ does not mistake this for a no-op left in by accident.
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 from canopica_ai.analytics_copilot.metric_catalog import known_metric_names, load_known_metrics
@@ -29,6 +32,27 @@ class UnknownMetricError(ValueError):
     validation, before any query is compiled or run."""
 
 
+def _coerce_json_encoded_list(value: Any) -> Any:
+    """Ollama's small local models occasionally emit an array-typed tool
+    argument as a JSON-encoded *string* (e.g. '["a", "b"]') rather than a
+    native JSON array, even though the tool schema declares it as an
+    array -- observed live in CI (2026-08-24), on both group_by and
+    filters in the same real tool call, against a real question. Narrowly
+    tolerated: a string is only accepted if it actually decodes to a
+    list; anything else (a non-JSON string, a JSON object or scalar)
+    falls through unchanged and still fails validation as before -- this
+    isn't a general "accept anything" escape hatch.
+    """
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return value
+        if isinstance(parsed, list):
+            return parsed
+    return value
+
+
 class QueryMetricArgs(BaseModel):
     """The `query_metric` tool's arguments. `metric_name` is checked
     against Task 4's real manifest on every validation, not a name list
@@ -38,6 +62,11 @@ class QueryMetricArgs(BaseModel):
     metric_name: str
     group_by: list[str] = Field(default_factory=list)
     filters: list[str] | None = None
+
+    @field_validator("group_by", "filters", mode="before")
+    @classmethod
+    def _coerce_json_encoded_list_fields(cls, value: Any) -> Any:
+        return _coerce_json_encoded_list(value)
 
     @field_validator("metric_name")
     @classmethod

@@ -166,6 +166,38 @@ class TestQueryMetricArgs:
         # from any other validation failure.
         assert issubclass(UnknownMetricError, ValueError)
 
+    def test_a_json_encoded_string_group_by_is_coerced_to_a_list(self) -> None:
+        # Observed live in CI (2026-08-24): llama3.2:3b's tool call
+        # returned group_by as the *string* '["determination__is_expedited"]'
+        # rather than a native JSON array, even though the tool schema
+        # declares it as an array. A real production failure mode, not
+        # just a test flake -- the same shape would misfire on a live
+        # worker's real question. model_validate (not the typed
+        # constructor) matches the real call site: service.py calls
+        # QueryMetricArgs.model_validate(call.arguments), an untyped dict
+        # straight from the model's tool call.
+        args = QueryMetricArgs.model_validate(
+            {
+                "metric_name": "avg_processing_days",
+                "group_by": '["determination__is_expedited"]',
+            }
+        )
+        assert args.group_by == ["determination__is_expedited"]
+
+    def test_a_json_encoded_string_filters_is_coerced_to_a_list(self) -> None:
+        args = QueryMetricArgs.model_validate(
+            {"metric_name": "avg_processing_days", "filters": '["SNAP"]'}
+        )
+        assert args.filters == ["SNAP"]
+
+    def test_a_non_json_string_group_by_still_fails_validation(self) -> None:
+        # The coercion is narrow: a string that isn't a JSON array is not
+        # silently accepted, just because it happens to be a string.
+        with pytest.raises(ValidationError):
+            QueryMetricArgs.model_validate(
+                {"metric_name": "avg_processing_days", "group_by": "not json at all"}
+            )
+
 
 class TestToolListForRole:
     def test_worker_supervisor_and_admin_all_get_the_same_one_tool(self) -> None:
