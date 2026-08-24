@@ -1,5 +1,12 @@
 # Canopica — Analytics Copilot: which engine executes, and what actually backstops it
 
+**Approved 2026-08-24, Option A, with one addition made during approval
+review** (§3's session-enforcement row and §5): `SET
+lock_configuration=true` on the DuckDB connection, found by checking this
+doc's recommendation against DuckDB's own official security docs rather
+than taking the doc's Limerence-blog citation as sufficient. Everything
+else in this doc is unchanged from the original draft.
+
 ## 1. Why this exists
 
 Phase 2 Task 4 builds the MetricFlow semantic layer. Writing the first
@@ -102,7 +109,7 @@ above:
 |---|---|
 | Scope gate | MCP tool exposure — the caller's role determines which metric/dimension tools exist at all. Already settled; primary gate. |
 | SQL validation | Not applicable in the usual sense, and stronger than it: **MetricFlow compiles the SQL, the LLM never writes it.** There is no LLM-authored string to validate. |
-| Session enforcement | DuckDB connection opened `read_only=True` **and** `SET enable_external_access=false` — the second is the one the probe above proves is load-bearing. |
+| Session enforcement | DuckDB connection opened `read_only=True` **and** `SET enable_external_access=false` — the second is the one the probe above proves is load-bearing — **and** `SET lock_configuration=true`, so the session's own security settings can't be changed after connecting. Added during approval review: DuckDB's official security docs (`duckdb.org/docs/stable/operations_manual/securing_duckdb`) lead with `enable_external_access=false` as the primary control for exactly this risk — independently confirming §2's probe rather than resting on the Limerence blog post alone — and separately recommend `lock_configuration=true`, which the original draft missed. It's redundant today (the LLM never authors SQL, so nothing on this connection can issue a `SET` to re-enable external access), but it's a zero-cost, one-line addition that closes the gap permanently if that structural guarantee is ever weakened by a future tool or a validation bug. |
 | File protection | The copilot's own read handle on `canopica.duckdb`; OS-level read-only where the deployment allows it. |
 
 `canopica_analytics_ro` still gets created, but honestly labelled: it guards
@@ -171,9 +178,9 @@ is the wrong direction of fit — the doc should describe the system.
   `materialize.py` running as `canopica_app`, so the `alter default
   privileges` statement must name that schema.
 - Task 5 opens its DuckDB connection `read_only=True` **and** issues
-  `SET enable_external_access=false`, and a test asserts the second one —
-  an assertion that fails today, since a plain read-only connection reads
-  arbitrary files.
+  `SET enable_external_access=false` **and** `SET lock_configuration=true`,
+  and a test asserts the `enable_external_access` one — an assertion that
+  fails today, since a plain read-only connection reads arbitrary files.
 - Phase 2 design doc §2.4's authorization paragraph is amended rather
   than left to contradict the implementation.
 
@@ -183,5 +190,5 @@ is the wrong direction of fit — the doc should describe the system.
 |---|---|---|
 | Compile-time authorization | MCP tool exposure resolves the caller's metric list before any query compiles | Current standard for governed semantic layers; a violation fails compilation instead of being caught after data is read |
 | No LLM-authored SQL | MetricFlow compiles every query; the LLM only selects tool names | Removes the entire "validate the model's SQL" layer rather than mitigating it, and makes hallucinated metrics fail manifest validation |
-| Least privilege, engine-appropriate | DuckDB `read_only` + `enable_external_access=false` + file permissions for the copilot; `canopica_analytics_ro` for the Postgres serving layer | The mechanism has to match the engine — a role grant is meaningless for an in-process file, and a read-only file handle is meaningless for a shared server |
+| Least privilege, engine-appropriate | DuckDB `read_only` + `enable_external_access=false` + `lock_configuration=true` + file permissions for the copilot; `canopica_analytics_ro` for the Postgres serving layer | The mechanism has to match the engine — a role grant is meaningless for an in-process file, and a read-only file handle is meaningless for a shared server |
 | Verify the control, don't assume it | The probe table in §2 | "Read-only" did not mean what it appeared to mean; the gap was only visible by testing it |

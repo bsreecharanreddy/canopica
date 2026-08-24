@@ -70,7 +70,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 |---|---|---|---|---|
 | Inference | Ollama, local, small open-weight models | Azure OpenAI **in Azure Government** (narrower model catalogue, lags commercial by months), or Bedrock in GovCloud | **≈** | Provider swap behind one interface. Output quality differs materially — see §4.8. |
 | Embeddings + retrieval | OpenSearch, k-NN plugin, hybrid lexical + vector | Azure AI Search, Elastic, or OpenSearch | **=** | Managed vs. self-hosted; same retrieval concepts. |
-| Semantic layer | MetricFlow (open source) | Same, or a vendor semantic layer (Power BI's own model, AtScale) | **=** | Nothing. |
+| Semantic layer | MetricFlow (open source), querying DuckDB directly | Same, or a vendor semantic layer (Power BI's own model, AtScale), typically fronting a real warehouse/server with its own role-based access control | **~** | A real warehouse's RBAC has no DuckDB equivalent — an embedded, file-based engine's security model is session settings and file permissions, not server-enforced roles. See §4.17. |
 | Document intake | Open-source OCR + a local model | Azure AI Document Intelligence, plus an enterprise content management system (OpenText, FileNet) as the system of record for the document itself | **~** | No ECM here — documents are stored, not *managed* (no retention schedule, no legal hold, no records disposition). |
 | Correspondence | Templated generation, rendered to PDF | A customer-communications-management product (Exstream, Quadient, Smart Communications) wired to a print-and-mail vendor, with certified-mail tracking and undeliverable-address handling | **~** | Notices are generated but never *sent*. See §4.4. |
 | Evaluation | Golden-question suite scored for groundedness and citation accuracy, gating CI | Same, plus human review panels and periodic model revalidation | **≈** | Scale of the eval set, and who reviews it. |
@@ -241,6 +241,24 @@ being the first thing a real visitor sees the moment free-tier limits are
 hit. Only once both the free tier and the $5/mo paid budget are exhausted
 does the demo fail closed. Stated plainly rather than presenting this as
 either "always free" or "always available" — it's neither, by design.
+
+**4.17 The Analytics Copilot's data-access backstop is session settings on
+an embedded engine, not a server-enforced role.** MetricFlow queries
+execute against DuckDB (where dbt actually builds gold), not Postgres, so
+there's no `GRANT`/role system underneath the copilot the way
+`canopica_analytics_ro` provides for the separate Postgres serving layer.
+The substitute is three DuckDB session controls (`read_only=True`,
+`enable_external_access=false`, `lock_configuration=true`) plus file
+permissions — verified to actually work via a local probe and cross-
+checked against DuckDB's own security docs, not assumed. A real
+production semantic layer typically fronts a warehouse or server database
+where access control is enforced independently of the querying process;
+here it's enforced by the same process doing the querying, which is a
+structurally weaker guarantee even when correctly configured. The
+compile-time MCP authorization gate (§3.3's Analytics Copilot integration
+row) is therefore the layer actually carrying this risk, not
+`canopica_analytics_ro` — see
+`docs/design/2026-08-24-analytics-semantic-layer-execution-and-authorization.md`.
 
 ## 5. Cost
 
