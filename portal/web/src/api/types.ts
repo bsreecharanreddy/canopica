@@ -72,7 +72,11 @@ export type ReasonCode =
 export type DeterminationResponse = {
   determinationId: string;
   eligible: boolean;
-  benefitAmount: string; // string, not number: money never round-trips through a float
+  // String, not number: money never round-trips through a float. Enforced on the
+  // server by canopica.portal.config.JacksonConfig, which serialises every BigDecimal
+  // as a plain string -- until that existed this type was simply wrong, and
+  // JSON.parse was turning a $649.00 award into the double 649.
+  benefitAmount: string;
   reasonCode: ReasonCode;
   policyParameterVersion: string;
   benefitMonth: string;

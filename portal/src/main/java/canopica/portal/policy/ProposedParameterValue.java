@@ -1,6 +1,5 @@
 package canopica.portal.policy;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
 
 /**
@@ -20,10 +19,10 @@ public record ProposedParameterValue(
         // Null means the parameter is scalar (a rate or a threshold), matching V3's own null-household_size
         // convention. Boxed rather than int for exactly that reason.
         Integer householdSize,
-        // Money and rates cross this wire as JSON strings in both directions. The AI service emits strings
-        // (canopica_ai...rule_authoring.schema.DecimalValue) so a figure never passes through a float on the way
-        // here, and this keeps the same guarantee on the way out to the browser.
-        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal oldValue,
-        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal newValue,
+        // Money and rates cross this wire as JSON strings in both directions: the AI service emits them as
+        // strings (canopica_ai...rule_authoring.schema.DecimalValue), and JacksonConfig makes every BigDecimal
+        // leave this service the same way, so a figure never passes through a float in either direction.
+        BigDecimal oldValue,
+        BigDecimal newValue,
         String unit,
         String rationale) {}

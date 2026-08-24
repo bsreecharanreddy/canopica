@@ -1,6 +1,5 @@
 package canopica.portal.policy;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import canopica.portal.domain.PolicyParameter;
 import java.math.BigDecimal;
 
@@ -15,7 +14,8 @@ import java.math.BigDecimal;
 public record CurrentParameterValue(
         String name,
         Integer householdSize,
-        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal value,
+        // A string on the wire, like every other BigDecimal here -- see JacksonConfig.
+        BigDecimal value,
         String unit) {
 
     public static CurrentParameterValue from(PolicyParameter parameter) {

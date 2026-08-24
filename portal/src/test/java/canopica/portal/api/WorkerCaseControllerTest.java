@@ -52,6 +52,36 @@ class WorkerCaseControllerTest extends AbstractApiTest {
     }
 
     @Test
+    void everyMoneyFieldCrossesTheWireAsAStringNotAJsonNumber() throws Exception {
+        // types.ts has claimed `benefitAmount: string` since Phase 1a, and until this test it was simply
+        // untrue: Jackson serialises BigDecimal as a JSON number by default, so the browser parsed it into a
+        // double. The visible cost is cents: a $649.00 award renders as "$649/month", because JSON.parse
+        // turns 649.00 into 649 and the trailing zeros are gone before any component sees them. The
+        // invariant this repo states everywhere -- money never round-trips through a float -- was true of
+        // the database, the rules engine and the DTOs, and false at exactly the last hop.
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        determinationService.determine(
+                ids.programRequestId(), LocalDate.of(2025, 6, 15), LocalDate.of(2025, 6, 1), "SYSTEM");
+
+        String detail = mvc.perform(get("/api/program-requests/" + ids.programRequestId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String list = mvc.perform(get("/api/worker/cases").header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode fromDetail = objectMapper.readTree(detail).get("determinations").get(0).get("benefitAmount");
+        JsonNode fromList = findByProgramRequestId(list, ids.programRequestId())
+                .get("latestDetermination").get("benefitAmount");
+
+        assertThat(fromDetail.isTextual()).as("determination benefitAmount as JSON string").isTrue();
+        assertThat(fromList.isTextual()).as("case-list benefitAmount as JSON string").isTrue();
+        // Scale preserved exactly as the database stored it -- the whole point of the string.
+        assertThat(fromDetail.asText()).contains(".");
+    }
+
+    @Test
     void caseDetailReturnsDeterminationHistoryNewestFirstAndAppendsCaseViewedAudit() throws Exception {
         var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
         UUID firstId = determinationService.determine(
