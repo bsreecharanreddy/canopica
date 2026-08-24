@@ -790,12 +790,12 @@ model-as-code pattern Phase 1a's Task 11 already built.
   `rationale: str`), written by the CLI as a `.tmdl`-formatted patch file
   under `reporting/semantic-model/proposals/`.
 
-- [ ] **Step 1: `service.py`.** Reads the current TMDL files as context,
+- [x] **Step 1: `service.py`.** Reads the current TMDL files as context,
       prompts the local Ollama model with the existing model's tables/
       measures plus the user's natural-language ask ("add a measure for
       average processing time by county"), requires the response to
       conform to `DashboardProposal`'s schema.
-- [ ] **Step 2: `cli.py`.**
+- [x] **Step 2: `cli.py`.**
       `uv run python -m canopica_ai.dashboard_assist.cli propose --prompt "..."`
       writes the proposal as a timestamped `.tmdl`-formatted file into
       `reporting/semantic-model/proposals/` — reviewable via `git diff`
@@ -805,13 +805,13 @@ model-as-code pattern Phase 1a's Task 11 already built.
       the accepted parts into the real TMDL files (or uses Tabular
       Editor's CLI to script the merge), and the existing publish step
       pushes it live — unchanged from Phase 1a's Task 11.
-- [ ] **Step 3: `test_dashboard_assist.py`.** A prompt produces a
+- [x] **Step 3: `test_dashboard_assist.py`.** A prompt produces a
       schema-valid proposal referencing a real existing table from the
       current TMDL model (not a hallucinated one — assert the proposal's
       `table` field always matches a name actually present in
       `reporting/semantic-model/`); a malformed model response is
       rejected, not written to disk as a proposal file.
-- [ ] **Step 4: Full suite + commit.**
+- [x] **Step 4: Full suite + commit.**
 
 ---
 

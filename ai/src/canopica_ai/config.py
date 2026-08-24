@@ -120,3 +120,9 @@ class Settings(BaseSettings):
     data_platform_dbt_project_dir: Path = Path("../data-platform/dbt/canopica_warehouse")
     mf_binary_path: Path = Path("../data-platform/.venv/bin/mf")
     duckdb_path: Path = Path("../data-platform/warehouse/canopica.duckdb")
+
+    # Dashboard-authoring copilot (Phase 2 Task 6). The TMDL files are this
+    # service's only source of truth for what tables/columns/measures
+    # already exist -- read-only, same sibling-project relative-path
+    # convention as data_platform_dbt_project_dir above.
+    reporting_semantic_model_dir: Path = Path("../reporting/semantic-model")

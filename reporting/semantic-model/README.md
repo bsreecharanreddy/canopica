@@ -41,3 +41,22 @@ The model's `ServingHost` parameter (declared in `canopica.tmdl`) defaults to
 `localhost` for local development. Power BI's own parameter UI (or the
 Service's dataset settings, post-import) is where this gets pointed at a
 real deployment's serving Postgres host -- no TMDL edit needed for that.
+
+## Drafting new measures/visuals with the dashboard-authoring copilot
+
+`ai/src/canopica_ai/dashboard_assist` (Phase 2 Task 6) drafts new DAX measures
+and report visuals from a natural-language request, grounded in the real
+tables/columns/measures above -- it never invents a reference that doesn't
+already exist here, and it never writes into `canopica.tmdl` or `tables/`.
+
+```sh
+cd ai && uv run python -m canopica_ai.dashboard_assist.cli propose \
+    --prompt "add a measure for the average benefit per eligible determination"
+```
+
+This writes a timestamped `.tmdl`-formatted proposal file under
+`proposals/`. Review it like any other diff, then hand-apply the accepted
+parts into the real TMDL files above (or script the merge via Tabular
+Editor's CLI) -- the existing publish step (see "Importing into Power BI"
+above) is unchanged and still the only path anything reaches a live
+report through.
