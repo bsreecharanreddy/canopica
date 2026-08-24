@@ -220,6 +220,23 @@ services:
 
   ollama:
     image: ollama/ollama:0.32.15
+    # `OLLAMA_MAX_LOADED_MODELS: "1"` was tried here (2026-08-23) and
+    # deliberately NOT kept -- recorded because the reasoning is worth more
+    # than the one-line diff. Both models sit resident together,
+    # nomic-embed-text (376MB) alongside llama3.2:3b (2.9GB), and capping
+    # to one evicts the embedder to free that 376MB. It does work, but the
+    # first assumption behind it was wrong: embeddings are not a one-off
+    # indexing cost, because hybrid_search embeds *every query* for its
+    # k-NN half, so the cap makes Ollama swap models on every single
+    # search. Measured cost of that thrashing on ai/'s own e2e suite:
+    # 330s with the cap versus 190s without, both 15/15. And it buys
+    # nothing where it would have to pay off -- the CI runner has had zero
+    # `signal: killed` events since the e2e split gave the AI job its own
+    # lean stack (checked across both runs). The OOM kills that motivated
+    # it are specific to this project's dev Docker VM (~7.65GB, shared
+    # with everything else running on the machine). If a local run starts
+    # getting killed, set it in a local override rather than here: it is
+    # the right trade on a memory-starved laptop and the wrong one in CI.
     ports:
       - "11434:11434"
     volumes:

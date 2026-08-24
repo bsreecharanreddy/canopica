@@ -25,11 +25,16 @@ from canopica_ai.policy_intelligence.qa.provenance import PolicyQaAnswerRecord
 from canopica_ai.policy_intelligence.retrieval import RetrievedChunk, hybrid_search
 
 # v2 (2026-08-23) added an explicit brevity constraint to both prompts.
+# v3 (2026-08-23) made the denial prompt name the one citation it actually
+# owes the applicant -- the section establishing the test they failed --
+# after measuring v2's denial prompt citing nothing on 3 of 5 real
+# generations (see _denial_prompt's own comment for the numbers).
 # Bumped rather than edited in place because every recorded answer carries
 # its prompt_version (design doc §2.2's reproducibility requirement) -- an
-# answer generated under v1's open-ended prompt is not reproducible from
-# v2's, so silently reusing "v1" would make the provenance trail lie.
-PROMPT_VERSION = "v2"
+# answer generated under an earlier prompt is not reproducible from this
+# one, so silently reusing the old version would make the provenance trail
+# lie. Cheap to bump; a wrong provenance record is not cheap.
+PROMPT_VERSION = "v3"
 
 ABSTENTION_MESSAGE = "insufficient information in the policy corpus to answer this"
 
@@ -206,8 +211,19 @@ def _denial_prompt(trusted_data: dict[str, Any], chunks: list[RetrievedChunk]) -
         "You are explaining a SNAP (food assistance) eligibility denial to "
         "the applicant, in plain language. The numbers below are already "
         "decided and correct -- do not recompute or change them, only "
-        "explain them using the regulation text that follows. Cite the "
-        "exact section number(s) you used (e.g. 273.9(a)).\n"
+        "explain them using the regulation text that follows.\n"
+        # Measured (2026-08-23, 5 real generations per variant against the
+        # live index): asking only for "the section number(s) you used"
+        # produced a citation on just 2 of 5 attempts -- the other 3 cited
+        # nothing at all, which costs a retry and can end in a spurious
+        # abstention. Naming *which* citation is required, and that it must
+        # be copied from the bracketed labels, took the same question to 4
+        # of 5. It is also the more correct instruction: the one thing a
+        # denial explanation owes the applicant is the rule they failed.
+        "You must cite the exact section number that establishes the test "
+        "this household did not meet (e.g. 273.9(a)), copied exactly as it "
+        "appears in brackets in the regulation text. Cite it even if you "
+        "cite nothing else.\n"
         "Keep it to at most four sentences. Be direct: no preamble, no "
         "bulleted summary.\n\n"
         f"This household's determination: {trusted_data}\n\n"
