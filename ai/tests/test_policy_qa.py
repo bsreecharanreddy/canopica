@@ -19,6 +19,7 @@ import pytest
 
 from canopica_ai.common.llm_client import LlmResponse, PromptTooLongError
 from canopica_ai.config import Settings
+from canopica_ai.policy_intelligence.qa import service
 from canopica_ai.policy_intelligence.qa.grounding import citation_grounded
 from canopica_ai.policy_intelligence.qa.service import (
     ABSTENTION_MESSAGE,
@@ -317,6 +318,56 @@ class TestGroundingRetryAndAbstention:
         assert answer.abstained is True
         assert answer.citations == []
         assert answer.answer == ABSTENTION_MESSAGE
+
+
+class TestRecordProvenanceOptOut:
+    """Task 7's eval harness calls `answer_general()` against synthetic
+    golden questions, not real user traffic -- `provenance.record()`
+    writes to the same audit-quality table a real citizen's or worker's
+    question does (design doc §2.2's reproducibility requirement), which
+    a CI eval run has no business commingling with, and needs a live
+    Postgres connection the eval-gate CI job doesn't otherwise provision.
+    `run_eval.py`'s own judging uses the returned `QaAnswer`/retrieved
+    chunks directly, never reads back a persisted row, so skipping the
+    write costs it nothing real."""
+
+    def test_a_grounded_answer_is_not_recorded_when_opted_out(
+        self, indexed_corpus: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[object] = []
+        monkeypatch.setattr(
+            "canopica_ai.policy_intelligence.qa.service.provenance.record",
+            lambda *a, **kw: calls.append(a),
+        )
+        stub = _StubLlmClient(["ECHO"])
+
+        answer = service.answer_general(
+            "What is the gross income test for a household?",
+            settings=indexed_corpus,
+            llm_client=stub,
+            record_provenance=False,
+        )
+
+        assert answer.abstained is False
+        assert calls == []
+
+    def test_an_abstention_is_not_recorded_when_opted_out(
+        self, indexed_corpus: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[object] = []
+        monkeypatch.setattr(
+            "canopica_ai.policy_intelligence.qa.service.provenance.record",
+            lambda *a, **kw: calls.append(a),
+        )
+
+        answer = service.answer_general(
+            "What is the capital of France and how do I bake a chocolate cake?",
+            settings=indexed_corpus,
+            record_provenance=False,
+        )
+
+        assert answer.abstained is True
+        assert calls == []
 
 
 @pytest.fixture(scope="class")

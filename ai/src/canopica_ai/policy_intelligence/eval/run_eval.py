@@ -153,7 +153,13 @@ def _retrieve_and_answer(
     citation means this answer is not grounded at all, and no LLM-judge
     call is spent finding that out (design doc §2.6's ordering)."""
     chunks = hybrid_search(question.question, settings=settings)
-    answer = answer_general(question.question, settings=settings)
+    # record_provenance=False: a golden question is synthetic eval traffic,
+    # not a real user's question -- see answer_general's own docstring. It
+    # also keeps this gate free of a Postgres dependency the `ai-eval` CI
+    # job would otherwise have to stand up (and originally didn't, which
+    # is how this surfaced: a real `psycopg.OperationalError: connection
+    # refused` in CI, once the run got far enough to reach the write).
+    answer = answer_general(question.question, settings=settings, record_provenance=False)
     if not citation_grounded(answer.citations, [c.chunk_id for c in chunks]):
         return None
     return _AnsweredQuestion(

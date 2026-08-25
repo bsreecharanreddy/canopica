@@ -107,17 +107,26 @@ class _AnswerRequest:
     determination_id: str | None
 
 
-def _abstain(common_fields: dict[str, Any], *, settings: Settings) -> QaAnswer:
+def _abstain(
+    common_fields: dict[str, Any], *, settings: Settings, record_provenance: bool
+) -> QaAnswer:
     answer = QaAnswer(answer=ABSTENTION_MESSAGE, citations=[], abstained=True)
-    provenance.record(
-        PolicyQaAnswerRecord(answer=answer.answer, citations=[], abstained=True, **common_fields),
-        settings=settings,
-    )
+    if record_provenance:
+        provenance.record(
+            PolicyQaAnswerRecord(
+                answer=answer.answer, citations=[], abstained=True, **common_fields
+            ),
+            settings=settings,
+        )
     return answer
 
 
 def _retrieve_and_answer(
-    request: _AnswerRequest, *, settings: Settings, llm_client: LlmClient
+    request: _AnswerRequest,
+    *,
+    settings: Settings,
+    llm_client: LlmClient,
+    record_provenance: bool = True,
 ) -> QaAnswer:
     question_for_provenance = request.question_for_provenance
     determination_id = request.determination_id
@@ -137,7 +146,7 @@ def _retrieve_and_answer(
     }
 
     if not chunks or chunks[0].score < RELEVANCE_THRESHOLD:
-        return _abstain(common_fields, settings=settings)
+        return _abstain(common_fields, settings=settings, record_provenance=record_provenance)
 
     try:
         response = llm_client.generate(request.prompt_builder(chunks))
@@ -151,7 +160,7 @@ def _retrieve_and_answer(
         # check again, so there's nothing to gain from one -- this is
         # exactly the "can't reliably answer this" case abstention exists
         # for, not a crash.
-        return _abstain(common_fields, settings=settings)
+        return _abstain(common_fields, settings=settings, record_provenance=record_provenance)
     citations = _cited_sections(response.text, chunks)
     if not citations:
         # Retrieval already proved relevant text exists (checked above), so
@@ -167,20 +176,21 @@ def _retrieve_and_answer(
         response = llm_client.generate(request.prompt_builder(chunks))
         citations = _cited_sections(response.text, chunks)
     if not citations:
-        return _abstain(common_fields, settings=settings)
+        return _abstain(common_fields, settings=settings, record_provenance=record_provenance)
 
     answer = QaAnswer(answer=response.text, citations=citations, abstained=False)
-    provenance.record(
-        PolicyQaAnswerRecord(
-            answer=answer.answer,
-            citations=citations,
-            abstained=False,
-            generation_model=settings.ollama_generation_model,
-            generation_params={},
-            **common_fields,
-        ),
-        settings=settings,
-    )
+    if record_provenance:
+        provenance.record(
+            PolicyQaAnswerRecord(
+                answer=answer.answer,
+                citations=citations,
+                abstained=False,
+                generation_model=settings.ollama_generation_model,
+                generation_params={},
+                **common_fields,
+            ),
+            settings=settings,
+        )
     return answer
 
 
@@ -202,11 +212,21 @@ def answer_general(
     *,
     settings: Settings | None = None,
     llm_client: LlmClient | None = None,
+    record_provenance: bool = True,
 ) -> QaAnswer:
     """General policy question -- top-k retrieval over the CFR corpus,
     answered grounded only in retrieved text (design doc §2.2). The sole
     entry point Task 7's eval harness and Task 9's public-demo app call for
-    the general-question path."""
+    the general-question path.
+
+    `record_provenance=False` is for Task 7's eval harness only: a golden
+    question is synthetic test traffic, not a real citizen's or worker's
+    question, and `run_eval.py` grades the returned `QaAnswer`/retrieved
+    chunks directly rather than reading anything back from
+    `ai.policy_qa_answer` -- recording it would only commingle synthetic
+    eval runs into the same audit-quality table real answers use (design
+    doc §2.2's reproducibility requirement), for no benefit to either.
+    Every real caller keeps the default, unchanged."""
     settings = settings or Settings()
     llm_client = llm_client or OllamaClient(settings)
     request = _AnswerRequest(
@@ -215,7 +235,9 @@ def answer_general(
         prompt_builder=lambda chunks: _general_prompt(question, chunks),
         determination_id=None,
     )
-    return _retrieve_and_answer(request, settings=settings, llm_client=llm_client)
+    return _retrieve_and_answer(
+        request, settings=settings, llm_client=llm_client, record_provenance=record_provenance
+    )
 
 
 def _denial_prompt(trusted_data: dict[str, Any], chunks: list[RetrievedChunk]) -> str:
