@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -76,10 +77,34 @@ _DENIAL_CONTEXT: dict[str, tuple[str, tuple[str, ...]]] = {
 _DEFAULT_RETRIEVAL_QUERY = "SNAP eligibility determination"
 
 
+class AbstentionReason(StrEnum):
+    """Why this service declined to answer.
+
+    Three genuinely different causes previously produced a byte-identical
+    result -- `abstained=True`, no citations, the same message -- which
+    made an abstention unattributable after the fact. That cost a real CI
+    round trip (run `32811993194`'s `e2e-ai` job: `assert True is False`,
+    with nothing in the log to say which branch fired), and the three want
+    completely different responses: fix retrieval, fix chunking, or accept
+    model variance.
+
+    A `StrEnum` rather than a bare string so the set stays closed and
+    each member still prints readably in an assertion failure.
+    """
+
+    WEAK_RETRIEVAL = "weak_retrieval"
+    PROMPT_TOO_LONG = "prompt_too_long"
+    UNGROUNDED_AFTER_RETRY = "ungrounded_after_retry"
+
+
 class QaAnswer(BaseModel):
     answer: str
     citations: list[str]
-    abstained: bool
+    abstained: bool = False
+    # In-memory only, deliberately: no schema migration, and it lands in
+    # this model's own repr, which is where a failing test actually
+    # surfaces it. `None` whenever `abstained` is False.
+    abstention_reason: AbstentionReason | None = None
 
 
 def _cited_sections(text: str, chunks: list[RetrievedChunk]) -> list[str]:
@@ -124,10 +149,16 @@ def _record_grounding(citations: list[str], retrieved_chunk_ids: list[str]) -> N
 
 
 def _abstain(
-    common_fields: dict[str, Any], *, settings: Settings, record_provenance: bool
+    common_fields: dict[str, Any],
+    reason: AbstentionReason,
+    *,
+    settings: Settings,
+    record_provenance: bool,
 ) -> QaAnswer:
     _record_grounding([], common_fields["retrieved_chunk_ids"])
-    answer = QaAnswer(answer=ABSTENTION_MESSAGE, citations=[], abstained=True)
+    answer = QaAnswer(
+        answer=ABSTENTION_MESSAGE, citations=[], abstained=True, abstention_reason=reason
+    )
     if record_provenance:
         provenance.record(
             PolicyQaAnswerRecord(
@@ -163,7 +194,12 @@ def _retrieve_and_answer(
     }
 
     if not chunks or chunks[0].score < RELEVANCE_THRESHOLD:
-        return _abstain(common_fields, settings=settings, record_provenance=record_provenance)
+        return _abstain(
+            common_fields,
+            AbstentionReason.WEAK_RETRIEVAL,
+            settings=settings,
+            record_provenance=record_provenance,
+        )
 
     try:
         response = llm_client.generate(request.prompt_builder(chunks))
@@ -177,7 +213,12 @@ def _retrieve_and_answer(
         # check again, so there's nothing to gain from one -- this is
         # exactly the "can't reliably answer this" case abstention exists
         # for, not a crash.
-        return _abstain(common_fields, settings=settings, record_provenance=record_provenance)
+        return _abstain(
+            common_fields,
+            AbstentionReason.PROMPT_TOO_LONG,
+            settings=settings,
+            record_provenance=record_provenance,
+        )
     citations = _cited_sections(response.text, chunks)
     if not citations:
         # Retrieval already proved relevant text exists (checked above), so
@@ -193,7 +234,12 @@ def _retrieve_and_answer(
         response = llm_client.generate(request.prompt_builder(chunks))
         citations = _cited_sections(response.text, chunks)
     if not citations:
-        return _abstain(common_fields, settings=settings, record_provenance=record_provenance)
+        return _abstain(
+            common_fields,
+            AbstentionReason.UNGROUNDED_AFTER_RETRY,
+            settings=settings,
+            record_provenance=record_provenance,
+        )
 
     _record_grounding(citations, common_fields["retrieved_chunk_ids"])
     answer = QaAnswer(answer=response.text, citations=citations, abstained=False)

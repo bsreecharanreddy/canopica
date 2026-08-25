@@ -53,7 +53,21 @@ _OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completion
 # attempts before this raises for real. 429/503 are the same class of
 # "try again shortly" signal OpenRouter's own docs use elsewhere in this
 # codebase's live probes (judge_model module docstring above).
-_RETRYABLE_ERROR_CODES = frozenset({429, 502, 503})
+# 404 is here despite reading like "no such model", and that is a reversal
+# of this file's own earlier call the same day (2026-08-25). It cost a
+# second CI run (`32811993194`) to overturn: the 404 landed after 24m39s,
+# on `contextual_recall`, with all eight questions' retrieval and
+# generation already done and judge calls already succeeding against this
+# very model in that very run. Three live probes then ruled out the
+# textbook reading -- the pinned model is in OpenRouter's public model
+# list, a plain chat call returns 200, and a call with the exact
+# `json_schema` shape DeepEval sends also returns 200. What remains is
+# OpenRouter's behaviour for a `:free` variant with no provider endpoint
+# free at that instant, which is transient. Retrying is safe *because* the
+# raised error now carries OpenRouter's own explanation (below): a model
+# that genuinely does not exist fails on the first call and says so,
+# instead of costing 25 minutes of finished work.
+_RETRYABLE_ERROR_CODES = frozenset({404, 429, 502, 503})
 _MAX_ATTEMPTS = 3
 _RETRY_BACKOFF_SECONDS = 2.0
 _HTTP_OK = 200
@@ -137,9 +151,16 @@ class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
                     # OpenRouter's two error shapes actually fired -- the
                     # 200-with-error-body branch below already raises
                     # RuntimeError for the same reason.
+                    # The body, not just the status line. OpenRouter states
+                    # the actual reason only there, and two very different
+                    # causes share the same 404 status -- "no such model"
+                    # versus "no provider endpoint free right now". Without
+                    # it, run `32811993194`'s failure was unattributable
+                    # from the CI log and took three live probes to
+                    # diagnose after the fact.
                     raise RuntimeError(
                         f"OpenRouter judge call failed: HTTP {response.status_code} "
-                        f"{response.reason_phrase}"
+                        f"{response.reason_phrase}: {response.text}"
                     )
                 time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
                 continue
