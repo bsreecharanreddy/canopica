@@ -171,13 +171,20 @@ evaluation lives inside the portal service). Everything else is Python.
 
 ## `.claude/` tooling — added only for real, already-settled things
 
-Unlike lore-native's incident-driven tooling (a stale-dev-server hook, a
-Maestro-gotcha skill — each one encoding a specific thing that actually
-went wrong), Canopica has almost no implementation history yet, so its
-`.claude/` tooling only codifies things that were *already true* before
-any tooling existed: standing policies this file already states as
-non-negotiable, and the one real incident hit so far. Nothing here is
-anticipatory — no fabricated gotchas for problems this repo hasn't had.
+This started out codifying only things that were *already true* before
+any tooling existed — standing policies this file already states as
+non-negotiable — because at the time Canopica had almost no implementation
+history to draw on. Phase 2 changed that, and the newer entries below are
+incident-driven in exactly the way lore-native's tooling is (a
+stale-dev-server hook, a Maestro-gotcha skill): each encodes a specific
+thing that actually went wrong, usually more than once.
+
+The bar is unchanged, and it is the important part: **nothing here is
+anticipatory.** A skill gets written when a real, specific, repeatable
+lesson has already cost something — not for a problem this repo might
+have someday. Where an entry is incident-derived, it says which incidents,
+so a reader can check the claim against `docs/STATUS.md`'s verification
+log rather than take it on faith.
 
 - **`canopica-task-checkpoint` skill** — the per-task regression gate (full
   `make test`/`make lint`, STATUS.md same-commit, one-commit-per-task)
@@ -207,6 +214,21 @@ anticipatory — no fabricated gotchas for problems this repo hasn't had.
   layer integration mechanism, the eval-gating method, an observability-
   spec caveat); the skill makes that same check repeatable for Phase 3/4's
   AI work without re-deriving it from scratch each time.
+- **`canopica-recurring-ci-failure` skill** — the post-red-CI counterpart to
+  `canopica-task-checkpoint`'s pre-push gate: what to do when a job fails with
+  a symptom already seen, or fails again after a fix meant to address it.
+  Purely incident-derived, and the most expensive lesson so far — the
+  "Memory Circuit Breaker is open" failure took **five** round trips
+  across two sessions, and every round but the last proposed a fix for a
+  component never shown to be the failing one. Its rule ("can you name
+  the exact component? if not, the next commit adds diagnostics, not a
+  fix") is the one that actually ended it: one behavior-neutral
+  diagnostics commit resolved three previously-unattributable failures
+  from the very next log. Also carries the diagnostics-parity check
+  (a newer CI job never inherited its older sibling's diagnostic steps),
+  the threshold-vs-distribution distinction (a sawtoothing metric cannot
+  be fixed by tuning a threshold), and the rule that a 429 is a signal to
+  handle rather than a limit to raise.
 - **`check-status-md-commit.sh` hook** (PreToolUse/Bash) — warns,
   non-blocking, if a `git commit` stages files outside `docs/` without
   `docs/STATUS.md`, enforcing the same-commit rule above mechanically
