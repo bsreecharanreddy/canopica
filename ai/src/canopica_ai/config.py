@@ -76,10 +76,19 @@ class Settings(BaseSettings):
     # Empirically measured (2026-08-23) against real CPU-bound generation
     # sharing a host with OpenSearch/Keycloak/portal-api: successful calls
     # took 1m10s-1m44s, and a 120s timeout actually cut one off at exactly
-    # 2m0s (Ollama logged it as a 500 once the client gave up). Keeps real
-    # headroom above the observed worst case rather than being a guessed
-    # round number.
-    ollama_timeout_seconds: float = 240.0
+    # 2m0s (Ollama logged it as a 500 once the client gave up). That
+    # measurement's prompts were not this project's largest, though:
+    # raised 240 -> 480 (2026-08-25) after Task 7's eval-suite gate hit a
+    # real httpx.ReadTimeout at 240s **independently on two hosts** --
+    # this dev machine under load, and the actual GitHub Actions CI
+    # runner on an otherwise-clean job -- both against golden_set.yaml
+    # questions whose assembled prompt runs up to ~15,500 characters
+    # (several large retrieved CFR chunks together), well past the
+    # ~12,186-character prompt the original 240s figure was measured
+    # against. CPU-bound prompt evaluation cost scales with token count,
+    # so a real number over the new, larger worst case beats guessing a
+    # smaller "should be enough" bump.
+    ollama_timeout_seconds: float = 480.0
 
     cfr_corpus_index: str = "cfr-part-273"
     cfr_search_pipeline: str = "cfr-hybrid-rerank"

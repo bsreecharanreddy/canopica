@@ -355,10 +355,14 @@ jobs:
     # overlaps). An earlier attempt on a *loaded* host (other local
     # commands running concurrently) took 49 minutes before timing out
     # outright, which is why this job's own steps below run nothing else
-    # alongside it. 30 minutes matches the e2e-ai job's own budget for the
-    # same opensearch/ollama bring-up + corpus-index setup below, plus
-    # real margin over the measured 13:41 for a slower/shared CI runner.
-    timeout-minutes: 30
+    # alongside it. This job's own first real CI run then hit the same
+    # class of failure on the actual runner (a real Ollama generation
+    # httpx.ReadTimeout at the old 240s ceiling -- see config.py's
+    # ollama_timeout_seconds, raised 240 -> 480 in response), so this
+    # budget carries real margin for up to 8 questions each potentially
+    # needing a grounding retry (2 generation calls) at the new,
+    # higher per-call ceiling, not just the one clean local run.
+    timeout-minutes: 35
     needs: [changes, ai]
     if: needs.changes.outputs.code == 'true'
     steps:
