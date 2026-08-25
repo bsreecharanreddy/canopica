@@ -36,6 +36,10 @@ build-backend = "uv_build"
 dev = [
     "mypy>=2.3.1",
     "pytest>=9.1.1",
+    # Already present as deepeval's own transitive dependency; declared
+    # directly now that a real test (TestAskWithARealModel) depends on its
+    # `@pytest.mark.flaky` behavior deliberately, not by accident.
+    "pytest-rerunfailures>=16.6",
     "ruff>=0.16.4",
     "types-defusedxml>=0.7.0",
     "types-pyyaml>=6.0.12",
