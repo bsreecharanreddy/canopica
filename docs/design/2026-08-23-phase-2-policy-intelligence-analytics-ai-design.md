@@ -250,6 +250,24 @@ retrieve, feeds:
   that query; catches a literally-fabricated citation ID for free, before
   spending an LLM-judge call on it.
 
+**Addendum (2026-08-24, implementation time): the judge model is hosted
+OpenRouter, not local Ollama.** The implementation plan's Task 7 assumed
+reusing this repo's own local `llama3.2:3b` as judge, at no extra cost.
+Live measurement against the real corpus found that unusable for a
+CI-blocking gate: a single golden question's `FaithfulnessMetric` call
+took multiple minutes, and a subsequent metric on the same question
+exceeded a 240s timeout and crashed the run outright. A judge never
+serves user traffic — it grades an already-generated answer, once, in
+CI — so this doc's "self-hosted, $0" posture for the *generation* model
+under test (§2.2, unchanged) does not carry over to it. Pinned to
+`nvidia/nemotron-3-ultra-550b-a55b:free`, chosen over OpenRouter's own
+`openrouter/free` auto-router after that router was observed, live,
+picking a safety-classifier model that silently ignored a real prompt
+instead of answering it — see `judge_model.py`'s own docstring for the
+exact probe and `run_eval.py`'s for the full CI-time investigation this
+also drove (pipelined judging, a stratified 8-question CI subset).
+Recorded in `docs/STATUS.md`'s decisions table.
+
 ### 2.7 Public hosted demo
 
 Settled through direct back-and-forth on the real tradeoff (genuinely

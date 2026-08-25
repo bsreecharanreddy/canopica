@@ -344,6 +344,64 @@ jobs:
           name: compose-logs-ai
           path: compose-logs-ai.txt
 
+  ai-eval:
+    name: Eval-suite gate -- Policy Q&A
+    runs-on: ubuntu-latest
+    # Measured live (2026-08-24), on an otherwise-idle host: the 8-question
+    # CI-gate subset (see run_eval.py's own _CI_GATE_QUESTIONS) took 13:41
+    # end to end (retrieval + local Ollama generation, sequential --
+    # concurrency here live-tripped OpenSearch's memory circuit breaker in
+    # seconds -- pipelined against OpenRouter-judged scoring, which
+    # overlaps). An earlier attempt on a *loaded* host (other local
+    # commands running concurrently) took 49 minutes before timing out
+    # outright, which is why this job's own steps below run nothing else
+    # alongside it. 30 minutes matches the e2e-ai job's own budget for the
+    # same opensearch/ollama bring-up + corpus-index setup below, plus
+    # real margin over the measured 13:41 for a slower/shared CI runner.
+    timeout-minutes: 30
+    needs: [changes, ai]
+    if: needs.changes.outputs.code == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: infra/ollama-models
+          key: ollama-models-nomic-embed-text-llama3.2-3b-v1
+      - name: Free disk space and pull images concurrently
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL \
+                      /usr/share/dotnet /opt/ghc &
+          cleanup=$!
+          docker compose -f infra/docker-compose.yml pull --quiet opensearch ollama &
+          pull=$!
+          wait "$cleanup"
+          wait "$pull"
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: |
+          docker compose -f infra/docker-compose.yml up -d --build --wait opensearch ollama
+          docker compose -f infra/docker-compose.yml up -d ollama-init
+          docker compose -f infra/docker-compose.yml wait ollama-init
+      - run: cd ai && uv sync --dev
+      # run_eval.py has no pytest fixture to provision the corpus for it
+      # (unlike the e2e-ai job's own indexed_corpus fixture) -- these two
+      # steps are that fixture's own setup, run explicitly here.
+      - run: cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.search_pipeline
+      - run: cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.index
+      - run: cd ai && uv run python -m canopica_ai.policy_intelligence.eval.run_eval --check
+        env:
+          CANOPICA_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      - if: always()
+        run: sudo chmod -R a+rX infra/ollama-models
+      - if: always()
+        run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs-ai-eval.txt
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compose-logs-ai-eval
+          path: compose-logs-ai-eval.txt
+
   terraform:
     name: Reference Terraform for Azure (validate only)
     runs-on: ubuntu-latest

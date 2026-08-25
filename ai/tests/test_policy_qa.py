@@ -17,7 +17,7 @@ import httpx
 import psycopg
 import pytest
 
-from canopica_ai.common.llm_client import LlmResponse
+from canopica_ai.common.llm_client import LlmResponse, PromptTooLongError
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.qa.grounding import citation_grounded
 from canopica_ai.policy_intelligence.qa.service import (
@@ -260,6 +260,19 @@ class TestAnswerGeneral:
         assert abstained is False
 
 
+class _PromptTooLongLlmClient:
+    """A fake `LlmClient` that always refuses on context-fit grounds --
+    reproducing, without depending on any specific retrieval result, what a
+    real oversized retrieved chunk hit live during Task 7's eval-suite work
+    (7 CFR 273.2(j)'s un-subdivided intro text, 7,456 characters on its
+    own): `hybrid_search` returning a few large chunks together can put the
+    assembled prompt over `ollama_num_ctx`'s budget even though every
+    individual chunk came from a real, relevant retrieval."""
+
+    def generate(self, prompt: str) -> LlmResponse:
+        raise PromptTooLongError("prompt would not fit the model's context window")
+
+
 class TestGroundingRetryAndAbstention:
     """A strong retrieval score doesn't guarantee the model actually uses
     what it was given (design doc §2.2's "RAG's most common failure mode");
@@ -290,6 +303,17 @@ class TestGroundingRetryAndAbstention:
         answer = answer_general(self._QUESTION, settings=indexed_corpus, llm_client=stub)
 
         assert stub.calls == 2
+        assert answer.abstained is True
+        assert answer.citations == []
+        assert answer.answer == ABSTENTION_MESSAGE
+
+    def test_a_prompt_too_long_for_the_model_abstains_instead_of_crashing(
+        self, indexed_corpus: Settings
+    ) -> None:
+        answer = answer_general(
+            self._QUESTION, settings=indexed_corpus, llm_client=_PromptTooLongLlmClient()
+        )
+
         assert answer.abstained is True
         assert answer.citations == []
         assert answer.answer == ABSTENTION_MESSAGE

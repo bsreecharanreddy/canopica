@@ -1,0 +1,160 @@
+# Eval-suite CI gate (Task 7 plan; design doc §2.6): ~20 hand-authored Q&A
+# pairs against the real, committed CFR corpus (corpus/raw/*.xml, scoped by
+# corpus/chunk.py's SECTION_BOUNDARIES). Every `expected_cfr_sections` value
+# below is a real chunk_id this project's own corpus actually indexes --
+# verified by loading corpus.chunk.load_all_chunks() and reading its real
+# section list, not guessed from the CFR's table of contents. Coverage
+# spans every scoped area design doc §2.1 names: gross/net income (1-3),
+# every deduction type (4-11), expedited processing (12-16), categorical
+# eligibility (17-20).
+#
+# expected_output is a short reference answer DeepEval's ContextualPrecision/
+# ContextualRecall metrics require to grade retrieval quality against (they
+# compare what was retrieved to what supports this answer, not to
+# expected_cfr_sections directly) -- each one is grounded in the real chunk
+# text above, not paraphrased from memory of SNAP policy in general.
+
+- question: "What is the income eligibility test for a household with no elderly or disabled member?"
+  expected_cfr_sections: ["273.9(a)"]
+  expected_output: >-
+    A household with no elderly or disabled member must meet both the gross
+    income eligibility standard and the net income eligibility standard for
+    SNAP, per 7 CFR 273.9(a).
+
+- question: "Which households only have to meet the net income test, not the gross income test?"
+  expected_cfr_sections: ["273.9(a)"]
+  expected_output: >-
+    Households that contain an elderly or disabled member only have to meet
+    the net income eligibility standard, not the gross income standard, per
+    7 CFR 273.9(a).
+
+- question: "Do categorically eligible households have to meet SNAP's income eligibility standards?"
+  expected_cfr_sections: ["273.9(a)"]
+  expected_output: >-
+    No -- households that are categorically eligible under 7 CFR
+    273.2(j)(2) or 273.2(j)(4) do not have to meet the income eligibility
+    standards of 273.9(a).
+
+- question: "How is the standard deduction amount determined?"
+  expected_cfr_sections: ["273.9(d)(1)"]
+  expected_output: >-
+    The standard deduction is set as a percentage of the monthly net income
+    eligibility standard for the household's size, per 7 CFR 273.9(d)(1) --
+    8.31 percent for the 48 states, D.C., Alaska, Hawaii, and the Virgin
+    Islands as of October 1, 2002.
+
+- question: "What is the earned income deduction?"
+  expected_cfr_sections: ["273.9(d)(2)"]
+  expected_output: >-
+    The earned income deduction is twenty percent of a household's gross
+    earned income, per 7 CFR 273.9(d)(2).
+
+- question: "Who qualifies for the excess medical expense deduction, and what does it cover?"
+  expected_cfr_sections: ["273.9(d)(3)"]
+  expected_output: >-
+    An elderly or disabled household member can deduct the portion of their
+    medical expenses that exceeds $35 per month, per 7 CFR 273.9(d)(3).
+
+- question: "When can a household deduct dependent care costs?"
+  expected_cfr_sections: ["273.9(d)(4)"]
+  expected_output: >-
+    A household can deduct dependent care payments when care is necessary
+    for a member to search for, accept, or continue employment, or to
+    attend training or education preparatory to employment, per 7 CFR
+    273.9(d)(4).
+
+- question: "What is the homeless shelter deduction?"
+  expected_cfr_sections: ["273.9(d)(6)"]
+  expected_output: >-
+    A State agency may provide a standard homeless shelter deduction of
+    $143 a month to households in which all members are homeless but are
+    not receiving free shelter throughout the month, per 7 CFR 273.9(d)(6).
+
+- question: "What continuing charges count toward a household's shelter cost deduction?"
+  expected_cfr_sections: ["273.9(d)(6)(A)"]
+  expected_output: >-
+    Continuing charges for the shelter occupied by the household count,
+    including rent, mortgage, condo and association fees, or other
+    continuing charges leading to ownership such as mobile home loan
+    repayments, per 7 CFR 273.9(d)(6)(A).
+
+- question: "Do property taxes count toward the shelter cost deduction?"
+  expected_cfr_sections: ["273.9(d)(6)(B)"]
+  expected_output: >-
+    Yes -- property taxes, State and local assessments, and insurance on
+    the structure itself count toward the shelter cost deduction, but not
+    separate insurance on furniture or personal belongings, per 7 CFR
+    273.9(d)(6)(B).
+
+- question: "Does the cost of heating and cooling count toward the shelter deduction?"
+  expected_cfr_sections: ["273.9(d)(6)(C)"]
+  expected_output: >-
+    Yes -- the cost of fuel for heating and cooling, along with several
+    other specified utility costs, counts toward the shelter cost
+    deduction, per 7 CFR 273.9(d)(6)(C).
+
+- question: "Which households are entitled to expedited SNAP service based on income?"
+  expected_cfr_sections: ["273.2(i)(i)"]
+  expected_output: >-
+    Households with less than $150 in monthly gross income are entitled to
+    expedited service, provided their liquid resources do not exceed $100,
+    per 7 CFR 273.2(i)(i).
+
+- question: "Are destitute migrant or seasonal farmworker households entitled to expedited service?"
+  expected_cfr_sections: ["273.2(i)(ii)"]
+  expected_output: >-
+    Yes -- destitute migrant or seasonal farmworker households are entitled
+    to expedited service, provided their liquid resources do not exceed
+    $100, per 7 CFR 273.2(i)(ii).
+
+- question: "Are households whose income is less than their rent and utilities entitled to expedited service?"
+  expected_cfr_sections: ["273.2(i)(iii)"]
+  expected_output: >-
+    Yes -- households whose combined monthly gross income and liquid
+    resources are less than their monthly rent or mortgage and utilities
+    are entitled to expedited service, per 7 CFR 273.2(i)(iii).
+
+- question: "What happens if a household entitled to expedited service isn't identified at screening?"
+  expected_cfr_sections: ["273.2(i)(iv)"]
+  expected_output: >-
+    If prescreening fails to identify a household as entitled to expedited
+    service and the State agency later discovers the entitlement, it must
+    still provide expedited service, calculated from the date the
+    entitlement was discovered, per 7 CFR 273.2(i)(iv).
+
+- question: "Are residents of shelters for battered women and children eligible for expedited service?"
+  expected_cfr_sections: ["273.2(i)(v)"]
+  expected_output: >-
+    Yes -- residents of shelters for battered women and children who are
+    otherwise entitled to expedited service are handled under the same
+    expedited time limits, per 7 CFR 273.2(i)(v).
+
+- question: "Must a State agency let households applying for public assistance also apply for SNAP at the same time?"
+  expected_cfr_sections: ["273.2(j)"]
+  expected_output: >-
+    Yes -- the State agency must notify households applying for public
+    assistance of their right to apply for SNAP at the same time, and must
+    allow them to do so, per 7 CFR 273.2(j).
+
+- question: "Can a household use a joint application for public assistance and SNAP?"
+  expected_cfr_sections: ["273.2(j)(1)"]
+  expected_output: >-
+    Yes -- a joint PA/SNAP application may contain all the information
+    needed to determine SNAP eligibility and benefit level, per 7 CFR
+    273.2(j)(1).
+
+- question: "Which households are categorically eligible for SNAP based on receiving PA or SSI benefits?"
+  expected_cfr_sections: ["273.2(j)(2)"]
+  expected_output: >-
+    Households in which all members receive or are authorized to receive
+    PA or SSI benefits are categorically eligible for SNAP, unless the
+    entire household is institutionalized or disqualified, per 7 CFR
+    273.2(j)(2).
+
+- question: "Can households receiving General Assistance be categorically eligible for SNAP?"
+  expected_cfr_sections: ["273.2(j)(4)"]
+  expected_output: >-
+    Yes -- households in which every member receives benefits from a State
+    or local GA program meeting the categorical-eligibility criteria are
+    categorically eligible for SNAP, unless otherwise disqualified, per 7
+    CFR 273.2(j)(4).

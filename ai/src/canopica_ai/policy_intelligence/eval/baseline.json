@@ -1,0 +1,6 @@
+{
+  "_note": "Real measurement (2026-08-24) against the 8-question CI-gate subset (run_eval.py's _CI_GATE_QUESTIONS) on an otherwise-idle host, committed by hand per the plan's own requirement -- never auto-written by run_eval.py itself. citation_grounded_rate that run was 0.500 (4 of 8) -- not gated (see _METRIC_NAMES in run_eval.py), reported for visibility only. 2 of the 8 questions abstain deterministically every run (all four categorical-eligibility golden questions retrieve an oversized, un-subdivided 7 CFR 273.2(j) chunk -- see run_eval.py's own module docstring -- and only 2 of the 4 are in this subset); the other ungrounded questions in that run reflect this small local model's ordinary citation variance, the same phenomenon documented extensively elsewhere in docs/STATUS.md. The three metrics below are judged only over whichever subset actually grounds each run (4 of 8 this run), which is a small sample -- _REGRESSION_MARGIN in run_eval.py exists to absorb exactly this kind of ordinary noise, not just LLM-judge score variance.",
+  "faithfulness": 0.750,
+  "contextual_precision": 1.000,
+  "contextual_recall": 1.000
+}

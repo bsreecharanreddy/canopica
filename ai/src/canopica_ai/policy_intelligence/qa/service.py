@@ -17,7 +17,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel
 
-from canopica_ai.common.llm_client import LlmClient, OllamaClient
+from canopica_ai.common.llm_client import LlmClient, OllamaClient, PromptTooLongError
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.corpus.cfr_fetch import CFR_AS_OF_DATE
 from canopica_ai.policy_intelligence.qa import provenance
@@ -139,7 +139,19 @@ def _retrieve_and_answer(
     if not chunks or chunks[0].score < RELEVANCE_THRESHOLD:
         return _abstain(common_fields, settings=settings)
 
-    response = llm_client.generate(request.prompt_builder(chunks))
+    try:
+        response = llm_client.generate(request.prompt_builder(chunks))
+    except PromptTooLongError:
+        # A few individually-relevant chunks (each under the corpus's own
+        # per-chunk cap -- see corpus/chunk.py's MAX_CHUNK_CHARS) can still
+        # add up past the model's context budget once assembled into one
+        # prompt (measured live, 2026-08-24: 273.2(j)'s 7,456-character
+        # un-subdivided intro chunk alongside a few others). A retry with
+        # the same chunks would hit the same, deterministic context-fit
+        # check again, so there's nothing to gain from one -- this is
+        # exactly the "can't reliably answer this" case abstention exists
+        # for, not a crash.
+        return _abstain(common_fields, settings=settings)
     citations = _cited_sections(response.text, chunks)
     if not citations:
         # Retrieval already proved relevant text exists (checked above), so

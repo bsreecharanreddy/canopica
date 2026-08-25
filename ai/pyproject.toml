@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "deepeval>=3.0.0",
     "defusedxml>=0.7.1",
     # Pinned to the same version data-platform's own dbt-duckdb pulls in
     # (checked live: 1.5.5) -- this service opens the identical .duckdb

@@ -848,13 +848,13 @@ the only AI capability this phase evaluates with a golden set (design doc
 # ~20 total, spanning every scoped CFR area from design doc §2.1
 ```
 
-- [ ] **Step 1: `golden_set.yaml`.** ~20 hand-authored Q&A pairs against
+- [x] **Step 1: `golden_set.yaml`.** ~20 hand-authored Q&A pairs against
       Task 1's scoped corpus, each recording the CFR section(s) a correct
       answer should retrieve — covers gross/net income, every deduction
       type, categorical eligibility, and expedited processing, matching
       the corpus's own scope from Task 1 exactly (no golden question
       about a section the corpus doesn't index).
-- [ ] **Step 2: `run_eval.py`.** For each golden pair: calls
+- [x] **Step 2: `run_eval.py`.** For each golden pair: calls
       `answer_general()`, runs RAGAS's faithfulness/context-precision/
       context-recall metrics via DeepEval's evaluation API against the
       question/answer/retrieved-context triple, and runs Task 2's
@@ -862,24 +862,27 @@ the only AI capability this phase evaluates with a golden set (design doc
       immediately, no LLM-judge call spent on it — design doc §2.6's
       "cheap, zero-noise pre-check" ordering). Aggregates to mean scores
       per metric.
-- [ ] **Step 3: `baseline.json` + threshold logic.** First run against
+- [x] **Step 3: `baseline.json` + threshold logic.** First run against
       `main` establishes the baseline; `run_eval.py --check` (CI mode)
       fails if any metric's mean score falls more than a fixed margin
       (e.g. 5 percentage points — the exact margin is this task's own
       implementation-time pick, documented inline in `run_eval.py`)
       below `baseline.json`'s recorded value — the baseline-relative
       gating design doc §2.6 specifies, not an absolute score floor.
-- [ ] **Step 4: `ai-eval` CI job.** Runs `run_eval.py --check` against
-      the local Ollama model in CI (same self-hosted, $0 posture as
-      every other job — no OpenRouter key needed or used here). Blocks
-      merge on failure, same bar as every other CI job per CLAUDE.md's
-      testing policy.
-- [ ] **Step 5: `test_eval_gate.py`.** A deliberately-broken fixture (a
+- [x] **Step 4: `ai-eval` CI job.** Runs `run_eval.py --check` against
+      the local Ollama model in CI. **Revised at implementation time**
+      (design doc §2.6 addendum): the judge model is hosted OpenRouter,
+      not local Ollama — the local judge was measured too slow and
+      unreliable for a CI-blocking gate. The generation model under test
+      stays local/self-hosted, unchanged; only the judge is remote.
+      Blocks merge on failure, same bar as every other CI job per
+      CLAUDE.md's testing policy.
+- [x] **Step 5: `test_eval_gate.py`.** A deliberately-broken fixture (a
       fabricated citation injected into a test answer) fails the
       deterministic pre-check, proving the gate actually gates before any
       CI run depends on it; `run_eval.py --check` against the real,
       unmodified system passes clean.
-- [ ] **Step 6: Full suite + commit.**
+- [x] **Step 6: Full suite + commit.**
 
 ---
 

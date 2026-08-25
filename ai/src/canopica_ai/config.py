@@ -126,3 +126,19 @@ class Settings(BaseSettings):
     # already exist -- read-only, same sibling-project relative-path
     # convention as data_platform_dbt_project_dir above.
     reporting_semantic_model_dir: Path = Path("../reporting/semantic-model")
+
+    # Eval-suite CI gate (Phase 2 Task 7) judge model -- OpenRouter, not
+    # local Ollama. Measured live (2026-08-24): the local llama3.2:3b
+    # judge was both too slow (minutes per DeepEval/RAGAS metric call) and
+    # outright unreliable (one call exceeded a 240s timeout and crashed
+    # the run) for a CI-blocking gate. A judge never serves user traffic
+    # -- it's a bounded, CI-only step -- so this repo's "self-hosted, $0"
+    # requirement for the *generation* model under test (unchanged, still
+    # local) doesn't carry over to it. `openrouter_judge_model` is pinned
+    # to a specific model verified live rather than OpenRouter's own
+    # `openrouter/free` auto-router, which was observed picking a safety
+    # *classifier* model that silently ignored a real prompt -- see
+    # judge_model.py's own docstring for the exact probe.
+    openrouter_api_key: str | None = None
+    openrouter_judge_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    openrouter_timeout_seconds: float = 120.0
