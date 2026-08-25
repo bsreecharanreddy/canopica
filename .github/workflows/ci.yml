@@ -53,7 +53,17 @@ jobs:
           echo "Changed files:"
           echo "$changed"
           # Empty (unknown diff base) deliberately falls through to `true`.
-          if [ -z "$changed" ] || echo "$changed" | grep -qvE '^(docs/|[^/]*\.md$)'; then
+          # `.claude/` is in the docs side of this list because it holds only
+          # local developer tooling -- skills (markdown) and a commit-time
+          # hook CI never executes -- so nothing under it can change a job's
+          # result. It is listed explicitly because the `[^/]*\.md$` branch
+          # only ever matches *top-level* markdown: a nested file like
+          # `.claude/skills/canopica-task-checkpoint/SKILL.md` matched neither
+          # branch and so counted as code, which really happened (run
+          # 32808001972) -- a pure-docs commit queued the full ~20min e2e
+          # suite and, via `cancel-in-progress` above, killed the run that
+          # was mid-way through proving the previous commit green.
+          if [ -z "$changed" ] || echo "$changed" | grep -qvE '^(docs/|\.claude/|[^/]*\.md$)'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
@@ -380,6 +390,10 @@ jobs:
           pull=$!
           wait "$cleanup"
           wait "$pull"
+          # Free disk is one of ml-commons' three identically-worded
+          # breakers, so a baseline on green runs is what makes a red one
+          # readable -- same reason e2e-ai prints it here.
+          df -h /
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -391,8 +405,22 @@ jobs:
       # run_eval.py has no pytest fixture to provision the corpus for it
       # (unlike the e2e-ai job's own indexed_corpus fixture) -- these two
       # steps are that fixture's own setup, run explicitly here.
-      - run: cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.search_pipeline
+      #
+      # Order matters, and this job originally had it backwards. The
+      # fixture indexes *first* and provisions the search pipeline
+      # *second* (ai/tests/conftest.py's `indexed_corpus`); this job did
+      # the reverse, which meant the ~90MB ONNX reranker sat resident in
+      # OpenSearch's 2g heap for the whole 46-second indexing burst
+      # instead of being loaded after it. Direct A/B evidence from one
+      # run (32808001972, both jobs on the same commit and runner type):
+      # e2e-ai passed while running six containers at 7.1Gi/7.8Gi host
+      # memory and 865Mi of swap, and this job failed on its very first
+      # hybrid_search with two containers and far more headroom -- which
+      # rules out host memory as the differentiator and leaves the
+      # ordering as the real one. Matched to the sequence that is
+      # actually observed green.
       - run: cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.index
+      - run: cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.search_pipeline
       # CANOPICA_OTEL_ENABLED=false: this job never starts Jaeger (only
       # opensearch/ollama above, to protect its own tight wall-clock
       # budget) but run_eval.py exercises every traced call site for
@@ -404,6 +432,32 @@ jobs:
           CANOPICA_OTEL_ENABLED: "false"
       - if: always()
         run: sudo chmod -R a+rX infra/ollama-models
+      # Identical to the e2e-ai job's own two diagnostic steps, and here for
+      # a reason worth stating rather than leaving as duplication: those
+      # steps were added when the ml-commons circuit breaker kept tripping
+      # in e2e-ai, and this job did not exist yet. It was added later (Task
+      # 7) running the same OpenSearch + reranker + corpus-index workload,
+      # and inherited none of them -- so when the same breaker tripped here
+      # for real (run 32808001972, on the first hybrid_search call, five
+      # seconds in), the failure was once again unattributable: ml-commons
+      # emits a byte-for-byte identical "Memory Circuit Breaker is open"
+      # message for all three of its breakers (JVM heap, host memory, free
+      # disk), which is exactly the ambiguity these steps exist to resolve.
+      - if: always()
+        run: df -h / && free -h && docker stats --no-stream
+      - name: Diagnose OpenSearch's circuit breakers on failure
+        if: failure()
+        run: |
+          # `|| true` on each: an unreachable or dead OpenSearch is itself a
+          # diagnosis, and must not stop the two checks after it from running.
+          curl -s 'http://localhost:9200/_cluster/settings?flat_settings=true&include_defaults=true' \
+            | jq '[paths(scalars) as $p | ($p | map(tostring) | join(".")) as $k
+                   | select($k | test("ml_commons.*threshold|breaker")) | {($k): getpath($p)}] | add' || true
+          curl -s 'http://localhost:9200/_nodes/stats/jvm,breaker' \
+            | jq '.nodes[] | {heap_used_percent: .jvm.mem.heap_used_percent,
+                              heap_max_in_bytes: .jvm.mem.heap_max_in_bytes,
+                              breakers: (.breakers | with_entries(.value |= {limit_size, estimated_size, tripped}))}' || true
+          docker compose -f infra/docker-compose.yml logs --no-color --tail=200 opensearch || true
       - if: always()
         run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs-ai-eval.txt
       - if: always()
