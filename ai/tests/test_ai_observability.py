@@ -26,6 +26,7 @@ from typing import Any
 
 import httpx
 import pytest
+from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -228,6 +229,48 @@ class TestCitationGroundedAttribute:
         assert answer.abstained
         capability_span = _capability_span(spans())
         assert _attributes(capability_span)["rag_citation_grounded"] is False
+
+
+class TestObservabilityCanBeDisabled:
+    """`ai-eval`'s CI job runs `run_eval.py` for real against every traced
+    call site (`hybrid_search`, `answer_general`) but never starts the
+    Jaeger this module exports to -- ci.yml only brings up opensearch and
+    ollama there, to protect that job's own tight, documented wall-clock
+    budget. Confirmed live (CI run 32803875411's job log): every span
+    close blocked for up to ~5s retrying against a refused connection on
+    :4318, dozens of times over the run. `CANOPICA_OTEL_ENABLED=false` is that
+    job's actual fix; this is what proves the flag really skips the
+    network rather than just being read and ignored."""
+
+    def test_a_disabled_tracer_is_a_real_no_op_tracer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CANOPICA_OTEL_ENABLED", "false")
+        monkeypatch.setenv("CANOPICA_OTEL_EXPORTER_ENDPOINT", "http://localhost:1/v1/traces")
+
+        tracer = observability.init_tracer(Settings())
+
+        assert isinstance(tracer, trace.NoOpTracer)
+
+    def test_call_sites_still_run_to_completion_when_disabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every call site (llm_client.py, retrieval.py, qa/service.py)
+        unconditionally calls `span.set_attribute(...)` on whatever
+        `init_tracer()` hands back -- a no-op tracer must accept that the
+        same way a real one does, not force every call site to branch on
+        whether tracing happens to be enabled."""
+        monkeypatch.setenv("CANOPICA_OTEL_ENABLED", "false")
+        monkeypatch.setenv("CANOPICA_OTEL_EXPORTER_ENDPOINT", "http://localhost:1/v1/traces")
+
+        with observability.traced_llm_call("chat", model="llama3.2:3b") as span:
+            observability.record_llm_usage(
+                span,
+                response_model="llama3.2:3b",
+                input_tokens=1,
+                output_tokens=1,
+                finish_reason="stop",
+            )
 
 
 def _capability_span(spans: tuple[ReadableSpan, ...]) -> ReadableSpan:

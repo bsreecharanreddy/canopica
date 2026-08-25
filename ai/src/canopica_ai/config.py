@@ -98,6 +98,17 @@ class Settings(BaseSettings):
     # entry point here runs on the host via `uv run`.
     otel_exporter_endpoint: str = "http://localhost:4318/v1/traces"
 
+    # `ai-eval`'s CI job runs run_eval.py for real against every traced
+    # call site (hybrid_search, answer_general) but never starts Jaeger --
+    # ci.yml deliberately keeps that job to just opensearch+ollama to
+    # protect its own tight wall-clock budget. Confirmed live (CI run
+    # 32803875411): with tracing on, every span close blocked several
+    # seconds retrying against the refused connection, dozens of times
+    # over a run. That job sets CANOPICA_OTEL_ENABLED=false; every other
+    # environment (local dev, the e2e-ai job, a real deployment) has a
+    # real Jaeger and leaves this at its default.
+    otel_enabled: bool = True
+
     cfr_corpus_index: str = "cfr-part-273"
     cfr_search_pipeline: str = "cfr-hybrid-rerank"
     embedding_dimension: int = 768

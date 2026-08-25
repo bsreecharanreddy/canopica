@@ -393,9 +393,15 @@ jobs:
       # steps are that fixture's own setup, run explicitly here.
       - run: cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.search_pipeline
       - run: cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.index
+      # CANOPICA_OTEL_ENABLED=false: this job never starts Jaeger (only
+      # opensearch/ollama above, to protect its own tight wall-clock
+      # budget) but run_eval.py exercises every traced call site for
+      # real -- see canopica_ai.config.Settings.otel_enabled's own docstring
+      # for what this avoided, confirmed live in CI run 32803875411.
       - run: cd ai && uv run python -m canopica_ai.policy_intelligence.eval.run_eval --check
         env:
           CANOPICA_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CANOPICA_OTEL_ENABLED: "false"
       - if: always()
         run: sudo chmod -R a+rX infra/ollama-models
       - if: always()

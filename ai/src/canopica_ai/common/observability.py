@@ -71,8 +71,21 @@ def _registered_tracer(otel_exporter_endpoint: str) -> trace.Tracer:
 
 def init_tracer(settings: Settings | None = None) -> trace.Tracer:
     """Registers the process-wide `TracerProvider` on first call; later
-    calls return the tracer already registered."""
+    calls return the tracer already registered.
+
+    Returns a real no-op tracer instead when `settings.otel_enabled` is
+    False, rather than skipping instrumentation at each call site: every
+    call site unconditionally calls `span.set_attribute(...)` on whatever
+    this returns, and `NoOpTracer`'s `start_as_current_span` accepts that
+    the same way a real one does, so nothing downstream has to branch on
+    whether tracing happens to be on. See `Settings.otel_enabled`'s own
+    docstring for why this exists: an environment with no Jaeger to
+    receive spans (the `ai-eval` CI job) would otherwise block on a
+    failed export retry after every single span.
+    """
     resolved_settings = settings or Settings()
+    if not resolved_settings.otel_enabled:
+        return trace.NoOpTracer()
     return _registered_tracer(resolved_settings.otel_exporter_endpoint)
 
 
