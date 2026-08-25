@@ -24,6 +24,7 @@ from canopica_ai.analytics_copilot.tools import (
     tool_list_for_role,
 )
 from canopica_ai.common.llm_client import OllamaClient, ToolCallingLlmClient
+from canopica_ai.common.observability import traced_ai_operation
 from canopica_ai.config import Settings
 
 # Priority only matters for which single role's tool list gets used when a
@@ -64,33 +65,34 @@ def ask(
     settings = settings or Settings()
     llm_client = llm_client or OllamaClient(settings)
 
-    claims = decode_worker_token(jwt, settings=settings)
-    role = _resolve_role(claims.roles)
-    if role is None:
-        raise NoAccessibleMetricsError(f"{claims.subject} holds no role with analytics access")
+    with traced_ai_operation("analytics_copilot.ask"):
+        claims = decode_worker_token(jwt, settings=settings)
+        role = _resolve_role(claims.roles)
+        if role is None:
+            raise NoAccessibleMetricsError(f"{claims.subject} holds no role with analytics access")
 
-    tools = tool_list_for_role(role)
-    if not tools:
-        raise NoAccessibleMetricsError(f"role {role} has no analytics tools")
+        tools = tool_list_for_role(role)
+        if not tools:
+            raise NoAccessibleMetricsError(f"role {role} has no analytics tools")
 
-    call = llm_client.generate_tool_call(question, tools)
-    if call.name != QUERY_METRIC_TOOL_NAME:
-        raise UnsupportedToolError(f"model selected unsupported tool {call.name!r}")
+        call = llm_client.generate_tool_call(question, tools)
+        if call.name != QUERY_METRIC_TOOL_NAME:
+            raise UnsupportedToolError(f"model selected unsupported tool {call.name!r}")
 
-    # Raises pydantic.ValidationError for a hallucinated metric name --
-    # deliberately left to propagate rather than caught here, so a bad
-    # tool call fails validation instead of silently falling back to
-    # something else (Task 5 plan Step 5).
-    args = QueryMetricArgs.model_validate(call.arguments)
+        # Raises pydantic.ValidationError for a hallucinated metric name --
+        # deliberately left to propagate rather than caught here, so a bad
+        # tool call fails validation instead of silently falling back to
+        # something else (Task 5 plan Step 5).
+        args = QueryMetricArgs.model_validate(call.arguments)
 
-    execution = run_metric_query(
-        metric_names=[args.metric_name],
-        group_by_names=args.group_by,
-        filters=args.filters or (),
-        settings=settings,
-    )
-    return AnalyticsAnswer(
-        compiled_sql=execution.compiled_sql,
-        result_rows=execution.rows,
-        metric_names_used=[args.metric_name],
-    )
+        execution = run_metric_query(
+            metric_names=[args.metric_name],
+            group_by_names=args.group_by,
+            filters=args.filters or (),
+            settings=settings,
+        )
+        return AnalyticsAnswer(
+            compiled_sql=execution.compiled_sql,
+            result_rows=execution.rows,
+            metric_names_used=[args.metric_name],
+        )

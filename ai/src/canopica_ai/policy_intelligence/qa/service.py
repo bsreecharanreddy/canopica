@@ -15,12 +15,15 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from opentelemetry import trace
 from pydantic import BaseModel
 
 from canopica_ai.common.llm_client import LlmClient, OllamaClient, PromptTooLongError
+from canopica_ai.common.observability import traced_ai_operation
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.corpus.cfr_fetch import CFR_AS_OF_DATE
 from canopica_ai.policy_intelligence.qa import provenance
+from canopica_ai.policy_intelligence.qa.grounding import citation_grounded
 from canopica_ai.policy_intelligence.qa.provenance import PolicyQaAnswerRecord
 from canopica_ai.policy_intelligence.retrieval import RetrievedChunk, hybrid_search
 
@@ -107,9 +110,23 @@ class _AnswerRequest:
     determination_id: str | None
 
 
+def _record_grounding(citations: list[str], retrieved_chunk_ids: list[str]) -> None:
+    """Design doc §2.8's live, per-request grounding signal, set on
+    whichever capability span is currently open -- the same
+    `citation_grounded()` Task 7's CI gate calls, so the live signal and
+    the gated one can never drift apart. Outside a traced operation this
+    is a no-op: OTel's own non-recording span accepts and discards the
+    attribute, so nothing here needs a "is tracing on" branch.
+    """
+    trace.get_current_span().set_attribute(
+        "rag_citation_grounded", citation_grounded(citations, retrieved_chunk_ids)
+    )
+
+
 def _abstain(
     common_fields: dict[str, Any], *, settings: Settings, record_provenance: bool
 ) -> QaAnswer:
+    _record_grounding([], common_fields["retrieved_chunk_ids"])
     answer = QaAnswer(answer=ABSTENTION_MESSAGE, citations=[], abstained=True)
     if record_provenance:
         provenance.record(
@@ -178,6 +195,7 @@ def _retrieve_and_answer(
     if not citations:
         return _abstain(common_fields, settings=settings, record_provenance=record_provenance)
 
+    _record_grounding(citations, common_fields["retrieved_chunk_ids"])
     answer = QaAnswer(answer=response.text, citations=citations, abstained=False)
     if record_provenance:
         provenance.record(
@@ -235,9 +253,10 @@ def answer_general(
         prompt_builder=lambda chunks: _general_prompt(question, chunks),
         determination_id=None,
     )
-    return _retrieve_and_answer(
-        request, settings=settings, llm_client=llm_client, record_provenance=record_provenance
-    )
+    with traced_ai_operation("policy_qa.answer_general"):
+        return _retrieve_and_answer(
+            request, settings=settings, llm_client=llm_client, record_provenance=record_provenance
+        )
 
 
 def _denial_prompt(trusted_data: dict[str, Any], chunks: list[RetrievedChunk]) -> str:
@@ -281,52 +300,61 @@ def answer_denial(
     llm_client = llm_client or OllamaClient(settings)
     question_for_provenance = f"why was I denied (determination {determination_id})"
 
-    trace_response = httpx.get(
-        f"{settings.portal_api_url}/api/my/determinations/{determination_id}/trace",
-        headers={"Authorization": f"Bearer {bearer_token}"},
-        timeout=30.0,
-    )
-    trace_response.raise_for_status()
-    decision_results = trace_response.json()["decisionResults"]
-    determination = decision_results["Determination"]
-    reason_code = determination["reasonCode"]
-
-    if reason_code == "ELIGIBLE":
-        # Nothing to explain a denial of -- the DMN found the household
-        # eligible. Deterministic from the trace alone; no LLM call, no
-        # retrieval, matching the same "don't ask the model to try when the
-        # answer is already known" abstention discipline used elsewhere.
-        eligible_message = (
-            "This determination found the household eligible, so there is no denial to explain."
+    with traced_ai_operation("policy_qa.answer_denial"):
+        trace_response = httpx.get(
+            f"{settings.portal_api_url}/api/my/determinations/{determination_id}/trace",
+            headers={"Authorization": f"Bearer {bearer_token}"},
+            timeout=30.0,
         )
-        answer = QaAnswer(answer=eligible_message, citations=[], abstained=False)
-        provenance.record(
-            PolicyQaAnswerRecord(
-                question=question_for_provenance,
-                answer=answer.answer,
-                citations=[],
-                abstained=False,
-                corpus_version=CFR_AS_OF_DATE,
-                embedding_model_version=settings.ollama_embedding_model,
-                retrieval_config={"top_k": 0, "search_pipeline": settings.cfr_search_pipeline},
-                prompt_version=PROMPT_VERSION,
-                retrieved_chunk_ids=[],
-                determination_id=determination_id,
-            ),
-            settings=settings,
+        trace_response.raise_for_status()
+        decision_results = trace_response.json()["decisionResults"]
+        determination = decision_results["Determination"]
+        reason_code = determination["reasonCode"]
+
+        if reason_code == "ELIGIBLE":
+            # Nothing to explain a denial of -- the DMN found the household
+            # eligible. Deterministic from the trace alone; no LLM call, no
+            # retrieval, matching the same "don't ask the model to try when the
+            # answer is already known" abstention discipline used elsewhere.
+            eligible_message = (
+                "This determination found the household eligible, so there is no denial to explain."
+            )
+            # Grounded-ness is about a *cited* answer; this one is derived
+            # from the trace with no retrieval at all, so it records False
+            # for the same reason `citation_grounded` treats an uncited
+            # answer as not-proven-grounded -- not because anything is wrong
+            # with it.
+            _record_grounding([], [])
+            answer = QaAnswer(answer=eligible_message, citations=[], abstained=False)
+            provenance.record(
+                PolicyQaAnswerRecord(
+                    question=question_for_provenance,
+                    answer=answer.answer,
+                    citations=[],
+                    abstained=False,
+                    corpus_version=CFR_AS_OF_DATE,
+                    embedding_model_version=settings.ollama_embedding_model,
+                    retrieval_config={"top_k": 0, "search_pipeline": settings.cfr_search_pipeline},
+                    prompt_version=PROMPT_VERSION,
+                    retrieved_chunk_ids=[],
+                    determination_id=determination_id,
+                ),
+                settings=settings,
+            )
+            return answer
+
+        retrieval_query, trusted_keys = _DENIAL_CONTEXT.get(
+            reason_code, (_DEFAULT_RETRIEVAL_QUERY, ())
         )
-        return answer
+        trusted_data: dict[str, Any] = {"reasonCode": reason_code}
+        for key in trusted_keys:
+            if key in decision_results:
+                trusted_data[key] = decision_results[key]
 
-    retrieval_query, trusted_keys = _DENIAL_CONTEXT.get(reason_code, (_DEFAULT_RETRIEVAL_QUERY, ()))
-    trusted_data: dict[str, Any] = {"reasonCode": reason_code}
-    for key in trusted_keys:
-        if key in decision_results:
-            trusted_data[key] = decision_results[key]
-
-    request = _AnswerRequest(
-        question_for_provenance=question_for_provenance,
-        retrieval_query=retrieval_query,
-        prompt_builder=lambda chunks: _denial_prompt(trusted_data, chunks),
-        determination_id=determination_id,
-    )
-    return _retrieve_and_answer(request, settings=settings, llm_client=llm_client)
+        request = _AnswerRequest(
+            question_for_provenance=question_for_provenance,
+            retrieval_query=retrieval_query,
+            prompt_builder=lambda chunks: _denial_prompt(trusted_data, chunks),
+            determination_id=determination_id,
+        )
+        return _retrieve_and_answer(request, settings=settings, llm_client=llm_client)

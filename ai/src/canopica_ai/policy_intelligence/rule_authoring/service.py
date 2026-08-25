@@ -26,6 +26,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from canopica_ai.common.llm_client import OllamaClient, StructuredLlmClient
+from canopica_ai.common.observability import traced_ai_operation
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.rule_authoring.schema import (
     CurrentParameter,
@@ -195,29 +196,30 @@ def propose_parameter_changes(
     }
     prompt = _proposal_prompt(document_excerpt, current_values)
 
-    last_error: Exception | None = None
-    for _ in range(_MAX_ATTEMPTS):
-        response = llm_client.generate_structured(prompt, _DraftProposal)
-        try:
-            draft = _DraftProposal.model_validate_json(response.text)
-            changes = _reconcile(draft, current_by_key)
-        except ValueError as error:
-            # One clause, two kinds of failure, because Pydantic's
-            # ValidationError *is* a ValueError: malformed JSON or a value
-            # outside its unit's domain raise the former, `_reconcile`'s
-            # policy-level refusals raise the latter. Both mean the same
-            # thing here -- this attempt produced nothing usable.
-            last_error = error
-            continue
-        return ParameterProposal(
-            parameter_set_id=current_parameter_set_id,
-            proposed_values=changes,
-            source_excerpt=document_excerpt,
-            generation_model=settings.ollama_generation_model,
-            prompt_version=PROMPT_VERSION,
-        )
+    with traced_ai_operation("rule_authoring.propose_parameter_changes"):
+        last_error: Exception | None = None
+        for _ in range(_MAX_ATTEMPTS):
+            response = llm_client.generate_structured(prompt, _DraftProposal)
+            try:
+                draft = _DraftProposal.model_validate_json(response.text)
+                changes = _reconcile(draft, current_by_key)
+            except ValueError as error:
+                # One clause, two kinds of failure, because Pydantic's
+                # ValidationError *is* a ValueError: malformed JSON or a value
+                # outside its unit's domain raise the former, `_reconcile`'s
+                # policy-level refusals raise the latter. Both mean the same
+                # thing here -- this attempt produced nothing usable.
+                last_error = error
+                continue
+            return ParameterProposal(
+                parameter_set_id=current_parameter_set_id,
+                proposed_values=changes,
+                source_excerpt=document_excerpt,
+                generation_model=settings.ollama_generation_model,
+                prompt_version=PROMPT_VERSION,
+            )
 
-    raise ProposalGenerationError(
-        f"could not produce a valid proposal after {_MAX_ATTEMPTS} attempts: {last_error}"
-    )
+        raise ProposalGenerationError(
+            f"could not produce a valid proposal after {_MAX_ATTEMPTS} attempts: {last_error}"
+        )
 

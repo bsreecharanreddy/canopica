@@ -10,6 +10,7 @@ import httpx
 from opensearchpy import OpenSearch
 from pydantic import BaseModel
 
+from canopica_ai.common.observability import traced_retrieval_call
 from canopica_ai.config import Settings
 
 
@@ -53,34 +54,46 @@ def hybrid_search(
     chunks."""
     settings = settings or Settings()
     client = client or _client(settings)
-    query_vector = embed_text(query, settings)
 
-    body = {
-        "size": top_k,
-        "query": {
-            "hybrid": {
-                "queries": [
-                    {"match": {"text": {"query": query}}},
-                    {"knn": {"embedding": {"vector": query_vector, "k": top_k * 4}}},
-                ]
-            }
-        },
-        "ext": {"rerank": {"query_context": {"query_text": query}}},
-    }
+    # The span covers the query embedding *and* the search, because that
+    # pair is what one retrieval costs. `embed_text` itself is left
+    # uninstrumented on purpose: index.py calls it once per chunk in a
+    # loop, and this project's exporter is a SimpleSpanProcessor (see
+    # observability.py) which exports synchronously -- a span per chunk
+    # would turn a corpus rebuild into thousands of blocking HTTP calls
+    # to Jaeger for telemetry nobody reads.
+    with traced_retrieval_call(index=settings.cfr_corpus_index, top_k=top_k) as span:
+        query_vector = embed_text(query, settings)
+        span.set_attribute("gen_ai.request.model", settings.ollama_embedding_model)
 
-    response = client.search(
-        index=settings.cfr_corpus_index,
-        body=body,
-        params={"search_pipeline": settings.cfr_search_pipeline},
-    )
+        body = {
+            "size": top_k,
+            "query": {
+                "hybrid": {
+                    "queries": [
+                        {"match": {"text": {"query": query}}},
+                        {"knn": {"embedding": {"vector": query_vector, "k": top_k * 4}}},
+                    ]
+                }
+            },
+            "ext": {"rerank": {"query_context": {"query_text": query}}},
+        }
 
-    return [
-        RetrievedChunk(
-            cfr_section=hit["_source"]["cfr_section"],
-            heading=hit["_source"]["heading"],
-            text=hit["_source"]["text"],
-            chunk_id=hit["_id"],
-            score=hit["_score"],
+        response = client.search(
+            index=settings.cfr_corpus_index,
+            body=body,
+            params={"search_pipeline": settings.cfr_search_pipeline},
         )
-        for hit in response["hits"]["hits"]
-    ]
+
+        chunks = [
+            RetrievedChunk(
+                cfr_section=hit["_source"]["cfr_section"],
+                heading=hit["_source"]["heading"],
+                text=hit["_source"]["text"],
+                chunk_id=hit["_id"],
+                score=hit["_score"],
+            )
+            for hit in response["hits"]["hits"]
+        ]
+        span.set_attribute("canopica.retrieval.chunk_count", len(chunks))
+        return chunks

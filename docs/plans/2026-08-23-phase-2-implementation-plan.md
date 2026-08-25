@@ -576,7 +576,7 @@ create table policy_parameter_proposal (
 -- apply here and must not be copied onto this table.
 ```
 
-- [ ] **Step 1: `schema.py` + `service.py`.** `ParameterProposal`/
+- [x] **Step 1: `schema.py` + `service.py`.** `ParameterProposal`/
       `ProposedParameter` Pydantic models; `propose_parameter_changes()`
       prompts the local Ollama model with the supplied excerpt and the
       current effective parameter values (fetched by the portal, passed
@@ -587,8 +587,8 @@ create table policy_parameter_proposal (
       output — reject and retry once on a validation failure, then
       surface a clear "could not produce a valid proposal" error rather
       than a partially-applied one).
-- [ ] **Step 2: `V13` migration.**
-- [ ] **Step 3: `PolicyParameterPublishService`.** `propose(excerpt,
+- [x] **Step 2: `V13` migration.**
+- [x] **Step 3: `PolicyParameterPublishService`.** `propose(excerpt,
       currentSetId)` calls the AI service, persists a `PENDING`
       `policy_parameter_proposal` row. `review(proposalId, decision,
       reviewerName)`: on `REJECTED`, sets status/reviewer/timestamp only.
@@ -609,30 +609,30 @@ create table policy_parameter_proposal (
       supplies `versionLabel`, `effectiveFrom` and `sourceCitation` on
       accept: an effective date is a policy fact from the memo, not
       something to infer, and `version_label` is `unique`.
-- [ ] **Step 4: `PolicyParameterProposalController`.**
+- [x] **Step 4: `PolicyParameterProposalController`.**
       `POST /api/policy/proposals` (ADMIN-only, body: excerpt),
       `POST /api/policy/proposals/{id}/review` (ADMIN-only, body:
       accept/reject).
-- [ ] **Step 5: `SecurityConfig`.** Both routes `hasRole("ADMIN")` —
+- [x] **Step 5: `SecurityConfig`.** Both routes `hasRole("ADMIN")` —
       the narrowest existing role, since publishing a parameter version
       is a higher-stakes action than the caseload work `WORKER`/
       `SUPERVISOR` already do.
-- [ ] **Step 6: `PolicyParameterPublishServiceTest`.** Accepting a
+- [x] **Step 6: `PolicyParameterPublishServiceTest`.** Accepting a
       proposal produces a new, correctly effective-dated
       `policy_parameter_set` row reachable via the existing
       `PolicyParameterResolver`; rejecting one leaves the current
       effective set unchanged; a proposal with a value outside a sane
       bound (e.g. a negative dollar amount) fails schema validation
       before it ever reaches the database.
-- [ ] **Step 7: `RuleAuthoringPage.tsx`.** An admin pastes/uploads an
+- [x] **Step 7: `RuleAuthoringPage.tsx`.** An admin pastes/uploads an
       excerpt, sees the proposed diff line-by-line (old value → new
       value, with the model's stated rationale), and accepts or rejects
       — no path that publishes without this explicit click.
-- [ ] **Step 8: `test_rule_authoring.py`.** A real policy-text excerpt (a
+- [x] **Step 8: `test_rule_authoring.py`.** A real policy-text excerpt (a
       synthetic but realistic COLA-style adjustment) produces a proposal
       whose values match what a human would read from that excerpt;
       malformed model output is rejected, not passed through.
-- [ ] **Step 9: Full suite + commit.**
+- [x] **Step 9: Full suite + commit.**
 
 ---
 
@@ -914,7 +914,7 @@ from Tasks 1, 2, 3, 5, and 6, plus a live per-request
   pattern recognizes this one immediately, not a second, differently-
   shaped tracing convention.
 
-- [ ] **Step 1: `observability.py`.** Same OTel SDK setup
+- [x] **Step 1: `observability.py`.** Same OTel SDK setup
       `data-platform`'s `tracing.py` already established
       (`SimpleSpanProcessor`, not `BatchSpanProcessor`, for the same
       short-lived-process reasoning that file's own code comment states)
@@ -925,7 +925,7 @@ from Tasks 1, 2, 3, 5, and 6, plus a live per-request
       warn against). `gen_ai.*` attribute names verified against OTel's
       then-current spec at implementation time — design doc §2.8's own
       stated caveat, not assumed from this plan.
-- [ ] **Step 2: Wrap every LLM/retrieval call site.** `retrieval.hybrid_
+- [x] **Step 2: Wrap every LLM/retrieval call site.** `retrieval.hybrid_
       search()` gets a `traced_retrieval_call` span (`gen_ai.request.
       model` = embedding model, plus `db.system=opensearch`-style
       attributes for the search itself); every `service.py`'s LLM
@@ -935,20 +935,20 @@ from Tasks 1, 2, 3, 5, and 6, plus a live per-request
       wrapping around existing call sites, no logic changes, same
       "wraps without touching" discipline Phase 1b's Task 9 already
       applied to the portal/pipeline.
-- [ ] **Step 3: `rag_citation_grounded` attribute.** Task 2's
+- [x] **Step 3: `rag_citation_grounded` attribute.** Task 2's
       `answer_general()`/`answer_denial()` set this boolean attribute on
       their own span using the exact same `grounding.citation_grounded()`
       function Task 7's CI gate calls — a live, per-request signal in
       Grafana on top of the CI gate's aggregate one, design doc §2.8's
       explicit requirement, sharing logic rather than duplicating it.
-- [ ] **Step 4: `test_ai_observability.py`.** A real question against
+- [x] **Step 4: `test_ai_observability.py`.** A real question against
       `answer_general()` produces a trace in Jaeger with both a retrieval
       span and a generation span, the generation span carrying
       `gen_ai.request.model` and a populated `rag_citation_grounded`
       attribute — same live-poll-Jaeger-API pattern
       `data-platform/tests/test_observability.py` already established,
       not a mock.
-- [ ] **Step 5: Full suite + commit.**
+- [x] **Step 5: Full suite + commit.**
 
 ---
 

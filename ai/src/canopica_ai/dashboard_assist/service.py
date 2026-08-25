@@ -23,6 +23,7 @@ import re
 from pydantic import BaseModel, Field
 
 from canopica_ai.common.llm_client import OllamaClient, StructuredLlmClient
+from canopica_ai.common.observability import traced_ai_operation
 from canopica_ai.config import Settings
 
 PROMPT_VERSION = "v1"
@@ -188,20 +189,21 @@ def propose_dashboard(
     tables_by_name = {table.name: table for table in tables}
     full_prompt = _proposal_prompt(prompt, tables)
 
-    last_error: Exception | None = None
-    for _ in range(_MAX_ATTEMPTS):
-        response = llm_client.generate_structured(full_prompt, DashboardProposal)
-        try:
-            proposal = DashboardProposal.model_validate_json(response.text)
-            _validate_references(proposal, tables_by_name)
-        except ValueError as error:
-            # Pydantic's ValidationError is a ValueError, same as
-            # rule_authoring's service: malformed JSON and a hallucinated
-            # reference both mean this attempt produced nothing usable.
-            last_error = error
-            continue
-        return proposal
+    with traced_ai_operation("dashboard_assist.propose_dashboard"):
+        last_error: Exception | None = None
+        for _ in range(_MAX_ATTEMPTS):
+            response = llm_client.generate_structured(full_prompt, DashboardProposal)
+            try:
+                proposal = DashboardProposal.model_validate_json(response.text)
+                _validate_references(proposal, tables_by_name)
+            except ValueError as error:
+                # Pydantic's ValidationError is a ValueError, same as
+                # rule_authoring's service: malformed JSON and a hallucinated
+                # reference both mean this attempt produced nothing usable.
+                last_error = error
+                continue
+            return proposal
 
-    raise ProposalGenerationError(
-        f"could not produce a valid proposal after {_MAX_ATTEMPTS} attempts: {last_error}"
-    )
+        raise ProposalGenerationError(
+            f"could not produce a valid proposal after {_MAX_ATTEMPTS} attempts: {last_error}"
+        )

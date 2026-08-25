@@ -13,6 +13,7 @@ from typing import Any, Protocol
 import httpx
 from pydantic import BaseModel
 
+from canopica_ai.common.observability import record_llm_usage, traced_llm_call
 from canopica_ai.config import Settings
 
 # A pessimistic characters-per-token ratio, used to refuse a prompt that
@@ -100,6 +101,28 @@ class StructuredLlmClient(Protocol):
     def generate_structured(self, prompt: str, schema: type[BaseModel]) -> LlmResponse: ...
 
 
+def _record_ollama_usage(span: Any, payload: dict[str, Any], model: str) -> None:
+    """Ollama reports usage under its own key names, on both `/api/generate`
+    and `/api/chat`. Mapped to the OTel spec's names here, in the one place
+    that can see the raw response.
+
+    This is where the instrumentation lives rather than at each capability's
+    own call site (which is what the Task 8 plan's prose said), for a
+    concrete reason: `LlmResponse` deliberately carries only `text`, so a
+    service-layer span has no access to token counts at all. Wrapping there
+    would have meant either spans with no usage attributes, or widening
+    `LlmResponse` -- and every test double of it -- purely to ferry
+    telemetry through. One chokepoint covers all four capabilities instead.
+    """
+    record_llm_usage(
+        span,
+        response_model=payload.get("model", model),
+        input_tokens=payload.get("prompt_eval_count", 0),
+        output_tokens=payload.get("eval_count", 0),
+        finish_reason=payload.get("done_reason"),
+    )
+
+
 class OllamaClient:
     """The sole implementation of both protocols until Task 9's tiered
     OpenRouter-backed one lands behind the same interfaces."""
@@ -150,13 +173,16 @@ class OllamaClient:
             },
             "keep_alive": settings.ollama_keep_alive,
         }
-        response = httpx.post(
-            f"{settings.ollama_base_url}/api/chat",
-            json=body,
-            timeout=settings.ollama_timeout_seconds,
-        )
-        response.raise_for_status()
-        message = response.json()["message"]
+        with traced_llm_call("chat", model=settings.ollama_generation_model) as span:
+            response = httpx.post(
+                f"{settings.ollama_base_url}/api/chat",
+                json=body,
+                timeout=settings.ollama_timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            _record_ollama_usage(span, payload, settings.ollama_generation_model)
+        message = payload["message"]
         tool_calls = message.get("tool_calls") or []
         if not tool_calls:
             raise NoToolCallError(
@@ -195,11 +221,14 @@ class OllamaClient:
         }
         if response_schema is not None:
             body["format"] = response_schema.model_json_schema()
-        response = httpx.post(
-            f"{settings.ollama_base_url}/api/generate",
-            json=body,
-            timeout=settings.ollama_timeout_seconds,
-        )
-        response.raise_for_status()
-        text: str = response.json()["response"]
+        with traced_llm_call("text_completion", model=settings.ollama_generation_model) as span:
+            response = httpx.post(
+                f"{settings.ollama_base_url}/api/generate",
+                json=body,
+                timeout=settings.ollama_timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            _record_ollama_usage(span, payload, settings.ollama_generation_model)
+        text: str = payload["response"]
         return LlmResponse(text=text)

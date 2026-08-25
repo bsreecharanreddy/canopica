@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     # smaller "should be enough" bump.
     ollama_timeout_seconds: float = 480.0
 
+    # Same Jaeger the portal API and the data pipeline already export to
+    # (infra/docker-compose.yml's `jaeger` service), and the same variable
+    # name canopica_data.config.Settings uses, so one env var configures both.
+    # The default is the *published* host port rather than a container
+    # address because `ai/` has no Compose service of its own -- every
+    # entry point here runs on the host via `uv run`.
+    otel_exporter_endpoint: str = "http://localhost:4318/v1/traces"
+
     cfr_corpus_index: str = "cfr-part-273"
     cfr_search_pipeline: str = "cfr-hybrid-rerank"
     embedding_dimension: int = 768
