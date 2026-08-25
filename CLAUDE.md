@@ -4,14 +4,16 @@ Read this before doing anything in this repo.
 
 ## What this project is
 
-Canopica is a portfolio project: a rules-driven benefits-eligibility platform
-(customer/worker portals, a DMN rules engine, a governed data pipeline,
-Power BI reporting) with an AI capability layer built on top, targeting
-senior data/full-stack/BI roles. It is an independent project inspired by
-publicly documented patterns in how state health & human services
-eligibility systems generally work — **never name a real agency, a real
-state benefits program, or a consulting firm/systems integrator anywhere
-in this repo's code, docs, or commit history; call the system only Canopica.**
+Canopica is a portfolio project: a deterministic, auditable decision
+system — the kind where every dollar amount has to be explainable and
+reproducible — with an AI capability layer built on top, targeting senior
+data/full-stack/BI roles. Applied here to benefits eligibility
+(a Java/Spring + React portal, a DMN rules engine, a governed data
+pipeline, Power BI reporting). It is an independent project inspired by publicly
+documented patterns in how state health & human services eligibility
+systems generally work — **never name a real agency, a real state
+benefits program, or a consulting firm/systems integrator anywhere in
+this repo's code, docs, or commit history; call the system only Canopica.**
 
 To be unambiguous about the boundary: this rule is about not identifying
 any real-world client, employer, or deployed system. Naming *technology

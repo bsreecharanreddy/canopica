@@ -2,10 +2,11 @@
 
 [![CI](https://github.com/bsreecharanreddy/canopica/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bsreecharanreddy/canopica/actions/workflows/ci.yml)
 
-A portfolio project: a rules-driven benefits-eligibility platform —
-customer and worker portals, a business-rules engine, a governed data
-platform, BI reporting — with an AI capability layer built on top of a
-deliberately deterministic, auditable core.
+A portfolio project demonstrating a deterministic, auditable decision
+system — the kind where every dollar amount has to be explainable and
+reproducible — with an AI capability layer built on top of that core.
+Applied here to benefits eligibility: a Java/Spring + React portal, a
+business-rules engine, a governed data platform, BI reporting.
 
 > Independent project inspired by publicly documented patterns in how
 > state health & human services eligibility systems generally work. Not
