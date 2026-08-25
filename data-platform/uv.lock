@@ -180,6 +180,67 @@ wheels = [
 ]
 
 [[package]]
+name = "canopica-data"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "connectorx" },
+    { name = "dbt-core" },
+    { name = "dbt-duckdb" },
+    { name = "dbt-metricflow", extra = ["dbt-duckdb"] },
+    { name = "deltalake" },
+    { name = "duckdb" },
+    { name = "httpx" },
+    { name = "numpy" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-sdk" },
+    { name = "polars" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pyarrow" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pyyaml" },
+    { name = "ruff" },
+    { name = "testcontainers" },
+    { name = "types-pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "connectorx", specifier = ">=0.4.5" },
+    { name = "dbt-core", specifier = ">=1.12.3" },
+    { name = "dbt-duckdb", specifier = ">=1.11.0" },
+    { name = "dbt-metricflow", extras = ["dbt-duckdb"], specifier = ">=0.14.0" },
+    { name = "deltalake", specifier = ">=1.6.2" },
+    { name = "duckdb", specifier = ">=1.5.5" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "numpy", specifier = ">=2.5.2" },
+    { name = "opentelemetry-exporter-otlp", specifier = ">=1.39.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.39.0" },
+    { name = "polars", specifier = ">=1.43.2" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
+    { name = "pyarrow", specifier = ">=25.0.1" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pydantic-settings", specifier = ">=2.15.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "ruff", specifier = ">=0.16.4" },
+    { name = "testcontainers", specifier = ">=4.15.0" },
+    { name = "types-pyyaml", specifier = ">=6.0.12" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -723,67 +784,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5f/f7/abb373e5757eaec4b922b92f97ec8d6d7e057cf06778247604fbc4e7c3f3/idna-3.19.tar.gz", hash = "sha256:5e0811a4383b21dc5838069f801c4fb62113b7447663d2530d2bd6e77b49bf15", size = 215237, upload-time = "2026-08-18T05:14:24.27Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/57/b0/0e52c878c53f245edd3a11020f20979b3f490f245af532c7cae3027754b5/idna-3.19-py3-none-any.whl", hash = "sha256:815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4", size = 68550, upload-time = "2026-08-18T05:14:22.343Z" },
-]
-
-[[package]]
-name = "canopica-data"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "connectorx" },
-    { name = "dbt-core" },
-    { name = "dbt-duckdb" },
-    { name = "dbt-metricflow", extra = ["dbt-duckdb"] },
-    { name = "deltalake" },
-    { name = "duckdb" },
-    { name = "httpx" },
-    { name = "numpy" },
-    { name = "opentelemetry-exporter-otlp" },
-    { name = "opentelemetry-sdk" },
-    { name = "polars" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pyyaml" },
-    { name = "ruff" },
-    { name = "testcontainers" },
-    { name = "types-pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "connectorx", specifier = ">=0.4.5" },
-    { name = "dbt-core", specifier = ">=1.12.3" },
-    { name = "dbt-duckdb", specifier = ">=1.11.0" },
-    { name = "dbt-metricflow", extras = ["dbt-duckdb"], specifier = ">=0.14.0" },
-    { name = "deltalake", specifier = ">=1.6.2" },
-    { name = "duckdb", specifier = ">=1.5.5" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "numpy", specifier = ">=2.5.2" },
-    { name = "opentelemetry-exporter-otlp", specifier = ">=1.39.0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.39.0" },
-    { name = "polars", specifier = ">=1.43.2" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
-    { name = "pyarrow", specifier = ">=25.0.1" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-    { name = "pydantic-settings", specifier = ">=2.15.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=2.3.1" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "ruff", specifier = ">=0.16.4" },
-    { name = "testcontainers", specifier = ">=4.15.0" },
-    { name = "types-pyyaml", specifier = ">=6.0.12" },
 ]
 
 [[package]]

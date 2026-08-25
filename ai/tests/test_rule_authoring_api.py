@@ -22,7 +22,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from canopica_ai.policy_intelligence.rule_authoring import api
-from canopica_ai.policy_intelligence.rule_authoring.schema import ParameterProposal, ProposedParameter
+from canopica_ai.policy_intelligence.rule_authoring.schema import (
+    ParameterProposal,
+    ProposedParameter,
+)
 from canopica_ai.policy_intelligence.rule_authoring.service import ProposalGenerationError
 
 _SET_ID = UUID("9f1c0e10-0000-4000-8000-000000000001")

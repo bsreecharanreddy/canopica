@@ -15,7 +15,12 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-from canopica_ai.common.llm_client import NoToolCallError, OllamaClient, PromptTooLongError, ToolSpec
+from canopica_ai.common.llm_client import (
+    NoToolCallError,
+    OllamaClient,
+    PromptTooLongError,
+    ToolSpec,
+)
 from canopica_ai.config import Settings
 
 

@@ -28,8 +28,9 @@ def post_households(
 ) -> list[IntakeIds]:
     """`transport`/`keycloak_transport` are test seams for `httpx.MockTransport` -- production
     calls never pass them. Every household is submitted under the same seeded
-    `citizen.jordan@canopica.local` test identity (`identity/realm-export/canopica-citizens-realm.json`)
-    -- the *data* is what's synthetic and distinct per household (person, income, expenses...),
+    `citizen.jordan@canopica.local` test identity
+    (`identity/realm-export/canopica-citizens-realm.json`) -- the *data* is what's
+    synthetic and distinct per household (person, income, expenses...),
     not which citizen account authenticates the submission, and nothing in the schema links a
     program_request back to the submitting identity anyway."""
     token = _fetch_citizen_token(keycloak_url, transport=keycloak_transport)

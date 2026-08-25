@@ -65,7 +65,11 @@ def _complete_setup_if_needed(client: httpx.Client, user: str, password: str) ->
                 "email": user,
                 "password": password,
             },
-            "prefs": {"site_name": "Canopica Reporting", "site_locale": "en", "allow_tracking": False},
+            "prefs": {
+                "site_name": "Canopica Reporting",
+                "site_locale": "en",
+                "allow_tracking": False,
+            },
         },
     )
     response.raise_for_status()

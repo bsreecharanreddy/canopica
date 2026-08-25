@@ -12,7 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TABLE_TMDL = (
     REPO_ROOT / "reporting" / "semantic-model" / "tables" / "mart_determination_outcomes.tmdl"
 )
-GOLD_YML = REPO_ROOT / "data-platform" / "dbt" / "canopica_warehouse" / "models" / "gold" / "gold.yml"
+GOLD_YML = (
+    REPO_ROOT / "data-platform" / "dbt" / "canopica_warehouse" / "models" / "gold" / "gold.yml"
+)
 
 REQUIRED_MEASURES = {"Determinations", "Eligible Rate", "Average Benefit"}
 

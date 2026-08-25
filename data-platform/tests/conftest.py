@@ -44,7 +44,10 @@ MIGRATIONS_DIR = (
 @pytest.fixture(scope="session")
 def _postgres_container() -> Iterator[PostgresContainer]:
     with PostgresContainer(
-        "postgres:16-alpine", username="canopica_app", password="canopica_app", dbname="canopica_operational"
+        "postgres:16-alpine",
+        username="canopica_app",
+        password="canopica_app",
+        dbname="canopica_operational",
     ) as container:
         yield container
 
@@ -56,7 +59,10 @@ def _serving_postgres_container() -> Iterator[PostgresContainer]:
     so no Flyway migrations belong here, unlike migrated_dsn's operational
     container."""
     with PostgresContainer(
-        "postgres:16-alpine", username="canopica_app", password="canopica_app", dbname="canopica_serving"
+        "postgres:16-alpine",
+        username="canopica_app",
+        password="canopica_app",
+        dbname="canopica_serving",
     ) as container:
         yield container
 
