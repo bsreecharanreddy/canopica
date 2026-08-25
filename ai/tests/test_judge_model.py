@@ -29,6 +29,15 @@ def _response(url: str, payload: dict[str, Any]) -> httpx.Response:
     return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
 
 
+def _status_response(url: str, status_code: int) -> httpx.Response:
+    """A genuine non-2xx HTTP status, distinct from `_response`'s 200-with-
+    `error`-body shape -- OpenRouter uses both across its own stack (an
+    upstream provider error comes back wrapped in a 200; a request its own
+    edge rejects outright comes back as a real status code), and this
+    project has now seen both live."""
+    return httpx.Response(status_code, request=httpx.Request("POST", url))
+
+
 @pytest.fixture(autouse=True)
 def _no_real_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
     # These tests assert retry *behavior*, not real wall-clock backoff --
@@ -107,6 +116,52 @@ class TestTransientUpstreamOverloadIsRetried:
         monkeypatch.setattr(httpx, "post", fake_post)
 
         with pytest.raises(RuntimeError, match="bad request"):
+            OpenRouterJudgeModel(_SETTINGS).generate("grade this")
+
+        assert calls == 1
+
+
+class TestRealHttpStatusErrorsAreRetriedToo:
+    """A real, live gap found 2026-08-25: OpenRouter doesn't always wrap a
+    provider error in a 200 response -- a request its own edge rejects can
+    come back as a genuine non-2xx status (a live CI run hit a real 404).
+    `TestTransientUpstreamOverloadIsRetried` above only ever fakes the
+    200-with-error-body shape, so it could not have caught this."""
+
+    def test_a_real_502_status_is_retried_and_a_later_success_is_returned(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = 0
+
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            if calls < 3:
+                return _status_response(url, 502)
+            return _response(url, {"choices": [{"message": {"content": "grounded verdict"}}]})
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        result = OpenRouterJudgeModel(_SETTINGS).generate("grade this")
+
+        assert result == "grounded verdict"
+        assert calls == 3
+
+    def test_a_real_404_status_is_not_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls = 0
+
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return _status_response(url, 404)
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        with pytest.raises(RuntimeError, match="404"):
             OpenRouterJudgeModel(_SETTINGS).generate("grade this")
 
         assert calls == 1

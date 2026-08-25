@@ -56,6 +56,7 @@ _OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completion
 _RETRYABLE_ERROR_CODES = frozenset({429, 502, 503})
 _MAX_ATTEMPTS = 3
 _RETRY_BACKOFF_SECONDS = 2.0
+_HTTP_OK = 200
 
 
 class OpenRouterNotConfiguredError(RuntimeError):
@@ -118,13 +119,35 @@ class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
                 json=body,
                 timeout=self._timeout_seconds,
             )
-            response.raise_for_status()
+            is_last_attempt = attempt == _MAX_ATTEMPTS - 1
+            # OpenRouter represents an upstream provider error two different
+            # ways, confirmed live on two separate occasions -- a 200 with an
+            # `error` key in the body (2026-08-24's 502 "Service temporarily
+            # overloaded"), and a genuine non-2xx HTTP status (2026-08-25's
+            # real 404). `raise_for_status()` only ever sees the second shape
+            # -- the first still returns 200, so it reaches the `"error" not
+            # in payload` check below untouched. Both are handled here,
+            # against the same `_RETRYABLE_ERROR_CODES`, so neither shape can
+            # silently skip the retry this gate exists for.
+            if response.status_code != _HTTP_OK:
+                if response.status_code not in _RETRYABLE_ERROR_CODES or is_last_attempt:
+                    # Wrapped as RuntimeError rather than left as the raw
+                    # httpx.HTTPStatusError, so a caller sees one exception
+                    # type from this adapter regardless of which of
+                    # OpenRouter's two error shapes actually fired -- the
+                    # 200-with-error-body branch below already raises
+                    # RuntimeError for the same reason.
+                    raise RuntimeError(
+                        f"OpenRouter judge call failed: HTTP {response.status_code} "
+                        f"{response.reason_phrase}"
+                    )
+                time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
+                continue
             payload = response.json()
             if "error" not in payload:
                 content: str = payload["choices"][0]["message"]["content"]
                 return content
             error = payload["error"]
-            is_last_attempt = attempt == _MAX_ATTEMPTS - 1
             if error.get("code") not in _RETRYABLE_ERROR_CODES or is_last_attempt:
                 raise RuntimeError(f"OpenRouter judge call failed: {error}")
             time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
