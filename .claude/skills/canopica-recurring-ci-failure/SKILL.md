@@ -95,3 +95,42 @@ Note honestly when a fix is *credible* rather than *proven*. One green
 run after a behavior-changing fix is weak evidence when the failure was
 intermittent to begin with; say so in the row rather than recording a
 guess as a fact.
+
+## 6. While actively iterating on `ai/` or `ai-eval`, prefer a local repro over another push
+
+This repo's Actions minutes are a real, finite, metered resource, not a
+free variable — measured 2026-08-25: 703 of a 2000/month cap burned in a
+single 24h debugging session, 60% of it (425 min) from `e2e-ai` and
+`ai-eval` alone. Every round-trip in this skill's own worked example
+(the circuit-breaker chain, five rounds across two sessions) paid that
+job's ~13–15 minutes whether or not the round taught anything.
+
+Before pushing a candidate fix for an `ai/`-layer or `ai-eval`-shaped
+failure, reproduce it locally first, against `make up`'s real stack:
+
+    make up
+    make e2e                            # data-platform's + ai/'s pytest -m e2e
+    cd ai && uv run python -m canopica_ai.policy_intelligence.corpus.index \
+      && uv run python -m canopica_ai.policy_intelligence.corpus.search_pipeline \
+      && uv run python -m canopica_ai.policy_intelligence.eval.run_eval --check
+
+That last sequence is exactly `ai-eval`'s own job body — see
+`.github/workflows/ci.yml`'s `ai-eval` steps — run against a local
+OpenSearch/Ollama instead of the runner's. It needs
+`CANOPICA_OPENROUTER_API_KEY` set (`ai/.env`, gitignored), same as CI's own
+`OPENROUTER_API_KEY` secret.
+
+This doesn't replace CI — the final green run still has to happen for
+real, on the real runner, per CLAUDE.md's testing policy — it just moves
+where a *wrong* fix gets caught. A local rejection costs a few minutes of
+wall clock and $0 of quota; a rejected push costs the same wall clock
+*and* 13–15 minutes of a 2000/month budget that doesn't reset until the
+1st.
+
+`.github/workflows/ci.yml`'s `changes` job's `ai_eval` output (added the
+same day as this section, in response to the 703-minute measurement
+above) narrows *which* pushes pay for `ai-eval` at all — it only runs
+when the diff actually touches `ai/` or non-Azure `infra/`. That is a
+real, permanent cut to the *unnecessary* fraction of future runs. It does
+not shrink the cost of iterating on `ai/` itself, which is what this
+section is for.

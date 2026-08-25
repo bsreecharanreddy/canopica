@@ -48,6 +48,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      ai_eval: ${{ steps.filter.outputs.ai_eval }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -83,6 +84,37 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+          # `ai_eval` gates only `ai-eval` (below), the single most expensive
+          # job in this workflow -- measured over a 24h window (2026-08-25)
+          # at 172.6 of this workflow's 703 total Actions-minutes in that
+          # window, ~25% from one job, on a private repo with a 2000
+          # min/month cap. Its real dependency set is narrow and directly
+          # verified from its own steps: it starts only opensearch+ollama
+          # (never portal-api, so never Keycloak, so a Java/DMN/identity-
+          # realm change can't affect it) and runs only `ai/`'s own corpus-
+          # index/search-pipeline/run_eval modules -- unlike `e2e-ai` below,
+          # it never touches data-platform's mf/dbt binaries or a live
+          # portal-api determination. So the deny-list here is deliberately
+          # wider than `code`'s: every top-level directory this job's steps
+          # provably never read from.
+          #
+          # `e2e-ai` and `e2e-data-platform` stay on the broader `code` flag,
+          # unchanged: both start portal-api, whose own Docker build pulls
+          # in `rules-engine/` via the root Maven reactor and `identity/`'s
+          # realm export via Keycloak's bind mount (both confirmed by
+          # reading docker-compose.yml and pom.xml, not assumed), so their
+          # real dependency set is close to everything and narrowing it
+          # safely would need each of those edges re-verified too.
+          #
+          # Same empty-fallback and fail-open philosophy as `code` above: an
+          # unrecognized path counts as relevant, so the failure mode stays
+          # "ran a job that didn't need to," never "silently skipped one
+          # that did."
+          if [ -z "$changed" ] || echo "$changed" | grep -qvE '^(docs/|\.claude/|[^/]*\.md$|reporting/|infra/azure/|portal/|rules-engine/|identity/|data-platform/)'; then
+            echo "ai_eval=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ai_eval=false" >> "$GITHUB_OUTPUT"
           fi
 
   java:
@@ -390,7 +422,7 @@ jobs:
     # higher per-call ceiling, not just the one clean local run.
     timeout-minutes: 35
     needs: [changes, ai]
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.ai_eval == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/cache@v6
