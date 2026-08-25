@@ -6,12 +6,41 @@ Neither talks to OpenSearch directly; this module is the only one that does.
 
 from __future__ import annotations
 
+import time
+from typing import Any
+
 import httpx
 from opensearchpy import OpenSearch
+from opensearchpy.exceptions import TransportError
+from opentelemetry.trace import Span
 from pydantic import BaseModel
 
 from canopica_ai.common.observability import traced_retrieval_call
 from canopica_ai.config import Settings
+
+# ml-commons rejects a search with HTTP 429 when its own memory circuit
+# breaker is open. That is backpressure, not a failure: measured on this
+# stack (CI run 32810042677), the JVM heap sawtoothed past the 92%
+# threshold search_pipeline.py sets, ml-commons sampled `heapUsedPercent`
+# at that peak, and a 391ms collection then dropped the heap to 18% --
+# the garbage was never pressure. Retrying after one GC is the whole fix;
+# raising the threshold again only moves the dice, since the sawtooth's
+# peak approaches 100% by construction and 85 -> 92 had already failed at
+# exactly this. See test_retrieval_backpressure.py for the full evidence.
+#
+# Deliberately keyed on the 429 *status*, not on the message: OpenSearch
+# returns 429 for `circuit_breaking_exception` and for
+# `es_rejected_execution_exception` (a full thread pool), which are the
+# same "try again shortly" signal and want the same handling. Matching on
+# the human-readable string instead would be brittle for no benefit.
+_RETRYABLE_SEARCH_STATUS = 429
+_MAX_SEARCH_ATTEMPTS = 4
+# Linear escalation (2s, 4s, 6s), the same shape and constant as
+# judge_model.py's retry against OpenRouter. Generous next to the ~400ms
+# collection actually observed, and trivial against an eval run measured
+# in minutes -- so the ceiling is set by what makes the gate trustworthy,
+# not by what makes it fast.
+_RETRY_BACKOFF_SECONDS = 2.0
 
 
 class RetrievedChunk(BaseModel):
@@ -39,6 +68,44 @@ def embed_text(text: str, settings: Settings) -> list[float]:
 
 def _client(settings: Settings) -> OpenSearch:
     return OpenSearch(hosts=[settings.opensearch_url])
+
+
+def _search_with_backpressure_retry(
+    client: OpenSearch,
+    body: dict[str, Any],
+    settings: Settings,
+    span: Span,
+) -> dict[str, Any]:
+    """Issues the search, retrying only while ml-commons reports
+    backpressure (see `_RETRYABLE_SEARCH_STATUS` above).
+
+    Any other transport error propagates on the first attempt: a missing
+    index or a malformed query is a real bug, and burning three backoffs
+    before surfacing it would both slow the report down and dress a
+    deterministic failure up as congestion.
+
+    The retry count lands on the *existing* retrieval span rather than in
+    a log line, so a run that succeeded only after backing off is still
+    visibly distinguishable from one that never contended -- the same
+    reason Task 8 instrumented this path at all.
+    """
+    for attempt in range(_MAX_SEARCH_ATTEMPTS):
+        try:
+            response: dict[str, Any] = client.search(
+                index=settings.cfr_corpus_index,
+                body=body,
+                params={"search_pipeline": settings.cfr_search_pipeline},
+            )
+        except TransportError as error:
+            is_last_attempt = attempt == _MAX_SEARCH_ATTEMPTS - 1
+            if error.status_code != _RETRYABLE_SEARCH_STATUS or is_last_attempt:
+                span.set_attribute("canopica.retrieval.backpressure_retries", attempt)
+                raise
+            time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
+            continue
+        span.set_attribute("canopica.retrieval.backpressure_retries", attempt)
+        return response
+    raise AssertionError("unreachable: the loop above either returns or raises")
 
 
 def hybrid_search(
@@ -79,11 +146,7 @@ def hybrid_search(
             "ext": {"rerank": {"query_context": {"query_text": query}}},
         }
 
-        response = client.search(
-            index=settings.cfr_corpus_index,
-            body=body,
-            params={"search_pipeline": settings.cfr_search_pipeline},
-        )
+        response = _search_with_backpressure_retry(client, body, settings, span)
 
         chunks = [
             RetrievedChunk(
