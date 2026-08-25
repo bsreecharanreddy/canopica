@@ -9,9 +9,25 @@ on:
 # this, a quick series of commits queues several full ~20min e2e runs whose
 # results nobody will read anyway, delaying the one that matters and burning
 # this private repo's finite Actions minutes.
+#
+# But *not on main*, and that exception is the whole point of this setting.
+# On a PR branch only the latest commit's verdict matters, so superseding is
+# free. On main, every commit is a permanent part of history and STATUS.md
+# records a per-commit result, so a cancelled run means a commit that is
+# merged and unverified -- and cancellation is not free either way, because
+# whichever run gets killed has usually already paid the expensive part.
+#
+# This has now happened twice, both times self-inflicted by a docs-only
+# push landing while a real run was mid-flight (runs 32806255794 and
+# 32811724784, each killing a run that was minutes from a verdict on a real
+# fix). The first was mistakenly treated as fixed by adding `.claude/` to
+# the docs filter below -- that stops a docs commit from *running* the
+# expensive jobs, but this block is evaluated at workflow level before any
+# of that, so the previous run was still cancelled. Filtering the jobs was
+# never going to fix a cancellation that happens above the jobs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # This repo's own convention commits docs/STATUS.md constantly (often as
