@@ -182,7 +182,14 @@ anticipatory — no fabricated gotchas for problems this repo hasn't had.
 - **`canopica-task-checkpoint` skill** — the per-task regression gate (full
   `make test`/`make lint`, STATUS.md same-commit, one-commit-per-task)
   the testing policy above already requires. Codifies the checklist, adds
-  nothing new to it.
+  nothing new to it — with one exception that *is* incident-derived, in
+  the same spirit as lore-native's tooling: its step 5, "did a call site
+  start touching a new external dependency, and do the CI jobs that
+  execute that call site provision it?", was added after the identical
+  failure hit three times (Tasks 5, 7, and 8 — see STATUS.md's
+  verification log). Local `make test` structurally cannot catch that
+  class of bug, which is why it needed a written check rather than
+  care.
 - **`canopica-design-decision` skill** — the brainstorm → dated doc → approval
   → implementation-plan workflow from the Conventions section below, plus
   exactly where a settled decision gets recorded (STATUS.md, roadmap
