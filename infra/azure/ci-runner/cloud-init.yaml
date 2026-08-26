@@ -39,15 +39,38 @@ write_files:
   # happened here -- see STATUS.md's SNAT idle-timeout row). Cleaning up
   # front guarantees a clean slate no matter how the previous job ended.
   #
-  # Containers and networks only -- volumes are left alone on purpose. The
-  # proven failure is *memory* exhaustion, and volumes cost disk, not RAM;
-  # dropping them would add re-indexing time to every job while fixing
-  # nothing that has actually been shown to break. If a stale-volume bug
-  # ever does appear, it gets diagnosed on its own evidence.
+  # **Containers were only the first of four things that accumulate here,
+  # and scoping this hook to them was an incomplete fix that failed on the
+  # very next run.** The first version pruned containers and networks only,
+  # reasoning that the proven failure was *memory* and that volumes and
+  # images cost disk rather than RAM. True, and beside the point: on a
+  # long-lived VM the disk fills too. Run `32932666191` proved the memory
+  # half fixed (jobs now start with ~6.9GB available, against 657MB before)
+  # and then failed two jobs on `No space left on device` -- the root
+  # filesystem at **100%, 184MB free**, holding 20.7GB of images of which
+  # 16.94GB was unreferenced, plus 2.94GB of build cache and 896MB of dead
+  # volumes. A one-off prune reclaimed 20.2GB and took the disk to 35%.
+  # The lesson worth keeping: "GitHub-hosted runners gave every job a clean
+  # machine" is a statement about *all* Docker state, not just containers,
+  # and fixing one form of it while naming the others as deliberately
+  # out-of-scope is how a fix looks complete and isn't.
+  #
+  # Images and build cache prune on *disk pressure* rather than every job,
+  # because a full prune forces every image to rebuild from scratch on the
+  # next job and that is real wall-clock. Keep the layer cache while there
+  # is room; discard it only when finishing the job matters more than
+  # finishing it quickly. Containers, networks and volumes prune
+  # unconditionally -- those are cheap to recreate and none of them carries
+  # state any job should be inheriting.
   - path: /opt/actions-runner/job-started-hook.sh
     permissions: "0755"
     content: |
       #!/usr/bin/env bash
+      # Pre-job cleanup for a LONG-LIVED runner VM. On GitHub-hosted runners
+      # every job got a fresh machine, so nothing here was ever needed; on one
+      # persistent VM, four separate things accumulate across jobs and each has
+      # taken CI down at least once: containers (memory), then images, build
+      # cache and volumes (disk).
       # No `-e`: this hook must never fail a job. A cleanup that cannot run
       # is worth a log line, not a red build.
       set -uo pipefail
@@ -58,6 +81,17 @@ write_files:
         docker rm -f $${leftovers} >/dev/null 2>&1 || true
       fi
       docker network prune -f >/dev/null 2>&1 || true
+      docker volume prune -f >/dev/null 2>&1 || true
+
+      avail_gb=$$(df --output=avail -BG / 2>/dev/null | tail -1 | tr -dc "0-9")
+      MIN_FREE_GB=12
+      if [ "$${avail_gb:-0}" -lt "$${MIN_FREE_GB}" ]; then
+        echo "job-started-hook: $${avail_gb}GB free is under the $${MIN_FREE_GB}GB floor -- pruning all unused images and build cache"
+        docker image prune -af >/dev/null 2>&1 || true
+        docker builder prune -af >/dev/null 2>&1 || true
+      else
+        docker image prune -f >/dev/null 2>&1 || true
+      fi
 
       echo "job-started-hook: memory available at job start:"
       free -h || true
