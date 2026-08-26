@@ -71,10 +71,19 @@ re-derived per task:
   trigger blocks `UPDATE`/`DELETE`). This keeps "AI drafts, deterministic
   system decides" a structural property, not a convention the AI service
   has to honor voluntarily.
-- **Public demo hosting**: **Fly.io** — free/cheap tier, Docker-native
-  (deploys the same images this repo already builds), persistent volumes
-  for OpenSearch's index data. The concrete pick the design doc's §2.7
-  left as "e.g., Fly.io/Render."
+- **Public demo hosting**: **Fly.io** — Docker-native (deploys the same
+  images this repo already builds), persistent volumes for OpenSearch's
+  index data. The concrete pick the design doc's §2.7 left open. **Not a
+  free tier** (corrected 2026-08-26, live-checked at Task 9
+  implementation time): Fly.io removed free-tier signups in October
+  2024; realistic all-in cost for the smallest always-on machine plus a
+  small volume is ~$5/mo. Render was the other option §2.7 named and is
+  ruled out on a hard constraint, not cost — its free web services have
+  no persistent disk, which the OpenSearch volume below needs. Vercel was
+  considered when this cost was reassessed and ruled out on an even
+  harder constraint: its serverless functions support no persistent
+  process and no arbitrary TCP ports, so an always-resident OpenSearch
+  process cannot run there on any plan, free or paid.
 
 ---
 
@@ -986,7 +995,7 @@ requires for the one unauthenticated surface in this phase.
   so every earlier task's call sites need zero changes to run in either
   mode.
 
-- [ ] **Step 1: `OpenRouterTieredClient`.** Tries the pinned `:free`-
+- [x] **Step 1: `OpenRouterTieredClient`.** Tries the pinned `:free`-
       tagged model first; on a rate-limit response, falls back to a
       pinned cheap paid model for that one request; tracks cumulative
       paid spend for the current month (a simple counter, persisted — a
@@ -1005,7 +1014,7 @@ requires for the one unauthenticated surface in this phase.
       public-repo flip. Both are OpenRouter models behind this same
       client, so implement the model name as configurable from the
       start; the later swap should need no code change.
-- [ ] **Step 2: `guardrails.py`.** An input check (blocks obvious
+- [x] **Step 2: `guardrails.py`.** An input check (blocks obvious
       prompt-injection/off-topic-abuse patterns — a small classifier
       prompt against the same local/tiered model, cheap since it's one
       short call) and an output check (re-verifies the generated answer
@@ -1013,11 +1022,11 @@ requires for the one unauthenticated surface in this phase.
       before it's returned) — applied only in `public_demo/app.py`'s
       request path, on top of Task 2's existing grounding/abstention
       logic, not a replacement for it.
-- [ ] **Step 3: `rate_limit.py`.** A thin per-session/day limiter (e.g.
+- [x] **Step 3: `rate_limit.py`.** A thin per-session/day limiter (e.g.
       an in-memory or Postgres-backed counter keyed by a session cookie)
       in front of the whole tiered chain, so a limiter-triggered response
       is a clean UX message, not a raw upstream 429.
-- [ ] **Step 4: `public_demo/app.py` + `static/index.html`.** A minimal
+- [x] **Step 4: `public_demo/app.py` + `static/index.html`.** A minimal
       FastAPI app mounting the static page and one endpoint
       (`POST /demo/ask`) that calls Task 2's `answer_general()`
       configured with `inference_mode=public_demo` — the general-
@@ -1027,11 +1036,12 @@ requires for the one unauthenticated surface in this phase.
       bundles the `public_demo` app plus a pre-ingested OpenSearch data
       volume (Task 1's corpus, indexed once and shipped, not re-ingested
       on every deploy); `fly.toml` configures the app + a small OpenSearch
-      process on the same always-on free/cheap instance (design doc
-      §2.7's "small always-on free/cheap host" — revisit only if
-      OpenSearch's memory footprint doesn't fit, per that section's own
-      stated fallback plan). Deploy for real; confirm the live URL
-      answers a real question end to end.
+      process on the same always-on instance (design doc §2.7's "small
+      always-on host," ~$5/mo real cost, not free — see that section's
+      2026-08-26 correction — revisit only if OpenSearch's memory
+      footprint doesn't fit, per that section's own stated fallback
+      plan). Deploy for real; confirm the live URL answers a real
+      question end to end.
 - [ ] **Step 6: `test_public_demo.py`.** Local (non-deployed) tests: the
       tiered client actually falls back on a simulated rate-limit
       response (mocked OpenRouter, not a real account call in CI); the

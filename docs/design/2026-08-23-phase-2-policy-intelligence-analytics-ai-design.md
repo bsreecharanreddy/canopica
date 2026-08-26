@@ -297,9 +297,22 @@ inference needs real compute either way):
   sits in front of the whole chain for a clean UX message rather than a
   raw upstream error at any tier.
 - **App + retrieval hosting**: embeddings, OpenSearch, and the FastAPI
-  app itself run on a small always-on free/cheap host — a Task-level
-  implementation pick (e.g., Fly.io/Render free tier), not a phase-level
-  fork; revisit only if OpenSearch's memory footprint doesn't fit.
+  app itself run on a small always-on host — a Task-level implementation
+  pick, not a phase-level fork; revisit only if OpenSearch's memory
+  footprint doesn't fit. **Corrected 2026-08-26**: this section originally
+  said "free/cheap" and named Fly.io/Render free tiers as the concrete
+  option — live-checked at Task 9 implementation time and both are stale.
+  Fly.io removed free-tier signups in October 2024 (pay-as-you-go only,
+  card required); Render's free web services have no persistent disk,
+  which the pre-ingested OpenSearch volume this section's own Task 9 plan
+  entry requires cannot do without. Vercel was raised as a third option
+  and ruled out on a harder constraint, not cost: its serverless
+  functions have no persistent process, no arbitrary TCP ports, and a
+  capped execution duration, so an always-resident, disk-backed OpenSearch
+  process cannot run there at all, on any plan. Fly.io stays the pick —
+  ~$5/mo all-in for the smallest always-on shared-cpu-1x machine plus a
+  small volume, a real but small recurring cost, not free. See
+  `docs/STATUS.md`'s verification log for the live pricing check.
 
 ### 2.8 AI observability
 
