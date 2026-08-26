@@ -22,6 +22,18 @@ variable "github_repository" {
   default     = "bsreecharanreddy/canopica"
 }
 
+variable "github_owner_id" {
+  description = "Immutable numeric ID of github_repository's owner, required in the federated credential's `subject` below. Found live, not assumed: the first real CI run after this apply failed `azure/login` with AADSTS700213 (no matching federated identity), because GitHub now issues the immutable-ID subject format (`repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:...`) for any repository renamed on or after 2026-07-15 -- this repo was renamed the same day this Terraform root was first applied. Independently verified against `gh api repos/bsreecharanreddy/canopica` (not just trusted from the error message), matching it exactly."
+  type        = number
+  default     = 283869510
+}
+
+variable "github_repo_id" {
+  description = "Immutable numeric ID of github_repository itself -- see github_owner_id's own comment for why this pair exists."
+  type        = number
+  default     = 1341374123
+}
+
 variable "admin_username" {
   description = "Linux admin user on the runner VM. SSH is not exposed (no public IP, no inbound NSG rule) -- one-time setup and any future access happen via `az vm run-command invoke`, which doesn't need this account to be reachable over the network."
   type        = string

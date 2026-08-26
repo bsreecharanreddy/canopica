@@ -1,5 +1,7 @@
 locals {
-  name_prefix = "${var.project_name}-ci-runner"
+  name_prefix       = "${var.project_name}-ci-runner"
+  github_owner_name = split("/", var.github_repository)[0]
+  github_repo_name  = split("/", var.github_repository)[1]
 }
 
 data "azurerm_client_config" "current" {}
@@ -141,7 +143,11 @@ resource "azuread_application_federated_identity_credential" "main_branch" {
   display_name   = "github-actions-main"
   audiences      = ["api://AzureADTokenExchange"]
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repository}:ref:refs/heads/main"
+  # Immutable-ID format (github_owner_id/github_repo_id's own comment has
+  # the why), not the plain-name form GitHub's docs lead with -- this repo
+  # was renamed after 2026-07-15, so GitHub already emits this format and a
+  # plain-name subject here simply never matches.
+  subject = "repo:${local.github_owner_name}@${var.github_owner_id}/${local.github_repo_name}@${var.github_repo_id}:ref:refs/heads/main"
 }
 
 resource "azuread_application_federated_identity_credential" "pull_request" {
@@ -149,7 +155,7 @@ resource "azuread_application_federated_identity_credential" "pull_request" {
   display_name   = "github-actions-pull-request"
   audiences      = ["api://AzureADTokenExchange"]
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repository}:pull_request"
+  subject        = "repo:${local.github_owner_name}@${var.github_owner_id}/${local.github_repo_name}@${var.github_repo_id}:pull_request"
 }
 
 # Virtual Machine Contributor, not plain Contributor -- ci.yml's
