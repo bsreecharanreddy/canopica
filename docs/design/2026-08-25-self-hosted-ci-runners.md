@@ -220,3 +220,41 @@ approach.
   (an autoscaling self-hosted runner pool — e.g. GitHub's own Actions
   Runner Controller on Kubernetes — rather than one VM manually started
   and stopped).
+
+## 6. Addendum (2026-08-25): widened to every job, not just the 3 heavy ones
+
+The scope above was deliberately narrow — only `e2e-data-platform`,
+`e2e-ai`, and `ai-eval` moved to `canopica-heavy`; the 8 fast jobs stayed
+on `ubuntu-latest` since they were already cheap. That assumption broke
+for real the same day this doc's Option B was first applied: this
+private repo's GitHub Actions minutes were fully exhausted (2000/month
+cap), and every `ubuntu-latest` job — including the cheap ones, including
+`changes` itself — started failing outright with "recent account
+payments have failed or your spending limit needs to be increased" (run
+`32913936148`), not degrading gracefully or queuing. A private repo past
+its included minutes needs either a raised spending limit/working payment
+method, or to stop depending on GitHub-hosted minutes at all; this repo's
+own push cadence (15-20/day during active work, per `docs/STATUS.md`)
+makes the second the more durable fix.
+
+**Every job now runs on `canopica-heavy` except `changes`, `start-runner`,
+and `stop-runner`.** That trio is structurally irreducible, not an
+oversight: deciding whether to start the VM, and then actually starting
+it, cannot itself run on the VM being started. Those 3 jobs are cheap
+(seconds each) and still need *some* GitHub-hosted minutes/working
+billing to run at all — this change reduces GitHub Actions usage by
+roughly 90%+ per run, it does not eliminate it, and does not by itself
+unblock a fully-exhausted account. `start-runner` also dropped its
+`needs: [changes]`/`if: needs.changes.outputs.code == 'true'` gate:
+it used to start the VM only when the 3 heavy jobs' own `code` flag
+was true, but now every job (including the 8 previously-`ubuntu-latest`
+ones, which already ran unconditionally on every push, docs-only
+included) needs the VM, so starting it is unconditional too, and no
+longer waits on `changes` to finish first.
+
+**Real consequence, not free**: a single self-hosted runner processes one
+job at a time. Jobs that used to run in GitHub-hosted parallel (up to 11
+of them) now serialize on this one VM — a real-code push's total CI
+wall-clock time goes up accordingly. Accepted as the right trade for this
+project's situation (near-zero GitHub-hosted minutes beats a fast CI run
+that can't start at all), not revisited here as a new decision.

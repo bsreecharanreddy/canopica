@@ -34,9 +34,13 @@ jobs:
   # its own commit, e.g. recording a CI result), and each of those was
   # triggering the full end-to-end Compose stack -- ~20min to prove that
   # unchanged code still behaves unchanged. The eight fast jobs below all
-  # still run on a docs-only commit (they total under two minutes, and this
-  # project's standard is to verify even a docs-only change); only the two
-  # expensive e2e jobs are gated on real code having changed.
+  # still run on a docs-only commit (this project's standard is to verify
+  # even a docs-only change) -- "fast" now means "cheap to run," not "quick
+  # wall-clock": since 2026-08-25 they run on the same single self-hosted
+  # VM as everything else (see `start-runner`'s own comment) and so
+  # serialize with each other and the heavy jobs rather than running in
+  # GitHub-hosted parallel, unlike before. Only the two expensive e2e jobs
+  # are gated on real code having changed.
   #
   # Deliberately a deny-list, not an allow-list of code paths: a new
   # top-level directory nobody remembered to add here still counts as code
@@ -149,22 +153,26 @@ jobs:
             echo "e2e_ai=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # The 3 heavy jobs below (e2e-data-platform, e2e-ai, ai-eval) run on
+  # Every job below except `changes`, this one, and `stop-runner` runs on
   # infra/azure/ci-runner/'s self-hosted VM, not ubuntu-latest -- see
-  # docs/design/2026-08-25-self-hosted-ci-runners.md for why. This job
-  # brings it out of `deallocate`d (stopped, effectively free) state via
-  # OIDC federated login -- no client secret stored in GitHub -- and
-  # `stop-runner` below puts it back regardless of outcome. Its own `if`
-  # deliberately mirrors only `code`, not `ai_eval`/`e2e_ai`: every one of
-  # the 3 heavy jobs' own conditions already ANDs with `code`, so `code ==
-  # 'true'` is both necessary and sufficient for at least one of them
-  # needing the runner.
+  # docs/design/2026-08-25-self-hosted-ci-runners.md for why (2026-08-25
+  # addendum: widened from the original 3 heavy jobs to all of them, after
+  # this repo's GitHub Actions minutes were fully exhausted for real,
+  # blocking every ubuntu-latest job outright -- run `32913936148`, "recent
+  # account payments have failed or your spending limit needs to be
+  # increased"). `changes`/`start-runner`/`stop-runner` are the
+  # structurally-irreducible remainder: something has to decide whether to
+  # turn the VM on and then actually do it, and that can't run *on* the VM
+  # it's turning on. Unconditional now, unlike the narrower version this
+  # replaced -- every job downstream needs the runner on every push, not
+  # just when `code` changed, since the "fast" jobs below run unconditionally
+  # too (see the `changes` job's own comment). No `needs: [changes]` either:
+  # nothing here depends on `changes`' output anymore, so starting the VM
+  # runs in parallel with change-detection instead of waiting on it.
   start-runner:
     name: Start self-hosted CI runner
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
     permissions:
       id-token: write
       contents: read
@@ -178,8 +186,9 @@ jobs:
 
   java:
     name: Java (api + rules engine)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 15
+    needs: [start-runner]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -192,8 +201,9 @@ jobs:
 
   web:
     name: Web (React UI)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 10
+    needs: [start-runner]
     defaults:
       run:
         working-directory: ui
@@ -211,8 +221,9 @@ jobs:
 
   python:
     name: Python (data platform)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 10
+    needs: [start-runner]
     defaults:
       run:
         working-directory: data-platform
@@ -228,8 +239,9 @@ jobs:
 
   ai:
     name: Python (AI capability layer)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 10
+    needs: [start-runner]
     defaults:
       run:
         working-directory: ai
@@ -252,8 +264,9 @@ jobs:
 
   audit-chain:
     name: Audit chain verifier (integration)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 10
+    needs: [start-runner]
     defaults:
       run:
         working-directory: data-platform
@@ -267,8 +280,9 @@ jobs:
 
   dbt:
     name: Bronze ingestion + dbt silver/gold (integration)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 15
+    needs: [start-runner]
     defaults:
       run:
         working-directory: data-platform
@@ -282,8 +296,9 @@ jobs:
 
   reporting:
     name: Serving-layer materialization (integration)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 10
+    needs: [start-runner]
     defaults:
       run:
         working-directory: data-platform
@@ -573,17 +588,34 @@ jobs:
           name: compose-logs-ai-eval
           path: compose-logs-ai-eval.txt
 
-  # `if: always()` so this still deallocates when a heavy job fails or times
-  # out -- billing runs on wall-clock VM uptime, not job outcome. The
-  # `needs.start-runner.result == 'success'` guard is the other half: on a
-  # docs-only push `start-runner` itself is skipped (never called `az vm
-  # start`), and `always()` alone would otherwise still run this job and
-  # deallocate a VM nothing here ever started.
+  # `if: always()` so this still deallocates when any job above fails or
+  # times out -- billing runs on wall-clock VM uptime, not job outcome. The
+  # `needs.start-runner.result == 'success'` guard is the other half: if
+  # `start-runner` itself failed (Azure outage, expired federation), the VM
+  # was likely never actually started, and `always()` alone would otherwise
+  # still run this job and attempt to deallocate a VM nothing here started.
+  # `needs` lists every job that now runs on the self-hosted VM -- not just
+  # the original 3 heavy ones -- so this waits for all of them before
+  # powering it off.
   stop-runner:
     name: Stop self-hosted CI runner
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [start-runner, e2e-data-platform, e2e-ai, ai-eval]
+    needs:
+      [
+        start-runner,
+        java,
+        web,
+        python,
+        ai,
+        audit-chain,
+        dbt,
+        reporting,
+        terraform,
+        e2e-data-platform,
+        e2e-ai,
+        ai-eval,
+      ]
     if: always() && needs.start-runner.result == 'success'
     permissions:
       id-token: write
@@ -598,8 +630,9 @@ jobs:
 
   terraform:
     name: Reference Terraform for Azure (validate only)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 10
+    needs: [start-runner]
     defaults:
       run:
         working-directory: infra/azure

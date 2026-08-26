@@ -65,9 +65,23 @@ federated credentials (`push` to `main`, and `pull_request`), scoped to
 
 Nothing to do. `ci.yml`'s `start-runner`/`stop-runner` jobs handle the
 VM's lifecycle per CI run. If a run's `start-runner` step fails (Azure
-outage, expired federation, whatever), the three heavy jobs queue rather
-than fail outright — same tradeoff Option A (the laptop) would have had,
-not worth building automatic failover for.
+outage, expired federation, whatever), every job that needs the runner
+queues rather than fails outright — same tradeoff Option A (the laptop)
+would have had, not worth building automatic failover for.
+
+**2026-08-25 addendum**: originally only the 3 heaviest Compose jobs ran
+here; now every job does except `changes`/`start-runner`/`stop-runner`
+themselves (structurally irreducible — something has to decide to turn
+the VM on and then do it, and that can't run on the VM being turned on).
+Widened after this repo's GitHub Actions minutes were fully exhausted for
+real, which blocks *every* `ubuntu-latest` job outright, not just the
+expensive ones — see `docs/design/2026-08-25-self-hosted-ci-runners.md`'s
+own addendum for the incident. One real consequence worth knowing before
+relying on this: a single runner processes one job at a time, so jobs
+that used to run in GitHub-hosted parallel now serialize on this one VM
+— a real-code push's total CI wall-clock time went up accordingly, in
+exchange for using close to zero GitHub-hosted minutes per run instead of
+all of them.
 
 ## Before this repo goes public
 
