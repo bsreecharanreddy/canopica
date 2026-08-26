@@ -14,6 +14,14 @@ packages:
   - ca-certificates
   - curl
   - jq
+  # unzip/zip: absent from this minimal Ubuntu cloud image (GitHub-hosted
+  # ubuntu-latest bundles them, so this gap only showed up once real jobs
+  # started running here) -- unzip specifically is a hard dependency of
+  # ci.yml's `hashicorp/setup-terraform@v4` step, which failed outright
+  # on "Unable to locate executable file: unzip" the first time the
+  # `terraform` job ran on this runner (run 32923099481).
+  - unzip
+  - zip
 
 runcmd:
   # Docker Engine, official convenience script -- same install path
@@ -30,6 +38,26 @@ runcmd:
   # registration step in README.md is the natural point to notice an
   # update is available anyway.
   - mkdir -p /opt/actions-runner
+
+  # Testcontainers-Java (api/pom.xml's pinned testcontainers.version)
+  # ships a Docker-client detection probe (UnixSocketClientProviderStrategy)
+  # that hardcodes API version 1.32 for its initial handshake -- a known
+  # upstream testcontainers-java/docker-java gap against very recent Docker
+  # Engine releases that dropped support for anything below their own
+  # floor. get.docker.com installs current Docker Engine (29.7.2 as of
+  # this VM's build, minimum supported API 1.40), so that hardcoded 1.32
+  # probe fails outright with "client version 1.32 is too old" before
+  # docker-java ever gets to negotiate a real version -- hit live in the
+  # `java` job (run 32923099481). `DOCKER_API_VERSION` here is a real
+  # supported docker-java config knob (not a hack): setting it skips the
+  # broken auto-detection and uses this pinned version directly. 1.51,
+  # not the daemon's max (1.55) or its stated floor (1.40) -- comfortably
+  # inside the daemon's supported range with headroom either direction if
+  # the daemon version drifts slightly on a future rebuild. This `.env`
+  # file is a real GitHub Actions self-hosted-runner feature: every job
+  # this runner executes inherits it automatically, no ci.yml change
+  # needed.
+  - echo "DOCKER_API_VERSION=1.51" > /opt/actions-runner/.env
   - |
     RUNNER_VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/^v//')
     curl -fsSL -o /opt/actions-runner/runner.tar.gz \
