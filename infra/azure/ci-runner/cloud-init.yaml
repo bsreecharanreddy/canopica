@@ -105,6 +105,17 @@ write_files:
       # is worth a log line, not a red build.
       set -uo pipefail
 
+      # actions/checkout's `git clean -ffdx` cannot remove root-owned files,
+      # and Ollama runs as root inside its container. OLLAMA_MODELS_DIR
+      # keeps the real cache at /opt/ollama-models, outside the workspace,
+      # but any job that ever runs `docker compose` without that env var
+      # set falls back to the in-workspace default and leaves root-owned
+      # junk behind that checkout can never clean on its own -- this took
+      # down every job on the runner in run 32994298760 with
+      # `EACCES: permission denied, rmdir '.../infra/ollama-models/cache'`.
+      # Swept here, with root, before checkout ever runs.
+      sudo rm -rf /opt/actions-runner/_work/canopica/canopica/infra/ollama-models 2>/dev/null || true
+
       leftovers=$$(docker ps -aq 2>/dev/null || true)
       if [ -n "$${leftovers}" ]; then
         echo "job-started-hook: removing $$(echo "$${leftovers}" | wc -l) container(s) left by a previous job"
