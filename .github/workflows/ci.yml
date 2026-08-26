@@ -641,6 +641,15 @@ jobs:
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: '1.15.8'
+          # The default wrapper is a Node.js shim that captures each
+          # command's stdout into a step output -- nothing below has an
+          # `id:` or reads `steps.*.outputs`, so it's dead weight here, and
+          # this runner has no Node.js installed (unlike ubuntu-latest,
+          # which bundles it for other actions). Failed outright with
+          # "env: node: No such file or directory" on the first run this
+          # job executed on canopica-heavy (run 32924144504) before this
+          # was set.
+          terraform_wrapper: false
       - run: terraform fmt -check
       - run: terraform init -backend=false
       # No plan/apply -- infra/azure/README.md states why (no subscription,

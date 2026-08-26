@@ -40,24 +40,26 @@ runcmd:
   - mkdir -p /opt/actions-runner
 
   # Testcontainers-Java (api/pom.xml's pinned testcontainers.version)
-  # ships a Docker-client detection probe (UnixSocketClientProviderStrategy)
-  # that hardcodes API version 1.32 for its initial handshake -- a known
-  # upstream testcontainers-java/docker-java gap against very recent Docker
-  # Engine releases that dropped support for anything below their own
-  # floor. get.docker.com installs current Docker Engine (29.7.2 as of
-  # this VM's build, minimum supported API 1.40), so that hardcoded 1.32
-  # probe fails outright with "client version 1.32 is too old" before
-  # docker-java ever gets to negotiate a real version -- hit live in the
-  # `java` job (run 32923099481). `DOCKER_API_VERSION` here is a real
-  # supported docker-java config knob (not a hack): setting it skips the
-  # broken auto-detection and uses this pinned version directly. 1.51,
-  # not the daemon's max (1.55) or its stated floor (1.40) -- comfortably
-  # inside the daemon's supported range with headroom either direction if
-  # the daemon version drifts slightly on a future rebuild. This `.env`
-  # file is a real GitHub Actions self-hosted-runner feature: every job
-  # this runner executes inherits it automatically, no ci.yml change
-  # needed.
-  - echo "DOCKER_API_VERSION=1.51" > /opt/actions-runner/.env
+  # ships a Docker-client detection probe that hardcodes API version 1.32
+  # for its initial handshake -- a known upstream testcontainers-java/
+  # docker-java gap against Docker Engine releases this recent (29.7.2,
+  # installed fresh via get.docker.com below, minimum supported API 1.40).
+  # Fixed in the repo itself, not here: `DOCKER_API_VERSION`/`DOCKER_HOST`
+  # environment variables were tried first (a `.env` file used to live at
+  # this exact point in this script) and neither changed the outcome --
+  # confirmed live, by testing both directly on this VM against the real
+  # failing test, not assumed. Every strategy docker-java tried, including
+  # `EnvironmentAndSystemPropertyClientProviderStrategy` (the one meant to
+  # read exactly these env vars), failed with the identical hardcoded-1.32
+  # error, which means the handshake this daemon rejects happens before
+  # docker-java ever consults them. `api/src/test/resources/docker-
+  # java.properties` (a classpath resource, docker-java's own documented
+  # config mechanism, one level docker-java's config loader consults
+  # earlier) is what actually worked when tested the same way -- see that
+  # file's own comment for the fuller story. A VM-level fix would only
+  # have helped this one project anyway; the classpath resource travels
+  # with the code, so it works for anyone who clones this repo and runs
+  # its tests locally too, not just on this specific runner.
   - |
     RUNNER_VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/^v//')
     curl -fsSL -o /opt/actions-runner/runner.tar.gz \
