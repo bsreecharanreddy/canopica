@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canopica -- SNAP policy Q&amp;A demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 40rem;
+      margin: 3rem auto;
+      padding: 0 1rem;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 1.4rem; }
+    p.subtitle { color: #555; }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+      padding: 0.5rem;
+    }
+    button {
+      margin-top: 0.5rem;
+      padding: 0.5rem 1rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    #answer {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      white-space: pre-wrap;
+    }
+    #answer.hidden { display: none; }
+    #citations { margin-top: 0.5rem; font-size: 0.85rem; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Canopica: SNAP eligibility policy Q&amp;A</h1>
+  <p class="subtitle">
+    Ask a general question about SNAP (food assistance) eligibility
+    policy. Answers are grounded only in the regulation text (7 CFR
+    Part 273) and cite the exact section used. This is a portfolio demo,
+    not a real benefits system, and does not store what you ask.
+  </p>
+  <textarea id="question" rows="3" placeholder="e.g. What is the gross income test for SNAP?"></textarea>
+  <br />
+  <button id="ask">Ask</button>
+  <div id="answer" class="hidden"></div>
+  <div id="citations"></div>
+
+  <script>
+    const askButton = document.getElementById("ask");
+    const questionBox = document.getElementById("question");
+    const answerBox = document.getElementById("answer");
+    const citationsBox = document.getElementById("citations");
+
+    async function ask() {
+      const question = questionBox.value.trim();
+      if (!question) {
+        return;
+      }
+      askButton.disabled = true;
+      answerBox.classList.remove("hidden");
+      answerBox.textContent = "Thinking...";
+      citationsBox.textContent = "";
+      try {
+        const response = await fetch("/demo/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          answerBox.textContent = body.detail || "Something went wrong. Please try again.";
+          return;
+        }
+        const data = await response.json();
+        answerBox.textContent = data.answer;
+        citationsBox.textContent = data.citations && data.citations.length
+          ? "Cited: " + data.citations.join(", ")
+          : "";
+      } catch (error) {
+        answerBox.textContent = "Something went wrong. Please try again.";
+      } finally {
+        askButton.disabled = false;
+      }
+    }
+
+    askButton.addEventListener("click", ask);
+    questionBox.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        ask();
+      }
+    });
+  </script>
+</body>
+</html>
