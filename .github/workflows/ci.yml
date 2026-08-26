@@ -49,6 +49,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       ai_eval: ${{ steps.filter.outputs.ai_eval }}
+      e2e_ai: ${{ steps.filter.outputs.e2e_ai }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -116,6 +117,64 @@ jobs:
           else
             echo "ai_eval=false" >> "$GITHUB_OUTPUT"
           fi
+          # `e2e_ai` gates only `e2e-ai` (below). Narrower than `code`, but
+          # deliberately *not* as narrow as `ai_eval` above -- checked
+          # against what `e2e-ai`'s own steps actually start (opensearch,
+          # ollama, api; never metabase/grafana/prometheus/airflow, never
+          # ui, never Terraform), so `reporting/`, `infra/azure/`, and `ui/`
+          # are safe to exclude on that same basis -- `ui/` because
+          # `TestAnswerDenial` calls `answer_denial()` directly over HTTP
+          # against the API, never through the React app this job doesn't
+          # even start.
+          #
+          # `api/`, `rules-engine/`, and `identity/` stay IN scope here,
+          # unlike `ai_eval`, for a reason specific to this job rather than
+          # copied from it: `ai/tests/test_policy_qa.py::TestAnswerDenial`
+          # is the *only* place in this whole suite that authenticates
+          # against the citizen Keycloak realm and drives a citizen-facing
+          # application through to a determination -- verified by reading
+          # `data-platform/tests/test_end_to_end.py`, whose own real e2e
+          # coverage of intake+determination only ever fetches a *worker*
+          # token (`_fetch_worker_token`), never a citizen one. So a
+          # citizen-realm-scoped regression in `identity/` or a
+          # citizen-path-scoped one in `api/` would be caught nowhere
+          # else if this job stopped running on those paths. `rules-engine/`
+          # stays in for the same fail-open reason `ai_eval`'s own comment
+          # gives: not proven disconnected, so it counts as relevant.
+          # `data-platform/` also stays in -- the Analytics Copilot shells
+          # out to its `mf`/`dbt` binaries in this same job.
+          if [ -z "$changed" ] || echo "$changed" | grep -qvE '^(docs/|\.claude/|[^/]*\.md$|reporting/|infra/azure/|ui/)'; then
+            echo "e2e_ai=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "e2e_ai=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # The 3 heavy jobs below (e2e-data-platform, e2e-ai, ai-eval) run on
+  # infra/azure/ci-runner/'s self-hosted VM, not ubuntu-latest -- see
+  # docs/design/2026-08-25-self-hosted-ci-runners.md for why. This job
+  # brings it out of `deallocate`d (stopped, effectively free) state via
+  # OIDC federated login -- no client secret stored in GitHub -- and
+  # `stop-runner` below puts it back regardless of outcome. Its own `if`
+  # deliberately mirrors only `code`, not `ai_eval`/`e2e_ai`: every one of
+  # the 3 heavy jobs' own conditions already ANDs with `code`, so `code ==
+  # 'true'` is both necessary and sufficient for at least one of them
+  # needing the runner.
+  start-runner:
+    name: Start self-hosted CI runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: az vm start --resource-group canopica-ci-runner-rg --name canopica-ci-runner-vm
 
   java:
     name: Java (api + rules engine)
@@ -252,9 +311,9 @@ jobs:
   # tune margins around it.
   e2e-data-platform:
     name: End-to-end -- data platform
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 25
-    needs: [changes, java, python, dbt]
+    needs: [changes, java, python, dbt, start-runner]
     if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -292,10 +351,10 @@ jobs:
 
   e2e-ai:
     name: End-to-end -- AI layer
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     timeout-minutes: 30
-    needs: [changes, java, ai]
-    if: needs.changes.outputs.code == 'true'
+    needs: [changes, java, ai, start-runner]
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.e2e_ai == 'true'
     steps:
       - uses: actions/checkout@v7
       # ollama-init pulls ~2.3GB (nomic-embed-text + llama3.2:3b) from
@@ -404,7 +463,7 @@ jobs:
 
   ai-eval:
     name: Eval-suite gate -- Policy Q&A
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, canopica-heavy]
     # Measured live (2026-08-24), on an otherwise-idle host: the 8-question
     # CI-gate subset (see run_eval.py's own _CI_GATE_QUESTIONS) took 13:41
     # end to end (retrieval + local Ollama generation, sequential --
@@ -421,7 +480,7 @@ jobs:
     # needing a grounding retry (2 generation calls) at the new,
     # higher per-call ceiling, not just the one clean local run.
     timeout-minutes: 35
-    needs: [changes, ai]
+    needs: [changes, ai, start-runner]
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.ai_eval == 'true'
     steps:
       - uses: actions/checkout@v7
@@ -513,6 +572,29 @@ jobs:
         with:
           name: compose-logs-ai-eval
           path: compose-logs-ai-eval.txt
+
+  # `if: always()` so this still deallocates when a heavy job fails or times
+  # out -- billing runs on wall-clock VM uptime, not job outcome. The
+  # `needs.start-runner.result == 'success'` guard is the other half: on a
+  # docs-only push `start-runner` itself is skipped (never called `az vm
+  # start`), and `always()` alone would otherwise still run this job and
+  # deallocate a VM nothing here ever started.
+  stop-runner:
+    name: Stop self-hosted CI runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [start-runner, e2e-data-platform, e2e-ai, ai-eval]
+    if: always() && needs.start-runner.result == 'success'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: az vm deallocate --resource-group canopica-ci-runner-rg --name canopica-ci-runner-vm
 
   terraform:
     name: Reference Terraform for Azure (validate only)

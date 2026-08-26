@@ -1,0 +1,39 @@
+#cloud-config
+# Installs everything the runner needs to *exist*, but deliberately does
+# NOT run config.sh -- GitHub's runner registration token is short-lived
+# (~1 hour) and there's no way to hand cloud-init a fresh one at
+# `terraform apply` time. Registration is the one manual, one-time step
+# README.md documents (via `az vm run-command invoke`, which needs no
+# public IP or SSH access). After that, the runner is a systemd service
+# and starts automatically on every VM boot -- ci.yml's `az vm start`
+# never re-registers it.
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - jq
+
+runcmd:
+  # Docker Engine, official convenience script -- same install path
+  # Docker's own docs recommend, not a distro-packaged docker.io build
+  # that tends to lag upstream.
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ${admin_username}
+  - systemctl enable --now docker
+
+  # Latest runner release, fetched at boot rather than pinned to a version
+  # baked into this file -- this VM is long-lived (started/stopped across
+  # months, not rebuilt per run, unlike a normal ephemeral CI container),
+  # so a version pinned here would silently go stale. The one-time
+  # registration step in README.md is the natural point to notice an
+  # update is available anyway.
+  - mkdir -p /opt/actions-runner
+  - |
+    RUNNER_VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+    curl -fsSL -o /opt/actions-runner/runner.tar.gz \
+      "https://github.com/actions/runner/releases/download/v$${RUNNER_VERSION}/actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz"
+  - tar xzf /opt/actions-runner/runner.tar.gz -C /opt/actions-runner
+  - /opt/actions-runner/bin/installdependencies.sh
+  - chown -R ${admin_username}:${admin_username} /opt/actions-runner
