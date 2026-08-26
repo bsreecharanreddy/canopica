@@ -7,8 +7,10 @@ what let Task 9 add a second implementation (`OpenRouterTieredClient`,
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -284,6 +286,36 @@ def _add_spend(path: Path, additional_usd: float) -> None:
     path.write_text(json.dumps({"month": _current_month_key(), "spent_usd": updated}))
 
 
+@contextlib.contextmanager
+def _spend_lock(path: Path) -> Iterator[None]:
+    """Serializes a whole cap-check-then-record section across threads and
+    OS processes on the same host -- a background security review of this
+    client's initial commit (f42b46c) flagged the unguarded version as
+    both a lost-update race (`_add_spend`'s read-modify-write) and a
+    fail-open gap (two concurrent calls could each read spend under the
+    cap and both proceed to the paid model before either recorded its
+    cost). An flock on a sibling lock file closes both at once, since
+    every caller holds it across the whole check-call-record section, not
+    just the final write.
+
+    A cross-process file lock, not a `threading.Lock` -- `Settings`'s own
+    "a file... is enough for this scale, not a metering service" already
+    accepts a single-host deployment, so this matches that scope exactly:
+    correct if the public demo ever runs multiple worker processes on one
+    machine, silently insufficient only if it ever spans multiple
+    machines, which the file-based spend store could not have supported
+    either way.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_name(path.name + ".lock")
+    with lock_path.open("w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
 class OpenRouterTieredClient:
     """The `public_demo` `inference_mode`'s `LlmClient` (Task 9 plan, Step
     1) -- Policy Q&A's general-question path only (design doc §2.7), never
@@ -315,25 +347,28 @@ class OpenRouterTieredClient:
         except _RateLimitedError:
             pass
 
-        if _read_spend(settings.openrouter_public_demo_spend_file) >= (
-            settings.openrouter_public_demo_monthly_cap_usd
-        ):
-            raise InferenceUnavailableError(
-                "free tier is rate-limited and this month's paid-tier spend cap "
-                f"(${settings.openrouter_public_demo_monthly_cap_usd:.2f}) is already reached"
-            )
+        # Held across the cap check, the paid call, and the spend record --
+        # see _spend_lock's docstring for the race this closes.
+        with _spend_lock(settings.openrouter_public_demo_spend_file):
+            if _read_spend(settings.openrouter_public_demo_spend_file) >= (
+                settings.openrouter_public_demo_monthly_cap_usd
+            ):
+                raise InferenceUnavailableError(
+                    "free tier is rate-limited and this month's paid-tier spend cap "
+                    f"(${settings.openrouter_public_demo_monthly_cap_usd:.2f}) is already reached"
+                )
 
-        try:
-            response, cost_usd = self._call_and_cost(
-                settings.openrouter_public_demo_paid_model, prompt
-            )
-        except _RateLimitedError as error:
-            raise InferenceUnavailableError(
-                "both the free and paid OpenRouter tiers are rate-limited"
-            ) from error
+            try:
+                response, cost_usd = self._call_and_cost(
+                    settings.openrouter_public_demo_paid_model, prompt
+                )
+            except _RateLimitedError as error:
+                raise InferenceUnavailableError(
+                    "both the free and paid OpenRouter tiers are rate-limited"
+                ) from error
 
-        _add_spend(settings.openrouter_public_demo_spend_file, cost_usd)
-        return response
+            _add_spend(settings.openrouter_public_demo_spend_file, cost_usd)
+            return response
 
     def _call(self, model: str, prompt: str) -> LlmResponse:
         response, _ = self._call_and_cost(model, prompt)

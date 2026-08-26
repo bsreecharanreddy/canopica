@@ -7,6 +7,7 @@ No real network: `httpx.post` is swapped for a scripted stub, matching
 from __future__ import annotations
 
 import json
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 import httpx
 import pytest
 
+from canopica_ai.common import llm_client
 from canopica_ai.common.llm_client import (
     InferenceUnavailableError,
     OpenRouterNotConfiguredError,
@@ -209,6 +211,40 @@ class TestBothTiersUnavailable:
 
         with pytest.raises(InferenceUnavailableError):
             OpenRouterTieredClient(_settings(tmp_path)).generate("a question")
+
+
+class TestConcurrentPaidTierAccounting:
+    def test_concurrent_spend_updates_are_not_lost(self, tmp_path: Path) -> None:
+        """A background security review of f42b46c (this client's initial
+        commit) flagged `_add_spend`'s read-modify-write as a lost-update
+        race, and the cap check ahead of it as a fail-open gap for the
+        same underlying reason: nothing serialized two concurrent paid-tier
+        calls, so both could read the same starting spend and each
+        overwrite the other's update instead of adding to it. Confirmed
+        live before the fix: a `threading.Barrier`-forced collision between
+        `_add_spend` calls with no lock reliably left only $0.01 recorded
+        for 5 concurrent $0.01 additions, not $0.05.
+
+        `_spend_lock` fixes this by making the whole section a mutual-
+        exclusion critical section, exactly as `generate()` uses it -- so
+        with the lock held, the five threads below are serialized by
+        construction and this assertion holds regardless of scheduling,
+        not as a timing gamble the way the pre-fix reproduction was.
+        """
+        path = tmp_path / "spend.json"
+        thread_count = 5
+
+        def add_spend_as_generate_does() -> None:
+            with llm_client._spend_lock(path):
+                llm_client._add_spend(path, 0.01)
+
+        threads = [threading.Thread(target=add_spend_as_generate_does) for _ in range(thread_count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert llm_client._read_spend(path) == pytest.approx(0.01 * thread_count)
 
 
 class TestConfiguration:
