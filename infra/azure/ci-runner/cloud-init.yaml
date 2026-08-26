@@ -10,6 +10,58 @@
 package_update: true
 package_upgrade: true
 
+write_files:
+  # Runs before EVERY job this runner executes, via the runner's own
+  # ACTIONS_RUNNER_HOOK_JOB_STARTED mechanism (registered in .env below).
+  #
+  # Why this exists: ci.yml was written against GitHub-hosted `ubuntu-latest`,
+  # where every job gets a brand-new VM and cleanup is free because there is
+  # nothing to clean. This runner is one long-lived VM, so containers from
+  # job N are still running when job N+1 starts, and `docker compose up`
+  # reuses them rather than starting fresh. Run `32927971610` is the proof:
+  # `e2e-ai` began with `infra-ollama-1 Running` + `infra-opensearch-1
+  # Running` left over from `ai-eval`, then `e2e-data-platform` began with
+  # `jaeger`/`api`/`keycloak`/`postgres` still Running on top of *those* --
+  # ~13 containers on a 7.8GB box. Both jobs then failed for the same
+  # underlying reason wearing different clothes: ollama's healthcheck timed
+  # out (`container infra-ollama-1 is unhealthy`) and Airflow's gunicorn
+  # master never answered within 120s. Whichever container loses the memory
+  # race fails that run, which is exactly why this kept presenting as a new,
+  # unrelated bug each time.
+  #
+  # Deliberately a runner hook rather than a cleanup step in each job: it
+  # covers all 12 current jobs *and every job added later*, with nothing to
+  # remember. A per-job step is the same class of "you have to remember it"
+  # gap that canopica-task-checkpoint's step 5 exists to close.
+  #
+  # Deliberately at job *start*, not job end: an end-hook never runs when a
+  # job is cancelled or the runner drops its connection mid-run (both have
+  # happened here -- see STATUS.md's SNAT idle-timeout row). Cleaning up
+  # front guarantees a clean slate no matter how the previous job ended.
+  #
+  # Containers and networks only -- volumes are left alone on purpose. The
+  # proven failure is *memory* exhaustion, and volumes cost disk, not RAM;
+  # dropping them would add re-indexing time to every job while fixing
+  # nothing that has actually been shown to break. If a stale-volume bug
+  # ever does appear, it gets diagnosed on its own evidence.
+  - path: /opt/actions-runner/job-started-hook.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # No `-e`: this hook must never fail a job. A cleanup that cannot run
+      # is worth a log line, not a red build.
+      set -uo pipefail
+
+      leftovers=$$(docker ps -aq 2>/dev/null || true)
+      if [ -n "$${leftovers}" ]; then
+        echo "job-started-hook: removing $$(echo "$${leftovers}" | wc -l) container(s) left by a previous job"
+        docker rm -f $${leftovers} >/dev/null 2>&1 || true
+      fi
+      docker network prune -f >/dev/null 2>&1 || true
+
+      echo "job-started-hook: memory available at job start:"
+      free -h || true
+
 packages:
   - ca-certificates
   - curl
@@ -38,6 +90,26 @@ runcmd:
   # registration step in README.md is the natural point to notice an
   # update is available anyway.
   - mkdir -p /opt/actions-runner
+
+  # Registers the pre-job cleanup hook written above. `.env` is the runner's
+  # own documented mechanism for environment it should read at job-dispatch
+  # time, and unlike the `DOCKER_API_VERSION` attempt this file used to
+  # carry (see the comment further down), this variable is read by the
+  # runner process itself -- exactly what `.env` is for -- not by a library
+  # deep inside a job's own process tree.
+  - echo 'ACTIONS_RUNNER_HOOK_JOB_STARTED=/opt/actions-runner/job-started-hook.sh' >> /opt/actions-runner/.env
+
+  # 4GB of swap. Not a fix for anything -- the container-cleanup hook above
+  # is the actual fix -- but this box has 7.8GB and *zero* swap, against a
+  # ci.yml originally written for GitHub-hosted runners with 16GB. Swap
+  # turns the failure mode at the margin from a hard healthcheck timeout
+  # into a slow job that still passes. 4GB against 32GB of disk (~9GB free
+  # after images) leaves real headroom; grow the disk before growing this.
+  - fallocate -l 4G /swapfile
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
   # Testcontainers-Java (api/pom.xml's pinned testcontainers.version)
   # ships a Docker-client detection probe that hardcodes API version 1.32

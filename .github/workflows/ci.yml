@@ -169,6 +169,15 @@ jobs:
   # too (see the `changes` job's own comment). No `needs: [changes]` either:
   # nothing here depends on `changes`' output anymore, so starting the VM
   # runs in parallel with change-detection instead of waiting on it.
+  #
+  # One thing that is NOT visible in this file, and matters when reading any
+  # job below that runs `docker compose up`: because that VM is long-lived,
+  # containers would otherwise survive from one job into the next and
+  # accumulate until the box ran out of memory (run `32927971610` -- see
+  # STATUS.md). Every job on `canopica-heavy` is therefore preceded by a
+  # container-cleanup hook the runner itself invokes, defined in
+  # `infra/azure/ci-runner/cloud-init.yaml`. No job here declares it; it
+  # applies to all of them, including any added later.
   start-runner:
     name: Start self-hosted CI runner
     runs-on: ubuntu-latest

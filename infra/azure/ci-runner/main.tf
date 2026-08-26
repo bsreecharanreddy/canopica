@@ -38,6 +38,70 @@ resource "azurerm_subnet" "this" {
   address_prefixes     = ["10.60.0.0/27"]
 }
 
+# Found live, not anticipated: without this, the subnet's only outbound
+# path is Azure's default platform-provided SNAT, which has a fixed
+# ~4-minute idle timeout that cannot be configured. GitHub's runner agent
+# holds one long-lived connection to broker.actions.githubusercontent.com
+# while waiting for a job; once that connection sits idle past ~4 minutes
+# (very plausible between two queued jobs, and observed for real -- run
+# `32924144504`'s runner went silently unresponsive after "Listening for
+# Jobs", `ss` showed the socket still `ESTAB` locally with zero
+# Recv-Q/Send-Q, and only a service restart unstuck it), Azure drops the
+# SNAT mapping with no FIN/RST sent to either side -- the connection looks
+# alive forever but is actually dead, and nothing here ever logs an error
+# for it. A NAT Gateway is outbound-SNAT only, no listener, so it doesn't
+# reopen the inbound exposure the "no public IP" design deliberately
+# avoids -- it only replaces *how* outbound traffic is source-NATed, with
+# a configurable idle timeout instead of the fixed platform default.
+#
+# COST, and a dated commitment attached to it: this pair (NAT Gateway +
+# its Standard public IP) bills ~$36/month *continuously* -- unlike the VM
+# it serves, there is no "deallocate between runs" for it. It was
+# deliberately left unapplied when first written (2026-08-25) for exactly
+# that reason, and applied a day later only once it was established that
+# this subscription is an Azure free trial with $200 of credit that
+# expires ~30 days from signup and cannot otherwise be spent at this
+# project's ~$0.11-per-CI-run burn rate. That makes it effectively free
+# *inside the trial window and nowhere else*. The decision on record is
+# therefore to destroy it before the trial converts, not to keep it:
+# `terraform destroy -target=azurerm_subnet_nat_gateway_association.this
+# -target=azurerm_nat_gateway_public_ip_association.this
+# -target=azurerm_nat_gateway.this -target=azurerm_public_ip.nat`, after
+# which the SNAT idle-timeout bug returns and the workaround is once again
+# a manual `systemctl restart` of the runner service. Tracked with its
+# deadline in docs/STATUS.md; do not let this comment be the only record.
+resource "azurerm_public_ip" "nat" {
+  name                = "${local.name_prefix}-nat-pip"
+  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
+
+resource "azurerm_nat_gateway" "this" {
+  name                = "${local.name_prefix}-natgw"
+  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this.name
+  sku_name            = "Standard"
+  # 30 min: comfortably above any realistic gap between one job finishing
+  # and the next being dispatched to this single-runner setup, without
+  # reaching for the 120-minute ceiling on a resource billed per hour
+  # regardless of how idle it is.
+  idle_timeout_in_minutes = 30
+  tags                    = var.tags
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "this" {
+  nat_gateway_id       = azurerm_nat_gateway.this.id
+  public_ip_address_id = azurerm_public_ip.nat.id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "this" {
+  subnet_id      = azurerm_subnet.this.id
+  nat_gateway_id = azurerm_nat_gateway.this.id
+}
+
 resource "azurerm_network_security_group" "this" {
   name                = "${local.name_prefix}-nsg"
   location            = azurerm_resource_group.this.location

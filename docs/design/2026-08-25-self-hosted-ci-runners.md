@@ -258,3 +258,66 @@ of them) now serialize on this one VM — a real-code push's total CI
 wall-clock time goes up accordingly. Accepted as the right trade for this
 project's situation (near-zero GitHub-hosted minutes beats a fast CI run
 that can't start at all), not revisited here as a new decision.
+
+## 7. Addendum (2026-08-26): the assumption a long-lived runner broke
+
+Option B's whole premise is a VM that is *started and stopped*, not
+rebuilt — that's what makes it cheap. §5 covered what that buys and what
+it costs in wall-clock. It missed a third consequence, and the first real
+multi-job run found it.
+
+**`ci.yml` was written against `ubuntu-latest`, where every job gets a
+brand-new machine.** Nothing in it ever tears anything down, because on a
+GitHub-hosted runner there is nothing to tear down — the machine
+evaporates when the job ends. Move the same workflow onto one long-lived
+VM and that becomes a leak: containers from job N are still running when
+job N+1 starts, and `docker compose up` reuses them instead of starting
+clean.
+
+Run `32927971610` is the evidence. `e2e-ai` began with `infra-ollama-1`
+and `infra-opensearch-1` already `Running`, left over from `ai-eval`.
+Then `e2e-data-platform` began with `jaeger`, `api`, `keycloak` and
+`postgres` still `Running` on top of *those* — about 13 containers on a
+7.8GB box with no swap. Both jobs failed, and the failures looked
+unrelated to each other: one was `container infra-ollama-1 is unhealthy`,
+the other `No response from gunicorn master within 120 seconds`. They
+were the same cause. Whichever container loses the memory race is the one
+that visibly fails, so the symptom moves between runs while the cause sits
+still — which is precisely why it read as a string of new bugs rather
+than one old one.
+
+The fix is a pre-job cleanup hook, registered through the runner's own
+`ACTIONS_RUNNER_HOOK_JOB_STARTED` and defined in `cloud-init.yaml`. Three
+choices inside it worth stating, since each had a plausible alternative:
+
+- **A runner hook, not a step in each job.** It covers all 12 current jobs
+  and every job added later, with nothing for a future author to
+  remember. A per-job step is the same "you have to remember it" shape
+  that `canopica-task-checkpoint`'s step 5 exists to close.
+- **At job start, not job end.** An end-hook never runs when a job is
+  cancelled or the runner drops its connection mid-run — both of which
+  have already happened on this runner. Cleaning up front is correct
+  regardless of how the previous job ended.
+- **Containers and networks only; volumes left alone.** The proven failure
+  is memory, and volumes cost disk, not RAM. Dropping them would add
+  re-indexing time to every job to fix nothing that has been shown to
+  break.
+
+4GB of swap was added alongside. It is explicitly *not* the fix — it is
+headroom on a box half the size of the 16GB runner this workflow was
+written against, so that a marginal case degrades into a slow pass rather
+than a hard healthcheck timeout.
+
+**The SNAT idle-timeout problem from §5's own caveat list is also now
+fixed rather than tolerated.** A NAT Gateway with a 30-minute idle timeout
+replaces Azure's default outbound SNAT and its fixed ~4-minute one, which
+had been silently killing the runner's long-poll connection to GitHub
+between jobs — the VM keeps its no-public-IP property, since a NAT Gateway
+is outbound-only. This carries a real cost the rest of this design does
+not: ~$36/month billing *continuously*, with no deallocate-between-runs.
+It is affordable only against this subscription's Azure free-trial credit,
+and the decision on record is to **destroy it before that trial converts**,
+not to keep it. `docs/STATUS.md` tracks that as a deadline-bound action
+item with the exact teardown command; it is deliberately recorded there
+rather than only here, so it surfaces to someone reading current status
+rather than someone re-reading a design doc.
