@@ -997,7 +997,14 @@ requires for the one unauthenticated surface in this phase.
       `InferenceUnavailableError` the caller renders as "temporarily
       unavailable" — the three-tier shape design doc §2.7/§2.10 specify
       exactly, implemented once, at the client layer, so nothing above it
-      needs tier-aware logic.
+      needs tier-aware logic. **Which paid model, decided 2026-08-26**
+      (`docs/STATUS.md`'s "Public demo inference" row): the pinned
+      paid-tier model is a `Settings()` config value, not hardcoded —
+      `deepseek/deepseek-chat` for the rest of active development,
+      repointed to `anthropic/claude-haiku-4.5` in the same commit as the
+      public-repo flip. Both are OpenRouter models behind this same
+      client, so implement the model name as configurable from the
+      start; the later swap should need no code change.
 - [ ] **Step 2: `guardrails.py`.** An input check (blocks obvious
       prompt-injection/off-topic-abuse patterns — a small classifier
       prompt against the same local/tiered model, cheap since it's one
