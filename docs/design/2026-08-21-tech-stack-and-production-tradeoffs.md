@@ -92,9 +92,9 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 
 | Layer | Canopica uses | Real production equivalent | Fidelity | What would change |
 |---|---|---|---|---|
-| Runtime | Docker Compose, one host | Kubernetes (AKS/OpenShift), multi-node, multi-AZ | **≈** | Container images are unchanged; orchestration manifests are new. |
+| Runtime | Docker Compose, one host | Kubernetes (AKS/OpenShift), multi-node, multi-AZ — or a container PaaS in commercial Azure, but **not** Container Apps if the target is Azure Government, where it isn't offered (§4.18) | **≈** | Container images are unchanged; orchestration manifests are new. Which orchestrator is available, not which is architecturally preferable, is the binding constraint in Gov cloud. |
 | IaC | Terraform (reference, not applied by default) | Terraform / Bicep, applied through a gated release pipeline with policy-as-code guardrails | **≈** | Same language, plus approval gates and drift detection. |
-| Cloud | Local; documented Azure path | **Azure Government** — separate instance, screened U.S. persons, FedRAMP High / DoD IL4-5 / IRS 1075 / HIPAA accreditation | **~** | Not obtainable without a government or approved-contractor tenant. See the roadmap doc §3.4. |
+| Cloud | Local; documented Azure path | **Azure Government** — separate instance, contractual US-only data storage, access limited to screened U.S. persons, FedRAMP High / DoD IL4-5 / IRS 1075 / HIPAA. Note that commercial Azure also holds FedRAMP High and IRS 1075 applicability; the Gov-cloud differentiators are the *contractual and personnel* commitments, not the certifications (§4.19) | **~** | Not obtainable without a government or approved-contractor tenant. See the roadmap doc §3.4. |
 | Secrets | `.env` + local Keycloak credentials | Key Vault / HashiCorp Vault, HSM-backed, FIPS 140-validated crypto modules, automated rotation | **~** | Substituted for local-run convenience; the *code* reads from an abstraction either way. |
 | Observability | OpenTelemetry → Jaeger (traces) + Prometheus/Grafana (metrics), self-hosted single-host containers | OpenTelemetry → Azure Monitor / **Splunk** (near-standard in government), with 24/7 alerting and on-call rotation | **≈** | Backend swap. Instrumentation code is identical — that's the point of OTel. |
 | CI/CD | GitHub Actions: build, lint, test, dbt tests, fairness gate, eval gate; the 3 Compose-heavy jobs on a single self-hosted Azure VM (`infra/azure/ci-runner/`, `2026-08-25-self-hosted-ci-runners.md`), started/deallocated per run | Azure DevOps / GitLab, plus SAST, DAST, software composition analysis, container scanning, STIG compliance scanning, and a formal change-approval board | **~** | More gates, slower cadence, human approval boards — and, for the compose-heavy jobs specifically, an autoscaling self-hosted runner pool (e.g. GitHub's own Actions Runner Controller on Kubernetes) rather than one VM manually started and stopped by a workflow job. |
@@ -259,6 +259,106 @@ compile-time MCP authorization gate (§3.3's Analytics Copilot integration
 row) is therefore the layer actually carrying this risk, not
 `canopica_analytics_ro` — see
 `docs/design/2026-08-24-analytics-semantic-layer-execution-and-authorization.md`.
+
+**4.18 The orchestration choice does not survive a move to Azure
+Government — and the reason is the opposite of the usual one.** This
+repo's Platform-tier row names Kubernetes (AKS/OpenShift) as the real
+production equivalent of its single-host Compose runtime, and elsewhere
+this project has reached for Container Apps as the lighter-weight
+"containers, not clusters" reference target. Both halves deserve
+qualifying, because the commercial-cloud reasoning and the
+government-cloud reasoning point in different directions.
+
+*In Azure Commercial*, the case against AKS is real and worth making.
+A cluster is not free: it brings node-pool lifecycle and version-skew
+management, an upgrade cadence that must be tracked against a support
+window, ingress and certificate plumbing, autoscaler tuning, and a
+security surface (RBAC, network policy, admission control, image
+provenance) that has to be actively governed rather than configured once.
+For a service count this small, a container PaaS absorbs nearly all of
+that. AKS starts earning its complexity at genuine multi-tenancy,
+custom operators or CRDs, workloads needing scheduling primitives a PaaS
+doesn't expose, or — most often in practice — an organization that
+already runs Kubernetes competently and would be adding a *second*
+paradigm, not avoiding a first.
+
+*In Azure Government, that analysis inverts, for a reason that is not
+about architecture at all.* **Azure Container Apps is not a service in
+Azure Government.** Microsoft's own Azure Government service-comparison
+page lists exactly two entries under Containers — Service Fabric and
+Container Registry — and Container Apps has been absent from it for
+years, with no announced date. AKS, by contrast, is generally available
+across US Gov Virginia, Arizona, and Texas and tracks the same release
+train as commercial. So the "simpler" option is the one that doesn't
+exist, and AKS becomes the default *by elimination* rather than by
+outgrowing a PaaS. A design that picks Container Apps on sound
+complexity grounds and then assumes it ports to Gov cloud is making a
+portability claim the service catalog does not support; the realistic
+Gov-cloud substitutes are AKS, App Service (which *is* available), or
+plain VMs.
+
+**This is the single most transferable lesson in this row, and it
+generalizes past this one service:** in a sovereign cloud, service
+*availability* frequently constrains the design harder than any
+architectural argument does. Feature and service lag is the defining
+operational characteristic of Gov cloud, and the failure mode is
+designing against a commercial-cloud reference architecture and
+discovering at deployment time that a component of it was never in the
+catalog. The discipline that avoids it is checking the region/service
+matrix *before* the design is settled, not after.
+
+**4.19 "Government workload" does not mean "Azure Government" — and IRS
+1075 specifically is not the forcing function it is usually assumed to
+be.** It is a common belief in this domain that handling Federal Tax
+Information (the income data an eligibility determination verifies
+against) compels a sovereign-cloud deployment. Microsoft's own IRS 1075
+compliance documentation says otherwise, explicitly: the offering's
+applicability is listed as **both** Azure and Azure Government; both hold
+a FedRAMP High P-ATO issued by the JAB, on which the IRS 1075 core
+control scope rests; contractual amendments exist for both; and the FAQ
+states in terms that "**the need to meet your IRS 1075 compliance
+requirements isn't a deciding factor for choosing your cloud
+environment.**"
+
+What Azure Government actually adds is narrower and more specific than
+the certification story implies: contractual commitments that customer
+data stays in the United States, and that potential access to systems
+processing it is limited to **screened US persons**. Those matter most
+for data subject to US export-control regimes (EAR, ITAR, DoE 10 CFR
+Part 810) — which is a different concern from FTI handling. Microsoft's
+own guidance is that most state and local agencies are nonetheless "best
+aligned with" Azure Government; the point is that this alignment comes
+from the contractual and personnel commitments, not from a compliance
+capability the commercial cloud lacks.
+
+One provision *is* squarely on point for a benefits-eligibility system
+and is worth knowing precisely, because it is the part people get wrong
+in the other direction: **IRC 6103(l)(7)** stipulates that human services
+agencies "may not contract for services that involve the disclosure of
+FTI to contractors." Read literally that sounds like it forecloses cloud
+hosting outright. The IRS Office of Safeguards' cloud guidance resolves
+it: if the agency encrypts using FIPS 140-validated cryptography and
+**retains sole ownership of the encryption keys**, that counts as a
+*logical barrier*, and data types carrying contractor-access
+restrictions may move to a cloud environment. Which makes
+customer-managed keys in an HSM the load-bearing control for this
+workload — not the choice of cloud, and not the orchestration platform.
+Canopica's own §4.15 note (PII tokenization sharing a failure domain
+with the data it protects) is the local, deliberately-weaker stand-in for
+exactly that control.
+
+**What this project would do differently, stated concretely.** In
+*commercial*: keep the container images unchanged, deploy to a container
+PaaS or a modest AKS cluster depending on the surrounding organization's
+existing competency, and put the real engineering effort into
+customer-managed keys, private networking, and the promotion pipeline
+rather than into orchestration sophistication. In *government*: assume
+AKS or App Service rather than Container Apps from the start, budget for
+services arriving late or not at all, verify each dependency against the
+Gov region matrix during design, and treat FIPS 140-validated encryption
+with agency-held keys as a hard requirement rather than a hardening step
+— because under IRC 6103(l)(7) it is the thing that makes the deployment
+lawful, not merely more secure.
 
 ## 5. Cost
 
