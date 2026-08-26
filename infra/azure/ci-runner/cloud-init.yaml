@@ -96,6 +96,48 @@ write_files:
       echo "job-started-hook: memory available at job start:"
       free -h || true
 
+  # The job-*completed* counterpart. The start hook above is the one that
+  # *guarantees* a clean slate, because it runs no matter how the previous
+  # job ended -- including cancelled, killed, or the runner losing its
+  # connection mid-job, none of which run an end hook at all. This one is
+  # not a substitute for it and does not replace any of its work.
+  #
+  # It exists because *when* the disk is reclaimed matters independently of
+  # whether it is reclaimed. With start-only cleanup, a heavy job's images
+  # and containers sit on disk for the entire gap until the next job begins
+  # -- and if that job is the last of the run, they sit there through the
+  # VM being deallocated and all the way into the next run, hours or days
+  # later. That is exactly how run `32932666191` went from 20GB free to
+  # 6.9GB and put the disk-pressure branch on a hair trigger. Freeing at
+  # the end of each job means the VM is deallocated already clean, so every
+  # run starts from a known state rather than inheriting the last one's
+  # leftovers.
+  #
+  # Same prune set as the start hook, minus the disk-pressure branch:
+  # reclaiming space here is never urgent (no job is waiting on it), so
+  # this deliberately keeps the image layer cache and only removes what is
+  # genuinely dead. The start hook still makes the aggressive call when a
+  # job is actually about to run and space is actually short.
+  - path: /opt/actions-runner/job-completed-hook.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # No `-e`: a cleanup that cannot run must never fail the job that
+      # just succeeded.
+      set -uo pipefail
+
+      finished=$$(docker ps -aq 2>/dev/null || true)
+      if [ -n "$${finished}" ]; then
+        echo "job-completed-hook: removing $$(echo "$${finished}" | wc -l) container(s) this job left behind"
+        docker rm -f $${finished} >/dev/null 2>&1 || true
+      fi
+      docker network prune -f >/dev/null 2>&1 || true
+      docker volume prune -f >/dev/null 2>&1 || true
+      docker image prune -f >/dev/null 2>&1 || true
+
+      echo "job-completed-hook: disk after cleanup:"
+      df -h / | tail -1
+
 packages:
   - ca-certificates
   - curl
@@ -132,6 +174,7 @@ runcmd:
   # runner process itself -- exactly what `.env` is for -- not by a library
   # deep inside a job's own process tree.
   - echo 'ACTIONS_RUNNER_HOOK_JOB_STARTED=/opt/actions-runner/job-started-hook.sh' >> /opt/actions-runner/.env
+  - echo 'ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/opt/actions-runner/job-completed-hook.sh' >> /opt/actions-runner/.env
 
   # 4GB of swap. Not a fix for anything -- the container-cleanup hook above
   # is the actual fix -- but this box has 7.8GB and *zero* swap, against a

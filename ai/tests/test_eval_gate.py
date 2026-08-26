@@ -108,3 +108,56 @@ class TestCheckAgainstBaseline:
         results = {"faithfulness": 0.80, "contextual_precision": 0.9, "contextual_recall": 0.9}
 
         assert run_eval.check_against_baseline(results) is False
+
+
+class TestProgressReportingDuringALongRun:
+    """`run()` is the slowest thing in CI (13-35 min) and used to emit
+    nothing between start and final scores, so a working run and a hung one
+    produced byte-identical logs. These pin the progress output, because a
+    signal nothing asserts is a signal that silently stops working."""
+
+    @staticmethod
+    def _stub_answer_and_judge(monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            run_eval,
+            "answer_general",
+            lambda *args, **kwargs: QaAnswer(
+                answer="grounded", citations=["273.9(d)(2)"], abstained=False
+            ),
+        )
+        monkeypatch.setattr(
+            run_eval,
+            "_judge",
+            lambda answered, judge: run_eval.MetricScores(
+                faithfulness=1.0, contextual_precision=1.0, contextual_recall=1.0
+            ),
+        )
+        monkeypatch.setattr(run_eval, "OpenRouterJudgeModel", lambda settings: None)
+
+    def test_every_question_reports_its_position_and_the_total(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._stub_answer_and_judge(monkeypatch)
+
+        run_eval.run([_QUESTION, _QUESTION, _QUESTION], settings=Settings())
+
+        lines = capsys.readouterr().err.splitlines()
+        progress = [line for line in lines if line.startswith("eval progress")]
+        # One line per question, plus the closing awaiting-judges line.
+        assert "eval progress: 1/3 questions" in progress
+        assert "eval progress: 2/3 questions" in progress
+        assert "eval progress: 3/3 questions" in progress
+        assert any("3/3 questions answered" in line for line in progress)
+
+    def test_progress_goes_to_stderr_so_it_never_contaminates_metric_output(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._stub_answer_and_judge(monkeypatch)
+
+        run_eval.run([_QUESTION], settings=Settings())
+
+        captured = capsys.readouterr()
+        # main() prints `metric: value` lines to stdout and those are read
+        # against baseline.json by eye; progress must not appear there.
+        assert "eval progress" not in captured.out
+        assert "eval progress" in captured.err

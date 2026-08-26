@@ -221,13 +221,30 @@ def run(
 
     grounded_count = 0
     pending: list[Future[MetricScores]] = []
+    total = len(questions)
     with ThreadPoolExecutor(max_workers=_JUDGE_CONCURRENCY) as pool:
-        for question in questions:
+        for index, question in enumerate(questions, start=1):
+            # Progress goes to stderr, unbuffered, one line per question.
+            # This job is the slowest in CI by a wide margin (13-35 min) and
+            # until now emitted nothing at all between start and final
+            # scores, so a run that was working and a run that had hung
+            # looked identical from the log -- the only way to tell them
+            # apart was to open a shell on the runner and read CPU usage,
+            # which is not a diagnostic anyone should need. stderr rather
+            # than stdout so it never mixes into the metric lines `main()`
+            # prints, which are parsed by eye against baseline.json.
+            print(f"eval progress: {index}/{total} questions", file=sys.stderr, flush=True)
             answered = _retrieve_and_answer(question, settings=settings)
             if answered is None:
                 continue
             grounded_count += 1
             pending.append(pool.submit(_judge, answered, judge=judge))
+        print(
+            f"eval progress: {total}/{total} questions answered, "
+            f"awaiting {len(pending)} judge result(s)",
+            file=sys.stderr,
+            flush=True,
+        )
         scores = [future.result() for future in pending]
 
     grounded_rate = grounded_count / len(questions) if questions else 0.0

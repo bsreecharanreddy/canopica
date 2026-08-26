@@ -159,7 +159,20 @@ resource "azurerm_linux_virtual_machine" "this" {
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "StandardSSD_LRS"
-    disk_size_gb         = 32
+    # 64GB, raised from 32 on 2026-08-26 after measuring rather than
+    # guessing: one full CI run cycles roughly 13-17GB of Docker images
+    # (three ~3.65GB Airflow variants, api, ui, plus opensearch/ollama),
+    # so 32GB filled to 100% mid-run and failed two jobs on "No space left
+    # on device". The pre-job prune hook in cloud-init.yaml handles the
+    # accumulation, but at 32GB its disk-pressure branch tripped on
+    # essentially every job -- which works, at the cost of discarding the
+    # Docker layer cache every single time and rebuilding from scratch.
+    # 64GB is about +$2.40/month (E4 -> E6 StandardSSD) and buys back that
+    # cache, so the threshold fires only when something is genuinely wrong
+    # rather than as the steady state. Grow this before lowering the
+    # hook's MIN_FREE_GB floor; the floor is the symptom, capacity is the
+    # cause.
+    disk_size_gb = 64
   }
 
   # Ubuntu 24.04 LTS. Verify against `az vm image list --publisher
