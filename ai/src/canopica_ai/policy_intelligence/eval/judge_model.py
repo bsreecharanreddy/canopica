@@ -47,6 +47,7 @@ import httpx
 from deepeval.models.base_model import DeepEvalBaseLLM
 from pydantic import BaseModel
 
+from canopica_ai.common.llm_client import OpenRouterNotConfiguredError
 from canopica_ai.config import Settings
 
 # Not consulted anywhere -- `Settings.openrouter_judge_model` (config.py)
@@ -117,11 +118,6 @@ def _parses_as_json_object(content: str) -> bool:
     except json.JSONDecodeError:
         return False
     return True
-
-
-class OpenRouterNotConfiguredError(RuntimeError):
-    """No API key is set -- raised here rather than letting an
-    unauthenticated request fail confusingly against OpenRouter's API."""
 
 
 class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]

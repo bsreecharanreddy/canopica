@@ -1,6 +1,7 @@
 """Runtime configuration for the Canopica AI capability layer."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -208,3 +209,45 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     openrouter_judge_model: str = "deepseek/deepseek-chat"
     openrouter_timeout_seconds: float = 120.0
+
+    # Task 9 (public demo). `inference_mode` selects which `LlmClient`
+    # `answer_general()`'s caller constructs -- `OllamaClient` for `local`
+    # (unchanged, still what the authenticated app and every ai-eval/
+    # e2e-ai test exercise), `OpenRouterTieredClient` for `public_demo`.
+    inference_mode: Literal["local", "public_demo"] = "local"
+
+    # Free tier, live-verified working (2026-08-24, the same probe that
+    # ruled out OpenRouter's free auto-router and a safety-classifier
+    # false pick -- judge_model.py's module docstring): a plain chat call
+    # and a `response_format: json_schema` structured call both succeeded
+    # cleanly against this exact model.
+    openrouter_public_demo_free_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+
+    # Paid tier, staged in two steps (docs/STATUS.md's "Public demo
+    # inference" row, decided 2026-08-26): `deepseek/deepseek-chat` for
+    # the rest of active development -- cheapest of four real candidates
+    # on OpenRouter's own live pricing, and already proven as the eval
+    # judge above -- repointed to `anthropic/claude-haiku-4.5` in the same
+    # commit as the public-repo flip, for a spec-clean
+    # `gen_ai.provider.name` value and to avoid a China-based model
+    # answering the public-facing surface. The price-per-MTok pair below
+    # MUST move with the model -- nothing here reads a live price from
+    # OpenRouter, so the swap is three lines, not one.
+    openrouter_public_demo_paid_model: str = "deepseek/deepseek-chat"
+    openrouter_public_demo_paid_input_price_per_mtok_usd: float = 0.2574
+    openrouter_public_demo_paid_output_price_per_mtok_usd: float = 1.029
+
+    # A hard ceiling on the paid tier's cumulative spend for the current
+    # calendar month, per design doc §2.7 -- once at or over this, the
+    # client stops falling back to paid on a free-tier rate limit rather
+    # than continuing to spend. $5 is deliberately generous against this
+    # project's real demo-scale traffic (a single question costs
+    # fractions of a cent at either pinned model's rate).
+    openrouter_public_demo_monthly_cap_usd: float = 5.0
+
+    # "A simple counter, persisted -- a file or a Postgres row is enough
+    # for this scale, not a metering service" (Task 9 plan Step 1).
+    # Relative to `ai/`'s own cwd, matching this file's other local-data
+    # paths (`duckdb_path` etc.) -- Step 5's Fly.io deploy mounts a small
+    # persistent volume at this path so it survives a restart.
+    openrouter_public_demo_spend_file: Path = Path("data/public_demo_spend.json")

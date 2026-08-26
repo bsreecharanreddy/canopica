@@ -109,17 +109,27 @@ def traced_ai_operation(span_name: str) -> Iterator[Span]:
 
 
 @contextmanager
-def traced_llm_call(operation: str, *, model: str) -> Iterator[Span]:
+def traced_llm_call(
+    operation: str, *, model: str, provider: str = _PROVIDER_OLLAMA
+) -> Iterator[Span]:
     """One model call. `operation` is a `gen_ai.operation.name` enum value
     (`chat`, `text_completion`, `embeddings`); the span name is the spec's
     prescribed `{operation} {model}`, not a free-form string.
+
+    `provider` defaults to Ollama's own off-enum value, unchanged for
+    every call site this module had until Task 9: `OpenRouterTieredClient`
+    is the first caller that passes something else, since which provider
+    actually served the request depends on which OpenRouter-routed model
+    is pinned (an off-enum value like `deepseek`, or the real enum value
+    `anthropic` once repointed -- see docs/STATUS.md's "Public demo
+    inference" row), not on anything this module itself knows.
 
     Yields the span so the caller can attach what only exists once the
     response is back -- see `record_llm_usage`.
     """
     with init_tracer().start_as_current_span(f"{operation} {model}") as span:
         span.set_attribute("gen_ai.operation.name", operation)
-        span.set_attribute("gen_ai.provider.name", _PROVIDER_OLLAMA)
+        span.set_attribute("gen_ai.provider.name", provider)
         span.set_attribute("gen_ai.request.model", model)
         yield span
 

@@ -1,13 +1,16 @@
 """LLM generation abstraction shared by every AI capability that calls a
 generation model -- Task 2's Policy Q&A today, Tasks 3/5/6 later. Every call
-site here takes an `LlmClient`, never talks to Ollama directly, so Task 9 can
-add a second (`OpenRouterTieredClient`) implementation behind the same
-interface without touching any of them.
+site here takes an `LlmClient`, never talks to Ollama directly, which is
+what let Task 9 add a second implementation (`OpenRouterTieredClient`,
+`public_demo`-only) behind the same interface without touching any of them.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
@@ -124,8 +127,9 @@ def _record_ollama_usage(span: Any, payload: dict[str, Any], model: str) -> None
 
 
 class OllamaClient:
-    """The sole implementation of both protocols until Task 9's tiered
-    OpenRouter-backed one lands behind the same interfaces."""
+    """The `local` `inference_mode`'s `LlmClient` -- unchanged by Task 9,
+    still what the authenticated app and every `ai-eval`/`e2e-ai` test
+    exercise. `OpenRouterTieredClient` below is the `public_demo` one."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or Settings()
@@ -232,3 +236,162 @@ class OllamaClient:
             _record_ollama_usage(span, payload, settings.ollama_generation_model)
         text: str = payload["response"]
         return LlmResponse(text=text)
+
+
+class OpenRouterNotConfiguredError(RuntimeError):
+    """No API key is set -- raised here rather than letting an
+    unauthenticated request fail confusingly against OpenRouter's API.
+    Shared with `judge_model.py`'s adapter, which imports this rather than
+    keeping its own copy, since both mean exactly the same thing."""
+
+
+class InferenceUnavailableError(RuntimeError):
+    """Both OpenRouter tiers are rate-limited (or the paid tier's monthly
+    cap is already reached), for one request. The `public_demo` app
+    renders this as "temporarily unavailable" -- it is never a 500, since
+    an exhausted tier is an expected, bounded outcome design doc §2.7
+    accounts for, not a bug."""
+
+
+_OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
+_HTTP_RATE_LIMITED = 429
+
+
+class _RateLimitedError(RuntimeError):
+    """Internal control-flow signal: this tier's model returned a rate
+    limit. Never escapes `OpenRouterTieredClient.generate` -- every path
+    through it either falls back to the other tier or is re-raised as the
+    caller-facing `InferenceUnavailableError` above."""
+
+
+def _current_month_key() -> str:
+    return datetime.now(UTC).strftime("%Y-%m")
+
+
+def _read_spend(path: Path) -> float:
+    if not path.exists():
+        return 0.0
+    record = json.loads(path.read_text())
+    if record["month"] != _current_month_key():
+        return 0.0
+    spent: float = record["spent_usd"]
+    return spent
+
+
+def _add_spend(path: Path, additional_usd: float) -> None:
+    updated = _read_spend(path) + additional_usd
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"month": _current_month_key(), "spent_usd": updated}))
+
+
+class OpenRouterTieredClient:
+    """The `public_demo` `inference_mode`'s `LlmClient` (Task 9 plan, Step
+    1) -- Policy Q&A's general-question path only (design doc §2.7), never
+    the authenticated app. Tries the pinned free-tier model first; on a
+    rate limit, falls back to the pinned paid model for that one request,
+    provided this calendar month's tracked paid spend hasn't already met
+    the cap; once both tiers are unavailable, raises
+    `InferenceUnavailableError` rather than a raw upstream error.
+
+    Implements only `LlmClient` (`generate`), not the tool-calling or
+    structured-generation protocols -- `public_demo/app.py` only ever
+    calls `policy_intelligence.qa.service.answer_general()`, which needs
+    nothing else.
+    """
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        self._settings = settings or Settings()
+        if not self._settings.openrouter_api_key:
+            raise OpenRouterNotConfiguredError(
+                "CANOPICA_OPENROUTER_API_KEY is not set -- required for the public "
+                "demo's tiered inference client (ai/.env locally, the OPENROUTER_API_KEY "
+                "repo secret when deployed)"
+            )
+
+    def generate(self, prompt: str) -> LlmResponse:
+        settings = self._settings
+        try:
+            return self._call(settings.openrouter_public_demo_free_model, prompt)
+        except _RateLimitedError:
+            pass
+
+        if _read_spend(settings.openrouter_public_demo_spend_file) >= (
+            settings.openrouter_public_demo_monthly_cap_usd
+        ):
+            raise InferenceUnavailableError(
+                "free tier is rate-limited and this month's paid-tier spend cap "
+                f"(${settings.openrouter_public_demo_monthly_cap_usd:.2f}) is already reached"
+            )
+
+        try:
+            response, cost_usd = self._call_and_cost(
+                settings.openrouter_public_demo_paid_model, prompt
+            )
+        except _RateLimitedError as error:
+            raise InferenceUnavailableError(
+                "both the free and paid OpenRouter tiers are rate-limited"
+            ) from error
+
+        _add_spend(settings.openrouter_public_demo_spend_file, cost_usd)
+        return response
+
+    def _call(self, model: str, prompt: str) -> LlmResponse:
+        response, _ = self._call_and_cost(model, prompt)
+        return response
+
+    def _call_and_cost(self, model: str, prompt: str) -> tuple[LlmResponse, float]:
+        settings = self._settings
+        body = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        with traced_llm_call("chat", model=model, provider=_provider_for(model)) as span:
+            response = httpx.post(
+                _OPENROUTER_CHAT_COMPLETIONS_URL,
+                headers={"Authorization": f"Bearer {settings.openrouter_api_key}"},
+                json=body,
+                timeout=settings.openrouter_timeout_seconds,
+            )
+            if response.status_code == _HTTP_RATE_LIMITED:
+                raise _RateLimitedError(f"{model} is rate-limited")
+            response.raise_for_status()
+            payload = response.json()
+            if "error" in payload:
+                error = payload["error"]
+                if error.get("code") == _HTTP_RATE_LIMITED:
+                    raise _RateLimitedError(f"{model} is rate-limited")
+                raise RuntimeError(f"OpenRouter call to {model} failed: {error}")
+            usage = payload.get("usage", {})
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            record_llm_usage(
+                span,
+                response_model=payload.get("model", model),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                finish_reason=payload.get("choices", [{}])[0].get("finish_reason"),
+            )
+        text: str = payload["choices"][0]["message"]["content"]
+        cost_usd = self._cost_usd(model, input_tokens, output_tokens)
+        return LlmResponse(text=text), cost_usd
+
+    def _cost_usd(self, model: str, input_tokens: int, output_tokens: int) -> float:
+        settings = self._settings
+        if model != settings.openrouter_public_demo_paid_model:
+            return 0.0
+        return (
+            input_tokens * settings.openrouter_public_demo_paid_input_price_per_mtok_usd
+            + output_tokens * settings.openrouter_public_demo_paid_output_price_per_mtok_usd
+        ) / 1_000_000
+
+
+def _provider_for(model: str) -> str:
+    """`gen_ai.provider.name` for an OpenRouter-routed model -- derived
+    from the model string's own `provider/name` shape rather than hardcoded
+    per pinned model, so repointing `openrouter_public_demo_paid_model`
+    (e.g. to `anthropic/claude-haiku-4.5`, docs/STATUS.md's "Public demo
+    inference" row) needs no change here. Off-enum for anything other than
+    `anthropic`, the one real value in `gen_ai.provider.name`'s enum this
+    codebase has ever actually reached -- the spec permits a custom value
+    for a provider it doesn't enumerate, same treatment as `"ollama"`."""
+    return model.split("/", 1)[0]
