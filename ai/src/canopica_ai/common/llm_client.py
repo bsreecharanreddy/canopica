@@ -420,6 +420,23 @@ class OpenRouterTieredClient:
         ) / 1_000_000
 
 
+def build_llm_client(settings: Settings) -> LlmClient:
+    """Task 9 plan's Step 4 wiring: `answer_general()`'s default
+    `llm_client` resolves from `settings.inference_mode` here instead of
+    hardcoding `OllamaClient`, so `local` (the default, unchanged for
+    every earlier task and every existing test) still gets `OllamaClient`,
+    and `public_demo` gets this tiered client.
+
+    `answer_denial` deliberately does not use this factory -- "why was I
+    denied" stays authenticated-only regardless of `inference_mode`
+    (design doc §2.7's public-surface scoping), so it keeps constructing
+    `OllamaClient` directly.
+    """
+    if settings.inference_mode == "public_demo":
+        return OpenRouterTieredClient(settings)
+    return OllamaClient(settings)
+
+
 def _provider_for(model: str) -> str:
     """`gen_ai.provider.name` for an OpenRouter-routed model -- derived
     from the model string's own `provider/name` shape rather than hardcoded

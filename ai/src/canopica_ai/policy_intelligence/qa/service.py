@@ -19,7 +19,12 @@ import httpx
 from opentelemetry import trace
 from pydantic import BaseModel
 
-from canopica_ai.common.llm_client import LlmClient, OllamaClient, PromptTooLongError
+from canopica_ai.common.llm_client import (
+    LlmClient,
+    OllamaClient,
+    PromptTooLongError,
+    build_llm_client,
+)
 from canopica_ai.common.observability import traced_ai_operation
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.corpus.cfr_fetch import CFR_AS_OF_DATE
@@ -283,16 +288,24 @@ def answer_general(
     entry point Task 7's eval harness and Task 9's public-demo app call for
     the general-question path.
 
-    `record_provenance=False` is for Task 7's eval harness only: a golden
-    question is synthetic test traffic, not a real citizen's or worker's
-    question, and `run_eval.py` grades the returned `QaAnswer`/retrieved
-    chunks directly rather than reading anything back from
-    `ai.policy_qa_answer` -- recording it would only commingle synthetic
-    eval runs into the same audit-quality table real answers use (design
-    doc §2.2's reproducibility requirement), for no benefit to either.
-    Every real caller keeps the default, unchanged."""
+    `record_provenance=False` has two callers, for two different reasons.
+    Task 7's eval harness: a golden question is synthetic test traffic,
+    not a real citizen's or worker's question, and `run_eval.py` grades
+    the returned `QaAnswer`/retrieved chunks directly rather than reading
+    anything back from `ai.policy_qa_answer` -- recording it would only
+    commingle synthetic eval runs into the same audit-quality table real
+    answers use (design doc §2.2's reproducibility requirement), for no
+    benefit to either. Task 9's public demo: `ai.policy_qa_answer` lives
+    on the shared operational Postgres (`operational_dsn`), which the
+    public demo's Fly.io host does not run or reach -- design doc §2.7's
+    "App + retrieval hosting" is explicit that only the FastAPI app,
+    embeddings, and OpenSearch run there, not Postgres. Passing the
+    default here would not just commingle anonymous traffic into the same
+    table real citizens' answers use, it would fail outright with no
+    database to write to. The authenticated app (`qa/api.py`) is the only
+    caller that keeps the default, unchanged."""
     settings = settings or Settings()
-    llm_client = llm_client or OllamaClient(settings)
+    llm_client = llm_client or build_llm_client(settings)
     request = _AnswerRequest(
         question_for_provenance=question,
         retrieval_query=question,

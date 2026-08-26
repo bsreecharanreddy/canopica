@@ -18,8 +18,10 @@ from pydantic import BaseModel
 from canopica_ai.common.llm_client import (
     NoToolCallError,
     OllamaClient,
+    OpenRouterTieredClient,
     PromptTooLongError,
     ToolSpec,
+    build_llm_client,
 )
 from canopica_ai.config import Settings
 
@@ -295,3 +297,23 @@ class TestGenerationDefaults:
         # answers measured at 47-73 tokens) -- this is a backstop against
         # pathological runaway, not the mechanism that keeps answers short.
         assert settings.ollama_num_predict >= 256
+
+
+class TestClientSelectionByInferenceMode:
+    """Task 9 Step 4 wiring: `answer_general()`'s default `llm_client`
+    resolves from `settings.inference_mode` via this factory, rather than
+    hardcoding `OllamaClient` -- so every earlier task's call site needs
+    zero changes to run in either mode (Task 9 plan's own "Interfaces"
+    section)."""
+
+    def test_local_mode_selects_the_ollama_client(self) -> None:
+        client = build_llm_client(Settings(inference_mode="local"))
+
+        assert isinstance(client, OllamaClient)
+
+    def test_public_demo_mode_selects_the_openrouter_tiered_client(self) -> None:
+        client = build_llm_client(
+            Settings(inference_mode="public_demo", openrouter_api_key="test-key")
+        )
+
+        assert isinstance(client, OpenRouterTieredClient)
