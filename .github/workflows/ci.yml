@@ -29,6 +29,50 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# --- Where CI runs: two repository variables, and nothing else ----------
+#
+# Every job's `runs-on` reads one of two repo variables, and the whole
+# GitHub-hosted <-> self-hosted-Azure-VM flip is done by setting or
+# clearing them in repo settings. No workflow edit, no branch, no redeploy.
+#
+#   CI_LIGHT_RUNNER  -- the 8 cheap jobs (java, web, python, ai,
+#                       audit-chain, dbt, reporting, terraform)
+#   CI_HEAVY_RUNNER  -- the 3 expensive ones (e2e-data-platform, e2e-ai,
+#                       ai-eval), the only jobs that actually need the
+#                       big Compose stacks
+#
+# Each holds a JSON runner spec -- `["self-hosted","canopica-heavy"]` for
+# the Azure VM -- and **unset means `ubuntu-latest`**. That default
+# direction is deliberate: the fallback is the path that costs nothing to
+# keep working and needs no infrastructure to exist. If the Azure
+# subscription lapses, the VM is destroyed, or the free-trial credits run
+# out, clearing two variables (or simply never setting them) is a complete
+# and sufficient migration back -- rather than CI being broken until
+# someone edits eleven `runs-on:` lines under time pressure.
+#
+# The split into two variables is what makes the intended end state
+# expressible at all. Three configurations matter:
+#
+#   both set          -- today: one VM, everything serialized on it, near
+#                        zero GitHub Actions minutes on a private repo
+#   light unset,      -- the planned Sep-2026 shape: the 8 cheap jobs go
+#   heavy set            back to GitHub-hosted *parallel* runners (they
+#                        cost little and serializing them on one box is
+#                        pure wall-clock loss), while the 3 heavy jobs
+#                        stay on the VM where the minutes are expensive
+#   both unset        -- fully back on GitHub Actions, the pre-2026-08-25
+#                        arrangement, byte-for-byte
+#
+# start-runner/stop-runner gate their *steps* on the variables below
+# rather than gating the jobs themselves. That is not a style choice: the
+# eleven jobs all carry `needs: [start-runner]`, and a skipped job makes
+# its dependents skip too, so gating the job would silently disable the
+# entire workflow the moment the variables were cleared. Gating the steps
+# turns those two jobs into ~3-second no-ops instead, and every `needs:`
+# edge stays exactly as it is.
+env:
+  CI_USES_SELF_HOSTED: ${{ contains(vars.CI_LIGHT_RUNNER, 'self-hosted') || contains(vars.CI_HEAVY_RUNNER, 'self-hosted') }}
+
 jobs:
   # This repo's own convention commits docs/STATUS.md constantly (often as
   # its own commit, e.g. recording a CI result), and each of those was
@@ -186,16 +230,21 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: azure/login@v2
+      # Both steps gated, not the job -- see the CI_*_RUNNER note at the
+      # top of this file for why the job itself must keep running even when
+      # no self-hosted runner is in use.
+      - if: env.CI_USES_SELF_HOSTED == 'true'
+        uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - run: az vm start --resource-group canopica-ci-runner-rg --name canopica-ci-runner-vm
+      - if: env.CI_USES_SELF_HOSTED == 'true'
+        run: az vm start --resource-group canopica-ci-runner-rg --name canopica-ci-runner-vm
 
   java:
     name: Java (api + rules engine)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 15
     needs: [start-runner]
     steps:
@@ -210,7 +259,7 @@ jobs:
 
   web:
     name: Web (React UI)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     needs: [start-runner]
     defaults:
@@ -230,7 +279,7 @@ jobs:
 
   python:
     name: Python (data platform)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     needs: [start-runner]
     defaults:
@@ -248,7 +297,7 @@ jobs:
 
   ai:
     name: Python (AI capability layer)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     needs: [start-runner]
     defaults:
@@ -273,7 +322,7 @@ jobs:
 
   audit-chain:
     name: Audit chain verifier (integration)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     needs: [start-runner]
     defaults:
@@ -289,7 +338,7 @@ jobs:
 
   dbt:
     name: Bronze ingestion + dbt silver/gold (integration)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 15
     needs: [start-runner]
     defaults:
@@ -305,7 +354,7 @@ jobs:
 
   reporting:
     name: Serving-layer materialization (integration)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     needs: [start-runner]
     defaults:
@@ -335,7 +384,7 @@ jobs:
   # tune margins around it.
   e2e-data-platform:
     name: End-to-end -- data platform
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_HEAVY_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 25
     needs: [changes, java, python, dbt, start-runner]
     if: needs.changes.outputs.code == 'true'
@@ -348,8 +397,18 @@ jobs:
       # `e2e-ai` below for the measurements behind it.
       - name: Free disk space and pull images concurrently
         run: |
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL \
-                      /usr/share/dotnet /opt/ghc &
+          # Deleting preinstalled toolchains is GitHub-hosted only: none of
+          # these paths exist on the Azure VM, where disk is instead managed
+          # by the runner's own pre-job prune hook. Branched inside the step
+          # rather than split into a separate gated step, so the deletion
+          # still overlaps the pull on GitHub-hosted runners -- which is the
+          # whole reason this step has the shape it does.
+          {
+            if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then
+              sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL \
+                          /usr/share/dotnet /opt/ghc
+            fi
+          } &
           cleanup=$!
           docker compose -f infra/docker-compose.yml pull --quiet \
             postgres metabase keycloak jaeger prometheus grafana &
@@ -375,7 +434,7 @@ jobs:
 
   e2e-ai:
     name: End-to-end -- AI layer
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_HEAVY_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
     needs: [changes, java, ai, start-runner]
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.e2e_ai == 'true'
@@ -390,7 +449,15 @@ jobs:
       # the compose file: that file changes for unrelated reasons far more
       # often than the pulled model tags do. Bump the suffix if
       # ollama-init's own pull list ever changes.
-      - uses: actions/cache@v6
+      # GitHub-hosted only. On a persistent runner this step is not just
+      # unnecessary but actively expensive: it moved ~2.3GB through the
+      # network on both legs to restore and re-save files that never left
+      # the machine, costing 389s of the 2687s total in run 32927971610
+      # (14%) plus NAT Gateway data-processing charges in both directions.
+      # The VM keeps the same models at /opt/ollama-models instead, via
+      # OLLAMA_MODELS_DIR -- see infra/azure/ci-runner/cloud-init.yaml.
+      - if: runner.environment == 'github-hosted'
+        uses: actions/cache@v6
         with:
           path: infra/ollama-models
           key: ollama-models-nomic-embed-text-llama3.2-3b-v1
@@ -404,8 +471,18 @@ jobs:
       # early rather than at the end.
       - name: Free disk space and pull images concurrently
         run: |
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL \
-                      /usr/share/dotnet /opt/ghc &
+          # Deleting preinstalled toolchains is GitHub-hosted only: none of
+          # these paths exist on the Azure VM, where disk is instead managed
+          # by the runner's own pre-job prune hook. Branched inside the step
+          # rather than split into a separate gated step, so the deletion
+          # still overlaps the pull on GitHub-hosted runners -- which is the
+          # whole reason this step has the shape it does.
+          {
+            if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then
+              sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL \
+                          /usr/share/dotnet /opt/ghc
+            fi
+          } &
           cleanup=$!
           docker compose -f infra/docker-compose.yml pull --quiet \
             opensearch ollama postgres keycloak jaeger &
@@ -452,7 +529,12 @@ jobs:
       # but the cache never populated, quietly defeating the point of
       # caching it. `if: always()` so a failed test run still leaves a
       # saveable cache behind.
-      - if: always()
+      # Paired with the cache step above and gated the same way: this
+      # exists only so actions/cache's save step can read root-owned files,
+      # so with no cache step there is nothing for it to enable. The path
+      # it names is also the GitHub-hosted one -- on the VM the models are
+      # at /opt/ollama-models and `infra/ollama-models` does not exist.
+      - if: always() && runner.environment == 'github-hosted'
         run: sudo chmod -R a+rX infra/ollama-models
       - if: always()
         run: df -h / && free -h && docker stats --no-stream
@@ -487,7 +569,7 @@ jobs:
 
   ai-eval:
     name: Eval-suite gate -- Policy Q&A
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_HEAVY_RUNNER || '"ubuntu-latest"') }}
     # Measured live (2026-08-24), on an otherwise-idle host: the 8-question
     # CI-gate subset (see run_eval.py's own _CI_GATE_QUESTIONS) took 13:41
     # end to end (retrieval + local Ollama generation, sequential --
@@ -508,14 +590,32 @@ jobs:
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.ai_eval == 'true'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/cache@v6
+      # GitHub-hosted only. On a persistent runner this step is not just
+      # unnecessary but actively expensive: it moved ~2.3GB through the
+      # network on both legs to restore and re-save files that never left
+      # the machine, costing 389s of the 2687s total in run 32927971610
+      # (14%) plus NAT Gateway data-processing charges in both directions.
+      # The VM keeps the same models at /opt/ollama-models instead, via
+      # OLLAMA_MODELS_DIR -- see infra/azure/ci-runner/cloud-init.yaml.
+      - if: runner.environment == 'github-hosted'
+        uses: actions/cache@v6
         with:
           path: infra/ollama-models
           key: ollama-models-nomic-embed-text-llama3.2-3b-v1
       - name: Free disk space and pull images concurrently
         run: |
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL \
-                      /usr/share/dotnet /opt/ghc &
+          # Deleting preinstalled toolchains is GitHub-hosted only: none of
+          # these paths exist on the Azure VM, where disk is instead managed
+          # by the runner's own pre-job prune hook. Branched inside the step
+          # rather than split into a separate gated step, so the deletion
+          # still overlaps the pull on GitHub-hosted runners -- which is the
+          # whole reason this step has the shape it does.
+          {
+            if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then
+              sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeQL \
+                          /usr/share/dotnet /opt/ghc
+            fi
+          } &
           cleanup=$!
           docker compose -f infra/docker-compose.yml pull --quiet opensearch ollama &
           pull=$!
@@ -561,7 +661,12 @@ jobs:
         env:
           CANOPICA_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           CANOPICA_OTEL_ENABLED: "false"
-      - if: always()
+      # Paired with the cache step above and gated the same way: this
+      # exists only so actions/cache's save step can read root-owned files,
+      # so with no cache step there is nothing for it to enable. The path
+      # it names is also the GitHub-hosted one -- on the VM the models are
+      # at /opt/ollama-models and `infra/ollama-models` does not exist.
+      - if: always() && runner.environment == 'github-hosted'
         run: sudo chmod -R a+rX infra/ollama-models
       # Identical to the e2e-ai job's own two diagnostic steps, and here for
       # a reason worth stating rather than leaving as duplication: those
@@ -630,16 +735,22 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: azure/login@v2
+      # Gated identically to start-runner. Note this job's `if:` above is
+      # `always() && needs.start-runner.result == 'success'` -- a no-op
+      # start-runner still reports success, so this still runs and still
+      # no-ops, which is the intended symmetry.
+      - if: env.CI_USES_SELF_HOSTED == 'true'
+        uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - run: az vm deallocate --resource-group canopica-ci-runner-rg --name canopica-ci-runner-vm
+      - if: env.CI_USES_SELF_HOSTED == 'true'
+        run: az vm deallocate --resource-group canopica-ci-runner-rg --name canopica-ci-runner-vm
 
   terraform:
     name: Reference Terraform for Azure (validate only)
-    runs-on: [self-hosted, canopica-heavy]
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     needs: [start-runner]
     defaults:

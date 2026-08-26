@@ -55,13 +55,43 @@ write_files:
   # and fixing one form of it while naming the others as deliberately
   # out-of-scope is how a fix looks complete and isn't.
   #
-  # Images and build cache prune on *disk pressure* rather than every job,
-  # because a full prune forces every image to rebuild from scratch on the
-  # next job and that is real wall-clock. Keep the layer cache while there
-  # is room; discard it only when finishing the job matters more than
-  # finishing it quickly. Containers, networks and volumes prune
-  # unconditionally -- those are cheap to recreate and none of them carries
-  # state any job should be inheriting.
+  # **What gets pruned is not symmetric, and getting that backwards was the
+  # third mistake in this same hook.** The first version of the disk-
+  # pressure branch reached for `docker image prune -af`, on the reasoning
+  # that "unused" images are reclaimable space. Measuring the VM said
+  # otherwise: it held **16 tagged images totalling 20.7GB and zero
+  # dangling ones**, and all 16 were base images CI pulls on every run
+  # (ollama 8.43GB, three Airflow variants at 3.74GB each, opensearch
+  # 2.55GB, metabase 1.81GB, keycloak, grafana, prometheus, postgres...).
+  # `-af` would have deleted every one of them -- i.e. deleted precisely
+  # the cache the disk was grown from 32GB to 64GB in order to hold, and
+  # forced a full ~17GB re-pull on the next run, paying for it twice over
+  # in wall-clock and in NAT Gateway data processing. `docker system df`
+  # calling that space "reclaimable" is what makes the mistake easy: it
+  # counts any image without a *currently running* container, which on an
+  # idle runner is all of them.
+  #
+  # So the split is by what the thing actually costs to recreate:
+  #   - Containers, networks, volumes: pruned unconditionally, every job.
+  #     Seconds to recreate, and none carries state a job should inherit.
+  #   - Build cache: bounded every job. This is the one thing that grows
+  #     without limit (5.8GB when measured, 5.7GB of it reclaimable) and
+  #     the one whose loss costs a rebuild rather than a re-download.
+  #     Bounded rather than emptied, so recent layers survive.
+  #   - Tagged images: never pruned on a schedule. They are the cache.
+  #
+  # `-af` on either survives only in the emergency branch, at a floor low
+  # enough that reaching it means something is genuinely wrong -- and even
+  # there it is staged (build cache first, re-measure, images only if that
+  # was not enough), because the cheap reclaim usually suffices and the
+  # expensive one rarely needs to happen at all.
+  #
+  # Not at risk from any of this, and deliberately so: the Ollama model
+  # directory at /opt/ollama-models (~2.3GB of nomic-embed-text +
+  # llama3.2:3b). It is a host bind mount, not a Docker volume, so
+  # `docker volume prune` cannot see it; it is outside the runner
+  # workspace, so actions/checkout's `git clean -ffdx` cannot delete it;
+  # and nothing below touches host paths at all.
   - path: /opt/actions-runner/job-started-hook.sh
     permissions: "0755"
     content: |
@@ -81,19 +111,67 @@ write_files:
         docker rm -f $${leftovers} >/dev/null 2>&1 || true
       fi
       docker network prune -f >/dev/null 2>&1 || true
-      docker volume prune -f >/dev/null 2>&1 || true
+      # `-a`, and it is load-bearing. `docker volume prune -f` alone removes
+      # only *anonymous* volumes; Compose's are all named
+      # (`infra_postgres-data` and friends), so the plain form silently
+      # skipped every volume this project actually creates -- a cleanup
+      # that reported success and did nothing. Caught by the failure it
+      # caused rather than by review: run `32935635062`'s `e2e-ai` died on
+      # `duplicate key value violates unique constraint "worker_email_key"`,
+      # which is docs/STATUS.md's known Keycloak-subject-reissue collision
+      # -- previously only reachable by hand, and turned into a structural
+      # every-run failure here because the operational Postgres volume now
+      # outlived the Keycloak container that reseeds against it.
+      # Nothing in a volume is a cache worth keeping: they hold operational
+      # database state, which is precisely what a job must not inherit.
+      docker volume prune -af >/dev/null 2>&1 || true
+
+      # Dangling images only -- rebuild churn from `compose up --build`,
+      # never a tagged base image. See the long note above for why `-af`
+      # is not what belongs here.
+      docker image prune -f >/dev/null 2>&1 || true
+
+      # Bound the build cache rather than emptying it.
+      #
+      # Two things about this line were checked against the live daemon
+      # rather than assumed, and both would otherwise have been silent:
+      # `--max-used-space` is Docker 29's flag and the older
+      # `--keep-storage` has been REMOVED (not merely deprecated), so the
+      # obvious spelling would have failed forever behind the `|| true`.
+      # And the budget applies to the *reclaimable* cache, not the total:
+      # measured live at 5.803GB total / 1.373GB reclaimable, a 4GB budget
+      # correctly pruned nothing, while a 1GB budget reclaimed 483MB and
+      # left 889MB. So this is a ceiling on unreferenced cache growth --
+      # which is the thing that actually grows without limit -- and not a
+      # cap on the number `docker system df` prints.
+      docker builder prune -f --max-used-space 4GB >/dev/null 2>&1 || true
 
       avail_gb=$$(df --output=avail -BG / 2>/dev/null | tail -1 | tr -dc "0-9")
-      MIN_FREE_GB=12
-      if [ "$${avail_gb:-0}" -lt "$${MIN_FREE_GB}" ]; then
-        echo "job-started-hook: $${avail_gb}GB free is under the $${MIN_FREE_GB}GB floor -- pruning all unused images and build cache"
-        docker image prune -af >/dev/null 2>&1 || true
+      # 6GB, not the 12GB this used to be. The old floor was set when the
+      # disk was 32GB and the branch it guards was believed cheap; at 64GB
+      # with the cache-preserving prunes above running every job, tripping
+      # this means something is actually wrong, and what it triggers is
+      # expensive enough that it should be rare rather than routine.
+      EMERGENCY_FREE_GB=6
+      if [ "$${avail_gb:-0}" -lt "$${EMERGENCY_FREE_GB}" ]; then
+        echo "job-started-hook: EMERGENCY -- only $${avail_gb}GB free, under the $${EMERGENCY_FREE_GB}GB floor"
+        echo "job-started-hook: dropping the entire build cache first (cheapest to rebuild)"
         docker builder prune -af >/dev/null 2>&1 || true
-      else
-        docker image prune -f >/dev/null 2>&1 || true
+
+        avail_gb=$$(df --output=avail -BG / 2>/dev/null | tail -1 | tr -dc "0-9")
+        if [ "$${avail_gb:-0}" -lt "$${EMERGENCY_FREE_GB}" ]; then
+          # Only now, and loudly: this deletes the base-image cache and the
+          # next run pays a full re-pull for it. If this line shows up in a
+          # log, the disk needs growing -- do not treat it as normal.
+          echo "job-started-hook: still only $${avail_gb}GB free -- discarding the base-image cache too; EXPECT A SLOW NEXT RUN and grow the disk"
+          docker image prune -af >/dev/null 2>&1 || true
+        else
+          echo "job-started-hook: build cache alone recovered enough ($${avail_gb}GB free); base images kept"
+        fi
       fi
 
-      echo "job-started-hook: memory available at job start:"
+      echo "job-started-hook: disk and memory at job start:"
+      df -h / | tail -1
       free -h || true
 
   # The job-*completed* counterpart. The start hook above is the one that
@@ -113,11 +191,14 @@ write_files:
   # run starts from a known state rather than inheriting the last one's
   # leftovers.
   #
-  # Same prune set as the start hook, minus the disk-pressure branch:
+  # Same prune set as the start hook, minus the emergency branch:
   # reclaiming space here is never urgent (no job is waiting on it), so
-  # this deliberately keeps the image layer cache and only removes what is
-  # genuinely dead. The start hook still makes the aggressive call when a
-  # job is actually about to run and space is actually short.
+  # this only removes what is genuinely dead and bounds what genuinely
+  # grows. The base-image cache is kept here unconditionally -- there is no
+  # circumstance in which the right thing to do *after* a job is to throw
+  # away the images the next one will immediately re-pull. The start hook
+  # still makes the aggressive call, if it ever has to, at the point where
+  # a job is actually about to run and space is actually short.
   - path: /opt/actions-runner/job-completed-hook.sh
     permissions: "0755"
     content: |
@@ -132,11 +213,17 @@ write_files:
         docker rm -f $${finished} >/dev/null 2>&1 || true
       fi
       docker network prune -f >/dev/null 2>&1 || true
-      docker volume prune -f >/dev/null 2>&1 || true
+      # `-a` for the same reason as the start hook: without it this skips
+      # every named volume, which is all of Compose's.
+      docker volume prune -af >/dev/null 2>&1 || true
       docker image prune -f >/dev/null 2>&1 || true
+      docker builder prune -f --max-used-space 4GB >/dev/null 2>&1 || true
 
       echo "job-completed-hook: disk after cleanup:"
       df -h / | tail -1
+      # Named explicitly so a run that loses the model cache says so in its
+      # own log rather than only showing up as an unexplained slow job.
+      echo "job-completed-hook: ollama model cache: $$(du -sh /opt/ollama-models 2>/dev/null | cut -f1 || echo missing)"
 
 packages:
   - ca-certificates
@@ -175,6 +262,30 @@ runcmd:
   # deep inside a job's own process tree.
   - echo 'ACTIONS_RUNNER_HOOK_JOB_STARTED=/opt/actions-runner/job-started-hook.sh' >> /opt/actions-runner/.env
   - echo 'ACTIONS_RUNNER_HOOK_JOB_COMPLETED=/opt/actions-runner/job-completed-hook.sh' >> /opt/actions-runner/.env
+
+  # Ollama's ~2.3GB of models (nomic-embed-text + llama3.2:3b), kept on
+  # this VM's own disk instead of being round-tripped through
+  # actions/cache. infra/docker-compose.yml reads OLLAMA_MODELS_DIR for
+  # the host side of its bind mount and falls back to a path inside the
+  # checkout when unset, which is what a GitHub-hosted ephemeral runner
+  # still needs -- see that file's own comment for the two-mode split.
+  #
+  # Two reasons it lives at /opt and not in the workspace, both learned
+  # the expensive way elsewhere in this file: actions/checkout runs
+  # `git clean -ffdx`, which deletes gitignored directories inside the
+  # workspace on every single job, and actions/cache on a persistent
+  # runner spends ~389s per run (measured, run 32927971610) moving bytes
+  # that never actually left the machine, plus NAT Gateway data-processing
+  # charges on both legs of the round trip.
+  #
+  # 0777 rather than owned by the runner user: Ollama runs as root inside
+  # its container and writes its identity key and blob cache into this
+  # mount, while docker compose is invoked by the unprivileged runner
+  # user. Nothing secret is stored here -- these are public model weights
+  # -- and this is a single-tenant CI box with no inbound network path.
+  - mkdir -p /opt/ollama-models
+  - chmod 0777 /opt/ollama-models
+  - echo 'OLLAMA_MODELS_DIR=/opt/ollama-models' >> /opt/actions-runner/.env
 
   # 4GB of swap. Not a fix for anything -- the container-cleanup hook above
   # is the actual fix -- but this box has 7.8GB and *zero* swap, against a

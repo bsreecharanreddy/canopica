@@ -282,15 +282,32 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      # A host bind mount, not a named volume, on purpose: CI (see ci.yml)
-      # caches this exact path with actions/cache so the ~2.3GB
-      # nomic-embed-text + llama3.2:3b pull doesn't hit Ollama's registry
-      # on every single workflow run -- a named volume has no stable host
-      # path actions/cache could target across separate runs on GitHub's
-      # ephemeral runners. `ollama pull` is content-addressed and already
-      # idempotent, so a warm cache just verifies existing blobs in
-      # seconds instead of re-downloading them.
-      - ./ollama-models:/root/.ollama
+      # A host bind mount, not a named volume, on purpose, and its host
+      # side is overridable because the two runner types this repo now
+      # targets need it to live in two different places:
+      #
+      # - Default (`./ollama-models`, i.e. inside the checkout): what a
+      #   GitHub-hosted ephemeral runner needs. The machine is destroyed
+      #   after every job, so the only way to carry the ~2.3GB
+      #   nomic-embed-text + llama3.2:3b pull across runs is to hand the
+      #   path to actions/cache -- and a named volume has no stable host
+      #   path actions/cache could target. It also has to sit inside the
+      #   workspace for actions/cache to reach it at all.
+      # - `OLLAMA_MODELS_DIR=/opt/ollama-models`: what the self-hosted VM
+      #   sets (in the runner's own .env, see infra/azure/ci-runner/
+      #   cloud-init.yaml). That machine persists across runs, so the
+      #   models simply stay on its disk and no cache upload/download is
+      #   involved at all -- which is the point, because actions/cache
+      #   round-trips ~2.3GB through the network on *both* ends and that
+      #   is 389s of the last measured run plus NAT Gateway data charges,
+      #   to move bytes that never left the box. It must be *outside* the
+      #   workspace because actions/checkout runs `git clean -ffdx`, which
+      #   would delete a gitignored directory inside it on every job.
+      #
+      # `ollama pull` is content-addressed and already idempotent either
+      # way, so a warm directory just verifies existing blobs in seconds
+      # instead of re-downloading them.
+      - ${OLLAMA_MODELS_DIR:-./ollama-models}:/root/.ollama
     healthcheck:
       test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 10s
