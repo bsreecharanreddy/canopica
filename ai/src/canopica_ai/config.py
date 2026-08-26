@@ -251,3 +251,13 @@ class Settings(BaseSettings):
     # paths (`duckdb_path` etc.) -- Step 5's Fly.io deploy mounts a small
     # persistent volume at this path so it survives a restart.
     openrouter_public_demo_spend_file: Path = Path("data/public_demo_spend.json")
+
+    # Task 9 Step 3's per-session daily cap (design doc §2.10's "app-level
+    # rate limiter"), in front of the whole tiered chain -- UX/anti-abuse,
+    # not cost control (the $5/mo spend cap above already bounds real
+    # cost: at either pinned model's rate this limit would need to be in
+    # the thousands before it mattered for spend). 20 is a deliberately
+    # generous round number for a demo visitor genuinely trying it out,
+    # not a measured figure -- there's no real traffic yet to measure
+    # against, unlike this file's other settings.
+    public_demo_daily_request_limit_per_session: int = 20
