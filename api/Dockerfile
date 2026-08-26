@@ -2,7 +2,7 @@
 # module in the same Maven reactor -- see the root pom.xml's <modules>),
 # so this only COPYs the paths the reactor build actually needs, not all
 # of api/.
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3-eclipse-temurin-26 AS build
 WORKDIR /workspace
 COPY pom.xml mvnw ./
 COPY .mvn .mvn
