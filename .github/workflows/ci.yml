@@ -570,22 +570,28 @@ jobs:
   ai-eval:
     name: Eval-suite gate -- Policy Q&A
     runs-on: ${{ fromJSON(vars.CI_HEAVY_RUNNER || '"ubuntu-latest"') }}
-    # Measured live (2026-08-24), on an otherwise-idle host: the 8-question
-    # CI-gate subset (see run_eval.py's own _CI_GATE_QUESTIONS) took 13:41
-    # end to end (retrieval + local Ollama generation, sequential --
-    # concurrency here live-tripped OpenSearch's memory circuit breaker in
-    # seconds -- pipelined against OpenRouter-judged scoring, which
-    # overlaps). An earlier attempt on a *loaded* host (other local
-    # commands running concurrently) took 49 minutes before timing out
-    # outright, which is why this job's own steps below run nothing else
-    # alongside it. This job's own first real CI run then hit the same
-    # class of failure on the actual runner (a real Ollama generation
-    # httpx.ReadTimeout at the old 240s ceiling -- see config.py's
-    # ollama_timeout_seconds, raised 240 -> 480 in response), so this
-    # budget carries real margin for up to 8 questions each potentially
-    # needing a grounding retry (2 generation calls) at the new,
-    # higher per-call ceiling, not just the one clean local run.
-    timeout-minutes: 35
+    # Measured live (2026-08-24), on an otherwise-idle host: the original
+    # 8-question CI-gate subset took 13:41 end to end (retrieval + local
+    # Ollama generation, sequential -- concurrency here live-tripped
+    # OpenSearch's memory circuit breaker in seconds -- pipelined against
+    # OpenRouter-judged scoring, which overlaps). An earlier attempt on a
+    # *loaded* host (other local commands running concurrently) took 49
+    # minutes before timing out outright, which is why this job's own
+    # steps below run nothing else alongside it. This job's own first real
+    # CI run then hit the same class of failure on the actual runner (a
+    # real Ollama generation httpx.ReadTimeout at the old 240s ceiling --
+    # see config.py's ollama_timeout_seconds, raised 240 -> 480 in
+    # response), so the original 35min budget already carried real margin
+    # for retries, not just the one clean local run.
+    #
+    # 45min, raised 2026-08-26 alongside `_CI_GATE_QUESTIONS` growing
+    # 8 -> 12 questions (run_eval.py module docstring point 6): +4
+    # questions at the measured ~1.3min/question retrieval+generation cost
+    # is +~5min, and this VM's RAM just doubled (D2s_v7 -> D4s_v7, same
+    # commit) which should reduce, not increase, retry-driven overruns --
+    # so the added budget is proportional headroom, not a response to a
+    # new slowdown.
+    timeout-minutes: 45
     needs: [changes, ai, start-runner]
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.ai_eval == 'true'
     steps:

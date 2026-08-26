@@ -35,10 +35,9 @@ fails immediately without spending a judge call on it.
    instead of adding its own ~76s serially after every question.
 4. Even pipelined, ~181s/question x 20 questions is ~60 minutes -- too
    long for a per-push gate on this project's own stated wall-clock
-   priorities. `_CI_GATE_QUESTIONS` below is a stratified 8-question
-   subset (one or two per §2.1 coverage area: income, deductions,
-   expedited processing, categorical eligibility) that keeps the
-   CI-blocking `--check` run bounded. The full ~20-question
+   priorities. `_CI_GATE_QUESTIONS` below is a stratified subset (income,
+   deductions, expedited processing, categorical eligibility) that keeps
+   the CI-blocking `--check` run bounded. The full ~20-question
    `golden_set.yaml` stays committed and complete -- `--full` runs every
    question, for a slower, deliberate, less-frequent check.
 5. Every categorical-eligibility golden question retrieves 7 CFR
@@ -55,6 +54,26 @@ fails immediately without spending a judge call on it.
    abstention already exists for elsewhere in that function), so
    `citation_grounded_rate` on this subset is genuinely below 1.0 by
    construction -- see `baseline.json`'s own comment for the real number.
+6. **The original 8-question subset gated on too small a judged sample to
+   be a stable signal, found live (2026-08-26).** Two of the 8 sit in the
+   273.2(j) cluster point 5 describes and abstain deterministically every
+   run; the rest have their own ordinary citation variance, so a typical
+   run judges only ~4 questions. `faithfulness` is the mean of just those
+   4 scores, so one ordinary-variance generation swings the whole run's
+   number by ~0.25 -- run `32967528722` failed at `0.667` against a
+   `0.750` baseline this way, with `contextual_precision`/`recall` both a
+   clean `1.000`, proving retrieval was not the fault. This is the
+   "sawtoothing metric" pattern this repo's own recurring-CI-failure
+   playbook already names: not fixable by moving `_REGRESSION_MARGIN` or
+   the generation model's `temperature`, because neither touches the
+   actual cause, an undersized sample. Fixed by widening the *judged*
+   sample instead -- four more questions added, all picked from outside
+   the 273.2(j) cluster (income/deductions/expedited only) so the
+   addition raises real judged N rather than adding more deterministic
+   abstentions. `baseline.json` was regenerated against this new 12
+   question set for the same reason a baseline can't be reused across a
+   changed corpus or prompt -- the number it's compared against has to
+   describe the same measurement.
 """
 
 from __future__ import annotations
@@ -98,17 +117,28 @@ _METRIC_NAMES = ("faithfulness", "contextual_precision", "contextual_recall")
 # with one question's own ~181s generation time.
 _JUDGE_CONCURRENCY = 4
 
-# One or two questions per §2.1 coverage area (income eligibility,
-# deductions, expedited processing, categorical eligibility), picked from
-# the full golden_set.yaml -- see module docstring point 4 for why this
-# exists at all, not the full set.
+# Questions per §2.1 coverage area (income eligibility, deductions,
+# expedited processing, categorical eligibility), picked from the full
+# golden_set.yaml -- see module docstring point 4 for why this exists at
+# all, not the full set, and point 6 for why it's 12 rather than the
+# original 8. The 4 added (income x1, deductions x2, expedited x1) were
+# deliberately chosen from outside the 273.2(j) cluster (point 5) so they
+# widen the *judged* sample instead of adding more guaranteed abstentions
+# -- the 2 categorical-eligibility questions already here stay, since
+# their deterministic abstention is itself part of what `baseline.json`'s
+# `citation_grounded_rate` describes, not a reason to avoid the cluster
+# entirely.
 _CI_GATE_QUESTIONS = frozenset(
     {
         "What is the income eligibility test for a household with no elderly or disabled member?",
+        "Which households only have to meet the net income test, not the gross income test?",
         "How is the standard deduction amount determined?",
         "What is the earned income deduction?",
+        "Who qualifies for the excess medical expense deduction, and what does it cover?",
+        "What is the homeless shelter deduction?",
         "Does the cost of heating and cooling count toward the shelter deduction?",
         "Which households are entitled to expedited SNAP service based on income?",
+        "Are destitute migrant or seasonal farmworker households entitled to expedited service?",
         "Are residents of shelters for battered women and children eligible for expedited service?",
         "Must a State agency let households applying for public assistance also apply for SNAP "
         "at the same time?",

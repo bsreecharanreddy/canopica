@@ -25,6 +25,17 @@ json_schema` structured call) both succeeded cleanly, while
 ("temporarily rate-limited upstream... shared pool") on the very first
 call in the same probe -- a concrete, live reason to prefer this model
 over those, not a guess.
+
+**Moved off that model, and off OpenRouter's `:free` tier entirely,
+2026-08-26** -- see `config.py`'s `openrouter_judge_model` field for the
+real evidence (two full eval runs lost the same night to free-tier
+capacity exhaustion), the live price/compatibility comparison across
+four paid candidates, and why DeepSeek V3 won on cost with Claude Haiku
+4.5 kept as a proven fallback. This class's own retry logic
+(`_RETRYABLE_ERROR_CODES`, `_MAX_ATTEMPTS`) stays unchanged and still
+applies -- paid routing removes the *free-tier* failure mode
+specifically, not the general case for retrying a transient upstream
+error.
 """
 
 from __future__ import annotations
@@ -38,10 +49,13 @@ from pydantic import BaseModel
 
 from canopica_ai.config import Settings
 
-# Pinned rather than left to OpenRouter's own default/latest alias, for
-# the same reason every other model tag in this repo is pinned (CLAUDE.md
-# convention): this specific model was the one actually verified live.
-DEFAULT_JUDGE_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+# Not consulted anywhere -- `Settings.openrouter_judge_model` (config.py)
+# is the real, live default; this constant predates that field and was
+# already dead code before 2026-08-26's model change touched it. Kept in
+# sync rather than deleted, since deleting code this change didn't make
+# unused isn't this change's call to make (CLAUDE.md's scoped-changes
+# convention) -- flagged here for whoever next has reason to remove it.
+DEFAULT_JUDGE_MODEL = "deepseek/deepseek-chat"
 
 _OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -68,9 +82,19 @@ _OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completion
 # raised error now carries OpenRouter's own explanation (below): a model
 # that genuinely does not exist fails on the first call and says so,
 # instead of costing 25 minutes of finished work.
+#
+# 3 attempts / 2s base backoff was too short a window for this specific
+# failure in practice, not just in theory: the identical 502 "Service
+# temporarily overloaded" from Nvidia's free-tier backend killed a run on
+# 2026-08-24 *and* 2026-08-26 (the second time after all 12 questions had
+# already answered and judged cleanly -- ~50 minutes of real work lost to
+# ~6 seconds of total retry window). 5 attempts / 3s base gives ~30s of
+# window (3+6+9+12s between attempts) before giving up -- still bounded,
+# not a retry-forever loop, but sized to the sustained-overload duration
+# actually observed rather than a guess.
 _RETRYABLE_ERROR_CODES = frozenset({404, 429, 502, 503})
-_MAX_ATTEMPTS = 3
-_RETRY_BACKOFF_SECONDS = 2.0
+_MAX_ATTEMPTS = 5
+_RETRY_BACKOFF_SECONDS = 3.0
 _HTTP_OK = 200
 
 

@@ -162,11 +162,49 @@ class Settings(BaseSettings):
     # the run) for a CI-blocking gate. A judge never serves user traffic
     # -- it's a bounded, CI-only step -- so this repo's "self-hosted, $0"
     # requirement for the *generation* model under test (unchanged, still
-    # local) doesn't carry over to it. `openrouter_judge_model` is pinned
-    # to a specific model verified live rather than OpenRouter's own
-    # `openrouter/free` auto-router, which was observed picking a safety
-    # *classifier* model that silently ignored a real prompt -- see
-    # judge_model.py's own docstring for the exact probe.
+    # local) doesn't carry over to it.
+    #
+    # Moved off OpenRouter's `:free` tier entirely on 2026-08-26 -- not
+    # from a hunch, from two consecutive real full-length eval runs
+    # (2026-08-24, and *two more* the same night as this comment) each
+    # losing 45-55 minutes of already-correct work to a free-tier judge
+    # failure in its last few seconds: a 200-wrapped upstream 502 twice,
+    # a real 404, and a 200 response that silently wasn't loadable JSON
+    # despite a strict schema. Widening the retry window (judge_model.py)
+    # did not fix the two same-night failures -- free capacity for this
+    # specific `:free` model was genuinely unavailable long enough to
+    # exhaust 5 attempts across ~30s, not just unlucky once. `is_free_tier:
+    # false` on this project's own OpenRouter account (paid credits
+    # already provisioned, see STATUS.md) meant paid routing needed no new
+    # setup -- just a model string.
+    #
+    # `deepseek/deepseek-chat` (DeepSeek V3), not `anthropic/claude-
+    # haiku-4.5` (tried first, live-verified working, both structured-
+    # output compliance and pricing checked against OpenRouter's own API
+    # before committing to either): DeepSeek's $0.2574/$1.029 per-MTok
+    # rate (OpenRouter's own pricing, live-checked) is the cheapest of
+    # four real candidates compared the same way (GPT-5 Mini $0.25/$2.00,
+    # Gemini 2.5 Flash $0.30/$2.50, Claude Haiku $1/$5) -- input price is
+    # what matters most for this workload specifically, since a judge
+    # call's context (retrieved chunks + generated answer) dwarfs its
+    # short structured verdict, and DeepSeek's input rate is the lowest
+    # of the four. Verified live against the *exact* `response_format:
+    # json_schema` + `strict: true` shape DeepEval sends -- the identical
+    # request that produced the free-tier NVIDIA model's silent-invalid-
+    # JSON failure earlier tonight -- before committing, not assumed
+    # compatible from the pricing page alone.
+    #
+    # Kept on OpenRouter rather than moved to a direct provider key: zero
+    # new code either way (judge_model.py's client already speaks
+    # OpenRouter's protocol generically), so switching *which* paid model
+    # sits behind it is a one-line change, not a new integration -- the
+    # exact flexibility a provider-agnostic client is supposed to buy.
+    # `anthropic/claude-haiku-4.5` stays a proven, working fallback if
+    # DeepSeek's paid tier ever shows the same class of problem the free
+    # tier did; a direct (non-OpenRouter) integration for either provider
+    # remains real, separately-scoped follow-up work, not required to get
+    # off the unreliable free tier tonight -- see
+    # `docs/design/2026-08-26-anthropic-tiered-inference-provider.md`.
     openrouter_api_key: str | None = None
-    openrouter_judge_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    openrouter_judge_model: str = "deepseek/deepseek-chat"
     openrouter_timeout_seconds: float = 120.0
