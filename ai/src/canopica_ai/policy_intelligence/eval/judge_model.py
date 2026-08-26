@@ -29,6 +29,7 @@ over those, not a guess.
 
 from __future__ import annotations
 
+import json
 import time
 
 import httpx
@@ -71,6 +72,27 @@ _RETRYABLE_ERROR_CODES = frozenset({404, 429, 502, 503})
 _MAX_ATTEMPTS = 3
 _RETRY_BACKOFF_SECONDS = 2.0
 _HTTP_OK = 200
+
+
+def _parses_as_json_object(content: str) -> bool:
+    """Whether DeepEval will be able to load this response.
+
+    Deliberately mirrors the leniency of DeepEval's own `trimAndLoadJson`
+    (`deepeval/metrics/utils.py`) -- first `{` to last `}`, then
+    `json.loads` -- rather than validating strictly against the requested
+    schema. Being *stricter* here than the consumer would reject responses
+    DeepEval would happily have accepted, turning a working run into a
+    retry storm; the only question worth asking is the one DeepEval is
+    about to ask itself.
+    """
+    start, end = content.find("{"), content.rfind("}")
+    if start == -1 or end < start:
+        return False
+    try:
+        json.loads(content[start : end + 1])
+    except json.JSONDecodeError:
+        return False
+    return True
 
 
 class OpenRouterNotConfiguredError(RuntimeError):
@@ -167,7 +189,41 @@ class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
             payload = response.json()
             if "error" not in payload:
                 content: str = payload["choices"][0]["message"]["content"]
-                return content
+                # A *third* shape of "the upstream provider returned
+                # garbage", after the 200-with-error-body and the real
+                # non-2xx above -- and the one that reads least like an
+                # error, because everything about the HTTP exchange
+                # succeeded. Hit for real in run `32935635062`: all 8
+                # questions answered, then a judge call for
+                # `contextual_precision` came back 200 with a body that
+                # was not JSON, and DeepEval's `trimAndLoadJson` raised
+                # `ValueError: Evaluation LLM outputted an invalid JSON`
+                # -- discarding 19 minutes of completed work over one bad
+                # response out of roughly a dozen.
+                #
+                # Retrying is the right response for the same reason it is
+                # for the 404 documented above, not merely by analogy to
+                # it: `response_format: json_schema` with `strict: true` is
+                # already being sent, so a non-JSON body means the
+                # free-tier provider that served *this* attempt ignored it.
+                # OpenRouter routes `:free` requests to whichever provider
+                # endpoint is available at that instant, so the next
+                # attempt is a genuinely different roll rather than a
+                # deterministic repeat of the same one -- which is also why
+                # `temperature: 0` does not make this pointless.
+                if schema is None or _parses_as_json_object(content):
+                    return content
+                if is_last_attempt:
+                    # The body verbatim: which provider ignored the schema,
+                    # and whether it returned prose, a refusal, or truncated
+                    # JSON, is the whole diagnosis, and is not recoverable
+                    # from the CI log otherwise.
+                    raise RuntimeError(
+                        f"OpenRouter judge returned no loadable JSON for schema "
+                        f"{schema.__name__} after {_MAX_ATTEMPTS} attempts: {content!r}"
+                    )
+                time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
+                continue
             error = payload["error"]
             if error.get("code") not in _RETRYABLE_ERROR_CODES or is_last_attempt:
                 raise RuntimeError(f"OpenRouter judge call failed: {error}")

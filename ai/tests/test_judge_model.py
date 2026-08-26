@@ -17,6 +17,7 @@ from typing import Any
 
 import httpx
 import pytest
+from pydantic import BaseModel
 
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.eval import judge_model
@@ -253,3 +254,103 @@ class TestAFourOhFourIsTransientForAFreeModel:
             OpenRouterJudgeModel(_SETTINGS).generate("grade this")
 
         assert calls == 1
+
+
+class TestAResponseThatIsNotLoadableJsonIsRetried:
+    """The third shape of "the upstream provider returned garbage", after
+    the 200-with-`error`-body and the real non-2xx above, and the one that
+    looks least like a failure: HTTP 200, no `error` key, a `content`
+    string present -- just not JSON, despite `response_format:
+    json_schema` with `strict: true` having been sent.
+
+    Found live in run `32935635062`: all eight questions answered, then one
+    `contextual_precision` judge call came back this way and DeepEval's
+    `trimAndLoadJson` raised `ValueError: Evaluation LLM outputted an
+    invalid JSON`, discarding ~19 minutes of finished work over one bad
+    response out of roughly a dozen.
+    """
+
+    class _Verdict(BaseModel):
+        verdict: str
+
+    @staticmethod
+    def _scripted(responses: list[dict[str, Any]]) -> tuple[Any, list[int]]:
+        calls = [0]
+
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            payload = responses[calls[0]]
+            calls[0] += 1
+            return _response(url, payload)
+
+        return fake_post, calls
+
+    def test_prose_instead_of_json_is_retried_and_a_later_success_is_returned(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        prose = {"choices": [{"message": {"content": "Sure! Here is my assessment: it is good."}}]}
+        valid = {"choices": [{"message": {"content": '{"verdict": "yes"}'}}]}
+        fake_post, calls = self._scripted([prose, valid])
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        result = OpenRouterJudgeModel(_SETTINGS).generate("grade this", schema=self._Verdict)
+
+        assert result == '{"verdict": "yes"}'
+        assert calls[0] == 2
+
+    def test_truncated_json_is_retried_too(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A cut-off response has a `{` but no closing brace -- the shape a
+        # provider produces when it hits its own output limit mid-object.
+        truncated = {"choices": [{"message": {"content": '{"verdict": "ye'}}]}
+        valid = {"choices": [{"message": {"content": '{"verdict": "yes"}'}}]}
+        fake_post, calls = self._scripted([truncated, valid])
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        result = OpenRouterJudgeModel(_SETTINGS).generate("grade this", schema=self._Verdict)
+
+        assert result == '{"verdict": "yes"}'
+        assert calls[0] == 2
+
+    def test_a_fenced_json_block_is_accepted_not_retried(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # DeepEval's own `trimAndLoadJson` takes first-`{` to last-`}`, so a
+        # markdown-fenced object loads fine there. Rejecting it here would
+        # be stricter than the consumer and would retry working responses.
+        fenced = '```json\n{"verdict": "yes"}\n```'
+        fake_post, calls = self._scripted([{"choices": [{"message": {"content": fenced}}]}])
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        result = OpenRouterJudgeModel(_SETTINGS).generate("grade this", schema=self._Verdict)
+
+        assert result == fenced
+        assert calls[0] == 1
+
+    def test_a_schemaless_call_accepts_a_plain_string_answer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # DeepEval also makes plain, unstructured calls through this same
+        # adapter. Those have no JSON expectation at all, so the check must
+        # not fire and turn a perfectly good answer into three retries.
+        fake_post, calls = self._scripted([{"choices": [{"message": {"content": "just prose"}}]}])
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        result = OpenRouterJudgeModel(_SETTINGS).generate("grade this")
+
+        assert result == "just prose"
+        assert calls[0] == 1
+
+    def test_persistent_garbage_raises_carrying_the_offending_body(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        prose = {"choices": [{"message": {"content": "I cannot comply with that."}}]}
+        fake_post, calls = self._scripted([prose] * judge_model._MAX_ATTEMPTS)
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        # The body verbatim, not just "invalid JSON" -- whether the provider
+        # returned a refusal, prose, or truncation is the entire diagnosis.
+        with pytest.raises(RuntimeError, match="I cannot comply with that"):
+            OpenRouterJudgeModel(_SETTINGS).generate("grade this", schema=self._Verdict)
+
+        assert calls[0] == judge_model._MAX_ATTEMPTS
