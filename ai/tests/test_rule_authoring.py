@@ -351,7 +351,7 @@ class TestProposalGuardRails:
         assert "proposed_values" in client.schemas[0].model_json_schema()["properties"]
 
 
-# What the portal actually sends: the whole effective parameter set, not a
+# What the API actually sends: the whole effective parameter set, not a
 # hand-picked slice of it. Real FY2025 figures (V4 migration), trimmed to
 # sizes 1-3 to keep the prompt small -- the shape is what matters, and the
 # excerpt below only ever speaks about sizes in that range.

@@ -338,7 +338,7 @@ def answer_denial(
     llm_client: LlmClient | None = None,
 ) -> QaAnswer:
     """"Why was I denied" -- reads the citizen's own real, persisted DMN
-    trace (via the portal's citizen-scoped trace endpoint, using their own
+    trace (via the API's citizen-scoped trace endpoint, using their own
     bearer token -- this service never receives a token it can use for
     anything beyond that one read), then targets retrieval at the specific
     test that failed rather than a generic query."""
@@ -348,7 +348,7 @@ def answer_denial(
 
     with traced_ai_operation("policy_qa.answer_denial"):
         trace_response = httpx.get(
-            f"{settings.portal_api_url}/api/my/determinations/{determination_id}/trace",
+            f"{settings.api_url}/api/my/determinations/{determination_id}/trace",
             headers={"Authorization": f"Bearer {bearer_token}"},
             timeout=30.0,
         )

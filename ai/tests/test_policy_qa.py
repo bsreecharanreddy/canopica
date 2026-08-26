@@ -1,9 +1,9 @@
 """Policy Q&A / explainability RAG (design doc §2.2): a general-question
 grounded case and an abstention case against the real corpus/models
 (e2e), plus a "why was I denied" case against a real determination created
-through the real portal API -- the full-stack contract this repo's `e2e`
+through the real API -- the full-stack contract this repo's `e2e`
 marker already implies (`docker compose up` brings up OpenSearch/Ollama
-*and* portal-api/Keycloak/Postgres together). `citation_grounded` itself
+*and* api/Keycloak/Postgres together). `citation_grounded` itself
 is tested directly, with no infra at all.
 """
 
@@ -30,7 +30,7 @@ from canopica_ai.policy_intelligence.qa.service import (
 
 pytestmark = pytest.mark.e2e
 
-PORTAL_API_URL = "http://localhost:8080"
+API_URL = "http://localhost:8080"
 KEYCLOAK_URL = "http://localhost:8081"
 
 # Same test identity Java's AbstractApiTest and canopica_data.synthetic.loader
@@ -110,7 +110,7 @@ def _worker_token() -> str:
 
 def _submit_application(citizen_token: str) -> str:
     response = httpx.post(
-        f"{PORTAL_API_URL}/api/applications",
+        f"{API_URL}/api/applications",
         json=_HIGH_INCOME_HOUSEHOLD_INTAKE,
         headers={"Authorization": f"Bearer {citizen_token}"},
         timeout=30.0,
@@ -123,7 +123,7 @@ def _submit_application(citizen_token: str) -> str:
 def _decide(worker_token: str, program_request_id: str) -> str:
     today = date.today()
     response = httpx.post(
-        f"{PORTAL_API_URL}/api/program-requests/{program_request_id}/determinations",
+        f"{API_URL}/api/program-requests/{program_request_id}/determinations",
         json={"asOfDate": today.isoformat(), "benefitMonth": today.replace(day=1).isoformat()},
         headers={"Authorization": f"Bearer {worker_token}"},
         timeout=30.0,
@@ -372,7 +372,7 @@ class TestRecordProvenanceOptOut:
 
 @pytest.fixture(scope="class")
 def an_explained_denial(indexed_corpus: Settings) -> tuple[str, QaAnswer]:
-    """A real denied determination, decided through the real portal API,
+    """A real denied determination, decided through the real API,
     plus its one real explanation -- shared for the same reason as
     `a_grounded_answer` above, and worth more here: each of the two tests
     below used to submit its own application, run its own DMN

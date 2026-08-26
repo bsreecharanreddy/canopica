@@ -7,10 +7,10 @@
 
   <!--
     SNAP eligibility, split into fifteen named decisions so the persisted
-    trace (portal Task 5) shows the deduction stack step by step. See
+    trace (api Task 5) shows the deduction stack step by step. See
     rules-engine/README.md for the decision graph in prose. Numbers
     (thresholds, rates) come in via the Parameters input, resolved
-    effective-dated by the portal before this model ever runs; this file
+    effective-dated by the API before this model ever runs; this file
     holds only logic: test ordering, exemptions, deduction stacking, and
     the benefit formula.
   -->

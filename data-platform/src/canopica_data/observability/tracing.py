@@ -1,7 +1,7 @@
 """OpenTelemetry span instrumentation for the pipeline stages (extract,
 dbt build, materialize, provision_metabase). Exports to the same Jaeger the
-portal API exports to (infra/docker-compose.yml's `jaeger` service) via
-OTLP/HTTP, so a real `make pipeline` run and a real portal request land
+API exports to (infra/docker-compose.yml's `jaeger` service) via
+OTLP/HTTP, so a real `make pipeline` run and a real API request land
 side by side in one place -- Phase 1b Task 9's "traces in Jaeger" check.
 
 Every pipeline entry point (`canopica_data.pipeline`, and each Airflow task

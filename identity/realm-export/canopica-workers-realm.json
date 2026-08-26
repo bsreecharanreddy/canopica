@@ -13,8 +13,8 @@
   },
   "clients": [
     {
-      "clientId": "canopica-portal-web",
-      "name": "Canopica Portal (worker realm, browser PKCE)",
+      "clientId": "canopica-ui",
+      "name": "Canopica UI (worker realm, browser PKCE)",
       "enabled": true,
       "publicClient": true,
       "protocol": "openid-connect",

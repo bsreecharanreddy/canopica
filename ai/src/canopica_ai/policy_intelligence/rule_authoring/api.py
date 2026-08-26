@@ -1,8 +1,8 @@
-"""FastAPI surface for the rule-authoring copilot -- what the Java portal's
+"""FastAPI surface for the rule-authoring copilot -- what the Java API's
 `PolicyParameterPublishService` calls over HTTP.
 
-The first portal -> AI direction in this system (Task 2's Q&A calls the
-other way), which is why the boundary is drawn where it is: the portal owns
+The first API -> AI direction in this system (Task 2's Q&A calls the
+other way), which is why the boundary is drawn where it is: the API owns
 the database and the publish decision, and asks this service only for a
 draft it is free to reject.
 
@@ -54,7 +54,7 @@ def propose(request: ProposeRequest) -> ParameterProposal:
     except ProposalGenerationError as error:
         # 502, not 500: the copilot ran and declined to produce something it
         # could stand behind. That is a normal outcome for an excerpt this
-        # small model cannot read, and the portal shows it to the admin as
+        # small model cannot read, and the API shows it to the admin as
         # such rather than treating it as an outage.
         raise HTTPException(status_code=502, detail=str(error)) from error
 

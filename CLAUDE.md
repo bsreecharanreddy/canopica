@@ -8,7 +8,7 @@ Canopica is a portfolio project: a deterministic, auditable decision
 system — the kind where every dollar amount has to be explainable and
 reproducible — with an AI capability layer built on top, targeting senior
 data/full-stack/BI roles. Applied here to benefits eligibility
-(a Java/Spring + React portal, a DMN rules engine, a governed data
+(a Java/Spring API + React UI, a DMN rules engine, a governed data
 pipeline, Power BI reporting). It is an independent project inspired by publicly
 documented patterns in how state health & human services eligibility
 systems generally work — **never name a real agency, a real state
@@ -88,7 +88,7 @@ See the roadmap doc for full detail. At a glance:
   purpose" list at the bottom of the Phase 1a plan for the full,
   intentional scope boundary. Verified for real, not just by test count:
   `data-platform/tests/test_end_to_end.py` (`pytest -m e2e`, CI's `e2e`
-  job) submits an application through the real portal API, runs a real
+  job) submits an application through the real API, runs a real
   determination as a worker, reads its persisted DMN trace, verifies the
   real hash-chained audit log, rebuilds the real dbt warehouse from the
   live operational database, and confirms the gold mart's dollar amount is
@@ -120,8 +120,8 @@ Per layer:
 |---|---|---|
 | Rules engine | JUnit 5, table-driven | One test per SNAP scenario: gross-income test, each deduction applied in the correct order, net-income test, categorical eligibility override, and **as-of-date correctness** — an old determination re-run against its own parameter version still produces its original answer |
 | Determination + audit | JUnit 5 + Testcontainers (real Postgres) | Trace is persisted and complete; audit chain verifies; `UPDATE`/`DELETE` on the audit table are actually refused |
-| Portal API | Spring Boot Test | Endpoint contracts, authorization (including row-scoping once Phase 1b lands) |
-| Portal UI | Vitest + React Testing Library | Component behavior, plus accessibility assertions once Phase 1b lands |
+| API | Spring Boot Test | Endpoint contracts, authorization (including row-scoping once Phase 1b lands) |
+| UI | Vitest + React Testing Library | Component behavior, plus accessibility assertions once Phase 1b lands |
 | Python services | `pytest`, `ruff`, `mypy --strict` | Unit + integration; the synthetic generator's distributions; every AI service's I/O contract |
 | Data platform | dbt tests | `not_null` / `unique` / `relationships` / `accepted_values` on every model, plus custom tests asserting no unmasked PII-shaped column reaches gold |
 | End to end | pytest | The full slice: intake → determination → audit → warehouse → mart |
@@ -140,9 +140,9 @@ Pydantic v2, `ruff`, `mypy --strict`, `pytest`, FastAPI, Polars where it
 beats pandas — not older equivalents.
 
 Java/Spring stays where it earns its place and is not to be rewritten
-away: the portal API (deliberate full-stack Java signal for role
+away: the API (deliberate full-stack Java signal for role
 targeting) and the rules engine (Drools/KIE is JVM-only, and the DMN
-evaluation lives inside the portal service). Everything else is Python.
+evaluation lives inside the API service). Everything else is Python.
 
 ## Conventions
 

@@ -7,8 +7,8 @@
   "accessTokenLifespan": 900,
   "clients": [
     {
-      "clientId": "canopica-portal-web-citizen",
-      "name": "Canopica Portal (citizen realm, browser PKCE)",
+      "clientId": "canopica-ui-citizen",
+      "name": "Canopica UI (citizen realm, browser PKCE)",
       "enabled": true,
       "publicClient": true,
       "protocol": "openid-connect",

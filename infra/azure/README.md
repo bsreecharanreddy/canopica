@@ -12,11 +12,11 @@ Matched one-for-one against `infra/docker-compose.yml`'s own services:
 | This repo (local, `docker compose`) | This config (`infra/azure/`) |
 |---|---|
 | `postgres` (`canopica_operational`, `canopica_serving`, `airflow` databases) | Azure Database for PostgreSQL Flexible Server, three databases on one server |
-| `portal-api`, `portal-web` | Azure Container Apps |
+| `api`, `ui` | Azure Container Apps |
 | `airflow-webserver`, `airflow-scheduler` | Azure Container Apps (`args = ["webserver"]` / `["scheduler"]`, same as Compose's own `command:` override) |
 | `.env` / Compose environment variables | Azure Key Vault (holds the generated Postgres admin password) + Container App secrets |
 | — | Log Analytics Workspace + a diagnostic setting on the Postgres server — the Observability row's real-production target per the tradeoffs doc |
-| — | Azure Container Registry — `portal_api_image` / `portal_web_image` / `airflow_image` are expected to already be pushed there |
+| — | Azure Container Registry — `api_image` / `ui_image` / `airflow_image` are expected to already be pushed there |
 
 ## What's deliberately absent
 
@@ -30,7 +30,7 @@ to:
   designing four more subsystems' worth of Azure equivalents (an AKS-
   hosted Keycloak cluster, a managed database or blob-backed Metabase, an
   Azure Monitor OTLP ingestion pipeline) that this portfolio project has
-  no way to verify by actually applying. `portal-api`'s Container App
+  no way to verify by actually applying. `api`'s Container App
   therefore doesn't set `CANOPICA_KEYCLOAK_*_JWKS_URI` or
   `CANOPICA_OTLP_TRACES_ENDPOINT` — a real deployment building on this
   reference would need to add both.
@@ -87,8 +87,8 @@ Never done in this project, but for the record:
 cd infra/azure
 terraform init
 terraform plan \
-  -var="portal_api_image=<registry>/portal-api:<tag>" \
-  -var="portal_web_image=<registry>/portal-web:<tag>" \
+  -var="api_image=<registry>/api:<tag>" \
+  -var="ui_image=<registry>/ui:<tag>" \
   -var="airflow_image=<registry>/airflow:<tag>"
 terraform apply
 ```

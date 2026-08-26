@@ -1,7 +1,7 @@
 # The full Phase 1a slice: postgres + metabase (added ahead of schedule in
 # Task 11, which needed a real Metabase instance to provision and verify
 # provision_metabase.py against -- see that task's file list, which
-# anticipates exactly this) plus portal-api, portal-web, and the
+# anticipates exactly this) plus api, ui, and the
 # profile-gated one-shot `pipeline` service, added here in Task 12. Phase 1b
 # Task 4 adds airflow-init/-webserver/-scheduler, which run the same four
 # pipeline stages on their own hourly schedule instead of needing `make
@@ -114,10 +114,10 @@ services:
       retries: 18
       start_period: 30s
 
-  portal-api:
+  api:
     build:
       context: ..
-      dockerfile: portal/Dockerfile
+      dockerfile: api/Dockerfile
     environment:
       CANOPICA_OPERATIONAL_JDBC_URL: jdbc:postgresql://postgres:5432/canopica_operational
       CANOPICA_OPERATIONAL_USER: canopica_app
@@ -127,7 +127,7 @@ services:
       # default), since every caller that ever requests a token (browser,
       # test, the synthetic-data loader) runs on the host, never inside this
       # network. Only jwks-uri needs the container-network address, since
-      # that one's an address portal-api actually connects to. See
+      # that one's an address api actually connects to. See
       # SecurityConfig.lazyJwksDecoder's comment for the full reasoning.
       CANOPICA_KEYCLOAK_WORKERS_JWKS_URI: http://keycloak:8080/realms/canopica-workers/protocol/openid-connect/certs
       CANOPICA_KEYCLOAK_CITIZENS_JWKS_URI: http://keycloak:8080/realms/canopica-citizens/protocol/openid-connect/certs
@@ -143,7 +143,7 @@ services:
       # `host.docker.internal` is how this container reaches it. Note this is
       # the *opposite* direction from Task 2's Policy Q&A, where the caller is
       # the browser and application.yml's plain localhost default is already
-      # right -- portal-api is in a container, so localhost would be itself.
+      # right -- api is in a container, so localhost would be itself.
       CANOPICA_AI_RULE_AUTHORING_URL: http://host.docker.internal:8000
     ports:
       - "8080:8080"
@@ -154,16 +154,16 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_started
-    # Healthcheck itself lives in portal/Dockerfile (needs curl, installed
+    # Healthcheck itself lives in api/Dockerfile (needs curl, installed
     # there) -- nothing to repeat here.
 
-  portal-web:
+  ui:
     build:
-      context: ../portal/web
+      context: ../ui
     ports:
       - "3000:80"
     depends_on:
-      - portal-api
+      - api
 
   # Ingestion -> dbt build -> serving materialization -> Metabase
   # provisioning, as a one-shot container: `docker compose --profile
@@ -334,7 +334,7 @@ services:
     ports:
       - "16686:16686" # UI + query API (data-platform/tests/test_observability.py hits this)
       - "4317:4317" # OTLP gRPC receiver
-      - "4318:4318" # OTLP HTTP receiver -- what both portal-api and canopica_data actually export to
+      - "4318:4318" # OTLP HTTP receiver -- what both api and canopica_data actually export to
 
   prometheus:
     image: prom/prometheus:v3.13.0
@@ -343,7 +343,7 @@ services:
     ports:
       - "9090:9090"
     depends_on:
-      - portal-api
+      - api
 
   grafana:
     image: grafana/grafana:12.3.0

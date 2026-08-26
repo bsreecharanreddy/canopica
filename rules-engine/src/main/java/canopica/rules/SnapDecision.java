@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * @param trace every named DMN decision's result, in evaluation order.
- *              Persisted verbatim as DETERMINATION_TRACE (portal Task 5).
+ *              Persisted verbatim as DETERMINATION_TRACE (api Task 5).
  */
 public record SnapDecision(
         boolean eligible,

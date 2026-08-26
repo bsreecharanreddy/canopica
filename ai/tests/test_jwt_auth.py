@@ -1,7 +1,7 @@
 """Unit tests for the Analytics Copilot's own JWT validation (design doc
-§2.4 / Task 5 plan: "validated the same way the portal validates one, via
+§2.4 / Task 5 plan: "validated the same way the API validates one, via
 the workers realm's JWKS endpoint -- this service is its own resource
-server, not routed through the portal").
+server, not routed through the API").
 
 No network and no real Keycloak: a locally generated RSA keypair signs a
 token exactly as Keycloak would, and a fake JWKS client (satisfying the one

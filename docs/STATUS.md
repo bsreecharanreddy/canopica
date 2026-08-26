@@ -111,19 +111,19 @@ missed. See Task 7's verification-log rows below.
 
 **Phase 1b, Task 8 (accessibility) is done** — `jsx-a11y` lint is live and
 blocking (not just installed), `vitest-axe` runs against every existing
-render test across the three main portal pages with zero violations found,
+render test across the three main UI pages with zero violations found,
 and a real live-browser keyboard-only walkthrough confirmed both the
 intake form and the case list are fully operable without a mouse. See
 Task 8's verification-log row below for the plan corrections this task
 found (this project's web lint is oxlint, not ESLint) and the pre-existing
 gap it closed (`oxlint` was never wired into `make lint` or CI before now).
 
-**Phase 1b, Task 9 (observability) is done** — a real portal request and a
-real `make pipeline` run both produce genuine traces in Jaeger (`portal →
+**Phase 1b, Task 9 (observability) is done** — a real API request and a
+real `make pipeline` run both produce genuine traces in Jaeger (`api →
 Postgres` for the former, `extract` → `dbt_build` → `materialize` →
 `provision_metabase` for the latter), and a real Grafana dashboard renders
 non-zero HTTP-rate and JVM-heap panels sourced from Prometheus scraping the
-portal's own `/actuator/prometheus`. See Task 9's verification-log row
+API's own `/actuator/prometheus`. See Task 9's verification-log row
 below for the two plan gaps this task found live (a metrics dependency and
 a JDBC-tracing dependency the plan's own diff omitted), the Jaeger v1→v2
 correction, and a pre-existing (not this task's) latent bug it hit and
@@ -132,7 +132,7 @@ worked around rather than fixed.
 **Phase 1b, Task 10 (reference Terraform for Azure) is done** — `infra/
 azure/` models this repo's own components (Postgres Flexible Server
 standing in for the shared `postgres` service's three databases; Container
-Apps for `portal-api`/`portal-web`/`airflow-webserver`/`airflow-scheduler`;
+Apps for `api`/`ui`/`airflow-webserver`/`airflow-scheduler`;
 Key Vault for the Secrets row's real-production target; Log Analytics/
 Azure Monitor for the Observability row's) as reference Terraform, written
 to `terraform validate`/`fmt -check` clean and deliberately never applied
@@ -156,7 +156,7 @@ here: real Keycloak tokens throughout `make test`/`make lint`/`make e2e`
 (Task 3); Airflow's own schedule running the real pipeline unattended
 (Task 4); ten silver models/nine gold marts, all dbt tests green (Task 5);
 real expedited flagging against the correct standard (Task 6); token-vault
-detokenization, itself audited (Task 7); axe-clean portal pages (Task 8);
+detokenization, itself audited (Task 7); axe-clean UI pages (Task 8);
 real traces in Jaeger from both a request and a pipeline run (Task 9); and
 now `terraform validate`/`fmt -check` clean in CI, with `docs/STATUS.md`,
 `CLAUDE.md`, and `README.md` all updated in this same commit (Task 10).
@@ -197,10 +197,10 @@ is one `uv` project (not three), OpenSearch 2.19.x (first GA `rrf`
 combination technique), the reranker runs as an OpenSearch ml-commons
 `rerank` response processor (not app-side), the rule-authoring copilot's
 persistence splits cleanly (Python computes/returns a draft, only the
-portal ever writes or publishes), and the public demo deploys to Fly.io.
+API ever writes or publishes), and the public demo deploys to Fly.io.
 A real, concrete gap the plan found while being written, not asserted
 from the design doc: there is currently no citizen-facing endpoint at all
-in the portal (only `POST /api/applications` is citizen-authenticated) and
+in the API (only `POST /api/applications` is citizen-authenticated) and
 no `person.keycloak_subject` linkage — so Task 2 has to build the
 citizen-owns-their-own-data read path "why was I denied" needs from
 scratch, not wire up existing scaffolding the way Phase 1b's tasks
@@ -238,7 +238,7 @@ points design doc §2.2 calls for now answer for real against the live
 stack: a general policy question (top-k retrieval, grounded answer with
 real citations, or an explicit abstention) and "why was I denied" (the
 citizen's own real, persisted DMN trace, read through a brand-new
-ownership-scoped portal endpoint, merged with retrieval targeted at the
+ownership-scoped API endpoint, merged with retrieval targeted at the
 specific test that failed). On the Java side, `person.keycloak_subject`
 links a household's head person to the citizen who submitted it (stamped
 only for the head, at intake); a new `KeycloakCitizenLinkFilter` resolves
@@ -315,7 +315,7 @@ On the Java side, `PolicyParameterPublishService` is the only code in this
 system that writes the figures a determination resolves against, and it is
 reachable only from an ADMIN-authenticated review naming the reviewer.
 `RuleAuthoringClient`/`HttpRuleAuthoringClient` (Spring's current
-`RestClient`) make this the first portal→AI call in the system — Task 2
+`RestClient`) make this the first API→AI call in the system — Task 2
 called the other way. Supporting pieces: `V14__policy_parameter_proposal`
 (the review-workflow record, deliberately mutable, with CHECK constraints
 making "a decision names a reviewer and a time" unfalsifiable),
@@ -468,7 +468,7 @@ each task's files, interfaces, and test steps.
 | 4 | DMN decision tables on Drools/KIE, table-driven scenarios | Done |
 | 5 | Determination service — persisted determination + DMN trace | Done |
 | 6 | Hash-chained audit log + CI chain-verification job | Done |
-| 7 | Portal API — intake + worker case view (roles hardcoded) | Done |
+| 7 | API — intake + worker case view (roles hardcoded) | Done |
 | 8 | React UI — intake form, case list, trace panel | Done |
 | 9 | Synthetic applicant generator (ACS PUMS–driven) + loader | Done |
 | 10 | Ingestion to Delta bronze + dbt silver/gold with tests | Done |
@@ -552,6 +552,6 @@ reasoning lives in the design docs.
 | Does the current free Databricks tier permit the Phase 5 demo? | No — Phase 5 | Community Edition was replaced; verify before the README promises it |
 | Fabric's current Government-cloud availability | No — Phase 5 | Narrower than Synapse's; verify before stating specifics |
 | `KeycloakWorkerSyncFilter` finds an existing `worker` row by `keycloak_subject` only, not `email` — a Postgres volume that outlives a Keycloak container restart (dev-mode `start-dev --import-realm` reissues a fresh subject UUID per seeded user on every boot) hits `worker_email_key`'s unique constraint on that worker's next login | No — local dev/test hygiene, not a production correctness bug (a real Keycloak deployment doesn't reissue subject ids on restart) | Hit live during Phase 1b Task 9's verification; worked around with `make down -v` before that task's own verification, not patched (Task 1's domain, not Task 9's) |
-| The two `e2e` jobs each rebuild `portal-api` from scratch, uncached -- the largest remaining CI cost | No -- CI is green and usable; this is throughput, not correctness | Next lever after the 2026-08-23 CI work (see the verification-log rows for what was already done). Both `e2e-data-platform` and `e2e-ai` run `docker compose up -d --build`, and `portal/Dockerfile`'s builder stage runs `./mvnw -B -q -pl portal -am package -DskipTests` with no Docker layer cache and no Maven cache, so every run re-resolves and re-downloads the full dependency tree twice, once per job. The `java` job builds the same artifact a third time, but that one is cached (`setup-java` with `cache: maven`, ~105s). Measured: the Compose bring-up step is 256-392s, and the swing between two otherwise-identical runs is itself mostly Maven download variance -- it is now both the biggest single step and the noisiest. Candidate approaches, none tried yet: `docker/build-push-action` with `cache-from/cache-to: type=gha`; or Buildx bake via `COMPOSE_BAKE=true` with the same GHA cache backend; or mounting a shared Maven cache into the builder stage via BuildKit `--mount=type=cache`. Worth roughly 100-200s per run and, unlike most of the earlier work, it compounds -- it also speeds up `portal-web` and the two Airflow images in the data-platform job. |
+| The two `e2e` jobs each rebuild `api` from scratch, uncached -- the largest remaining CI cost | No -- CI is green and usable; this is throughput, not correctness | Next lever after the 2026-08-23 CI work (see the verification-log rows for what was already done). Both `e2e-data-platform` and `e2e-ai` run `docker compose up -d --build`, and `api/Dockerfile`'s builder stage runs `./mvnw -B -q -pl api -am package -DskipTests` with no Docker layer cache and no Maven cache, so every run re-resolves and re-downloads the full dependency tree twice, once per job. The `java` job builds the same artifact a third time, but that one is cached (`setup-java` with `cache: maven`, ~105s). Measured: the Compose bring-up step is 256-392s, and the swing between two otherwise-identical runs is itself mostly Maven download variance -- it is now both the biggest single step and the noisiest. Candidate approaches, none tried yet: `docker/build-push-action` with `cache-from/cache-to: type=gha`; or Buildx bake via `COMPOSE_BAKE=true` with the same GHA cache backend; or mounting a shared Maven cache into the builder stage via BuildKit `--mount=type=cache`. Worth roughly 100-200s per run and, unlike most of the earlier work, it compounds -- it also speeds up `ui` and the two Airflow images in the data-platform job. |
 | An infrastructure failure is currently indistinguishable from a genuine abstention | **Yes, for trust -- no, for shipping Phase 2.** Not a regression and not blocking Task 3, but it undermines the one guarantee the abstention path exists to give | Found 2026-08-23 while diagnosing a real `e2e` failure (`dfe2da7`, and again locally). When Ollama's `llama-server` is OOM-killed mid-run, the next generation comes back uncited; `service.py`'s grounding retry fires, also comes back uncited, and the system abstains -- writing an `ai.policy_qa_answer` row that says "insufficient information in the policy corpus to answer this". That row asserts something false *about the corpus* when the actual cause was the inference process dying. Design doc §2.2's abstention is an epistemic claim ("the corpus can't support an answer"), so silently overloading it with "the infrastructure broke" is a real correctness bug in a trust-critical path, and it also makes the failure undiagnosable after the fact. A hard 5xx is already handled correctly (`raise_for_status()` surfaces it); the gap is a *successful* response returning degraded output after a restart. Two candidate fixes, neither started: record an explicit abstention reason (retrieval-score vs ungrounded-generation) on the provenance row, which needs a migration and makes spurious abstentions visible; and/or treat an empty or implausibly short generation as an error rather than as evidence about the corpus. Deliberately not bundled into the generation-tuning commit that found it -- CLAUDE.md's scoped-changes convention -- and worth doing before Phase 2's eval gate (Task 8) starts scoring abstention rates, since a spurious abstention would otherwise silently corrupt that metric. |
-| When should the portal UI get a dedicated modernization pass? | No — user-paced, not tied to a phase | Current UI is functional but visually plain ("barebones" per the user, 2026-08-23); target is a high-polish, modern 2026-era design, with real resource investment since this is the portfolio's most interviewer-visible surface. Not urgent by the user's own framing ("at some point") — raise again at the next natural break point (e.g. Phase 2 wrap) rather than interrupting phase work. When scheduled, treat as a real design decision — brainstorm → dated doc in `docs/design/` → approval → implementation plan — not an ad-hoc restyle; Flowstep (AI-assisted UI-design generation) and Vercel (live deployment) MCP tools are concrete candidates. A live Vercel deployment of the React portal would need to be weighed against the repo-visibility decision above, since it would make the frontend publicly reachable on its own. |
+| When should the UI get a dedicated modernization pass? | No — user-paced, not tied to a phase | Current UI is functional but visually plain ("barebones" per the user, 2026-08-23); target is a high-polish, modern 2026-era design, with real resource investment since this is the portfolio's most interviewer-visible surface. Not urgent by the user's own framing ("at some point") — raise again at the next natural break point (e.g. Phase 2 wrap) rather than interrupting phase work. When scheduled, treat as a real design decision — brainstorm → dated doc in `docs/design/` → approval → implementation plan — not an ad-hoc restyle; Flowstep (AI-assisted UI-design generation) and Vercel (live deployment) MCP tools are concrete candidates. A live Vercel deployment of the React UI would need to be weighed against the repo-visibility decision above, since it would make the frontend publicly reachable on its own. |

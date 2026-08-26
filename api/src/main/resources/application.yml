@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: canopica-api
+  datasource:
+    url: ${CANOPICA_OPERATIONAL_JDBC_URL:jdbc:postgresql://localhost:5432/canopica_operational}
+    username: ${CANOPICA_OPERATIONAL_USER:canopica_app}
+    password: ${CANOPICA_OPERATIONAL_PASSWORD:canopica_app}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Substituted into V6__audit_event.sql, so the role the grants apply to is
+    # the role the application actually connects as.
+    placeholders:
+      app_role: ${CANOPICA_OPERATIONAL_USER:canopica_app}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # prometheus: scraped by infra/observability/prometheus.yml's
+        # canopica-api job (Task 9) -- needs micrometer-registry-prometheus on
+        # the classpath (api/pom.xml) to exist at all; see that
+        # dependency's own comment for why it isn't in the plan's own list.
+        include: health, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  otlp:
+    tracing:
+      # infra/docker-compose.yml overrides this to http://jaeger:4318/v1/traces
+      # for api's own container; localhost default matches local
+      # (non-Docker) dev against a `make up` stack's host-published port.
+      endpoint: ${CANOPICA_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+  tracing:
+    sampling:
+      # 1.0 = every request traced. A real production deployment samples far
+      # below this (see the tradeoffs doc's Observability row) -- fine here
+      # since this is a local demo stack, not a production traffic volume.
+      probability: 1.0
+
+canopica:
+  # Benefit months, effective dating, and the annual October parameter change
+  # are all civil-calendar concepts; pin the zone rather than inherit the host's.
+  timezone: America/New_York
+  keycloak:
+    # issuer-uri is a comparison string, not a URL this app ever connects to
+    # -- it's what Keycloak actually stamps into every token's `iss` claim,
+    # which is always the address the *token-requesting* caller (browser,
+    # test, or the synthetic-data loader) used to reach Keycloak. Every one
+    # of those callers runs on the host, never inside the Compose network,
+    # so this stays localhost:8081 in both local dev and Docker Compose --
+    # unlike jwks-uri below, it does not get overridden per environment.
+    workers-issuer-uri: ${CANOPICA_KEYCLOAK_WORKERS_ISSUER_URI:http://localhost:8081/realms/canopica-workers}
+    citizens-issuer-uri: ${CANOPICA_KEYCLOAK_CITIZENS_ISSUER_URI:http://localhost:8081/realms/canopica-citizens}
+    # jwks-uri is a real network address this app fetches signing keys from
+    # -- unlike issuer-uri, it must actually be reachable from wherever
+    # api itself runs. Local (non-Docker) dev default matches the
+    # issuer above; infra/docker-compose.yml overrides both jwks-uri env
+    # vars to the container-network hostname, since api can't reach
+    # "localhost:8081" meaningfully from inside its own container.
+    workers-jwks-uri: ${CANOPICA_KEYCLOAK_WORKERS_JWKS_URI:${canopica.keycloak.workers-issuer-uri}/protocol/openid-connect/certs}
+    citizens-jwks-uri: ${CANOPICA_KEYCLOAK_CITIZENS_JWKS_URI:${canopica.keycloak.citizens-issuer-uri}/protocol/openid-connect/certs}
+  ai:
+    # The Python AI capability layer (ai/), a separate service from this one.
+    # Nothing in infra/docker-compose.yml serves it yet -- Task 9's public
+    # hosted demo is where the AI layer actually gets deployed -- so this
+    # default matches running it locally with
+    # `uvicorn canopica_ai.policy_intelligence.rule_authoring.api:app --port 8000`.
+    rule-authoring-url: ${CANOPICA_AI_RULE_AUTHORING_URL:http://localhost:8000}
+    # Behind that endpoint is CPU-bound local inference; see
+    # canopica_ai.config.Settings.ollama_timeout_seconds for the measurements this
+    # matches (successful generations at 1m10s-1m44s on a loaded host).
+    rule-authoring-timeout-seconds: ${CANOPICA_AI_RULE_AUTHORING_TIMEOUT_SECONDS:240}

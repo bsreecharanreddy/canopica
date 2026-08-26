@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>canopica</groupId>
+    <artifactId>canopica-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>api</artifactId>
+  <name>Canopica API</name>
+  <description>Spring Boot API for customer intake and the worker case view.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>canopica</groupId>
+      <artifactId>rules-engine</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Bridges Spring's Observation API (already emitting spans for every
+           HTTP request/JDBC call via the actuator starter above) onto the
+           OpenTelemetry SDK: no manual span code needed for auto-instrumented
+           HTTP/JDBC (Task 9, Step 2). -->
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-tracing-bridge-otel</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Ships the OtlpHttpSpanExporter Spring Boot's OtlpAutoConfiguration
+           registers once management.otlp.tracing.endpoint is set
+           (application.yml): the actual wire format spans leave the JVM in,
+           read by Jaeger's OTLP/HTTP receiver on :4318. -->
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Plan gap found during Task 9: the plan's own pom.xml diff (only the
+           two tracing dependencies above) would leave /actuator/prometheus
+           404ing. Micrometer's actuator autoconfiguration needs a concrete
+           MeterRegistry implementation on the classpath before it exposes a
+           scrape endpoint at all, and none of the starters already present
+           bring one. This is what actually turns Spring's already-automatic
+           HTTP/JVM metrics into something Prometheus can scrape, satisfying
+           this task's "metrics in Grafana" deliverable, not just its traces
+           one. See docs/STATUS.md's Task 9 verification-log row. -->
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Second plan gap found live, verified against a real running stack
+           (docker compose): a real request against api produced only
+           HTTP/security-filter spans in Jaeger, no database span at all.
+           The plan's Step 2 claim ("no manual span code needed for
+           auto-instrumented HTTP/JDBC") holds for HTTP, but Spring Boot's
+           own Observation auto-configuration does not instrument JDBC/
+           Hibernate query execution on its own; this (the community/
+           now-Spring-endorsed project under github.com/jdbc-observations,
+           formerly ttddyy) is what actually wraps the DataSource and emits
+           a span per query. Not managed by the Spring Boot BOM: version
+           pinned explicitly, same as testcontainers-keycloak above. -->
+      <groupId>net.ttddyy.observation</groupId>
+      <artifactId>datasource-micrometer-spring-boot</artifactId>
+      <version>1.1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- 4.3.1 is the newest release still on Testcontainers 1.x (this
+           project's pinned testcontainers.version); 4.x requires
+           Testcontainers 2.x. Targets Keycloak 26.4, matching the image
+           tag infra/docker-compose.yml's real keycloak service uses. -->
+      <groupId>com.github.dasniko</groupId>
+      <artifactId>testcontainers-keycloak</artifactId>
+      <version>4.3.1</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <!-- identity/realm-export is the single source of truth for realm
+             config (also mounted straight into the real Compose keycloak
+             service), copied onto the test classpath rather than
+             duplicated, so KeycloakContainer#withRealmImportFile() in
+             AbstractApiTest can import the exact same files. -->
+        <directory>../identity/realm-export</directory>
+        <targetPath>keycloak</targetPath>
+      </testResource>
+    </testResources>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring.boot.version}</version>
+        <executions>
+          <execution>
+            <goals><goal>repackage</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

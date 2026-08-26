@@ -1,6 +1,6 @@
 """Shared pytest fixtures for data-platform integration tests.
 
-Provides a real Postgres 16 instance (Testcontainers) with the portal's
+Provides a real Postgres 16 instance (Testcontainers) with the API's
 actual Flyway migrations applied once per test session -- Python
 integration tests exercise the same schema, triggers, and grants Java
 does, not a hand-rolled approximation of them.
@@ -32,7 +32,7 @@ SEEDED_PERSON_COUNT = 3
 
 MIGRATIONS_DIR = (
     Path(__file__).resolve().parents[2]
-    / "portal"
+    / "api"
     / "src"
     / "main"
     / "resources"
@@ -77,7 +77,7 @@ def serving_dsn(_serving_postgres_container: PostgresContainer) -> str:
 def migrated_dsn(_postgres_container: PostgresContainer) -> str:
     """A DSN for a Postgres instance with every V1-V6 migration applied.
 
-    Runs the real portal Flyway migrations via the flyway CLI's own Docker
+    Runs the real API Flyway migrations via the flyway CLI's own Docker
     image against the Testcontainers instance, over host.docker.internal --
     proving this suite exercises the actual migration files, not a copy of
     their SQL. ``host-gateway`` makes host.docker.internal resolve on Linux

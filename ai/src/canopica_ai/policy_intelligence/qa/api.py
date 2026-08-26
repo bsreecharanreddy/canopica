@@ -20,7 +20,7 @@ class WhyWasIDeniedRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     # camelCase on the wire, matching the rest of this system's JSON
-    # convention (the portal API's own Jackson defaults), even though
+    # convention (the API's own Jackson defaults), even though
     # Python's own attribute is snake_case.
     determination_id: str = Field(alias="determinationId")
 
@@ -32,7 +32,7 @@ def ask(request: AskRequest) -> QaAnswer:
 
 @app.post("/qa/why-was-i-denied")
 def why_was_i_denied(request: WhyWasIDeniedRequest, authorization: str = Header(...)) -> QaAnswer:
-    """Forwards the citizen's own bearer token to the portal's trace
+    """Forwards the citizen's own bearer token to the API's trace
     endpoint server-side (see `answer_denial`) -- this service never
     receives a token it can use for anything beyond that one read."""
     bearer_token = authorization.removeprefix("Bearer ").strip()

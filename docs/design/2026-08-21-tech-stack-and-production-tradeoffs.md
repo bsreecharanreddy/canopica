@@ -514,7 +514,7 @@ metadata, not in a secrets manager built for the purpose. This project's
 Secrets row above (`.env` locally; Key Vault/Vault, HSM-backed, in
 production) already states the intended target; worth being explicit here
 that it's the same convention on every tier that needs a credential — the
-portal's Spring config, the data platform's `Settings`
+API's Spring config, the data platform's `Settings`
 (`canopica_data.config`), Airflow's connection store once Phase 1b builds it,
 and Metabase's provisioning script — rather than each one inventing its
 own place to keep a password, which is exactly the sprawl a real

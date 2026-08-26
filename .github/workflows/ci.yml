@@ -91,16 +91,16 @@ jobs:
           # window, ~25% from one job, on a private repo with a 2000
           # min/month cap. Its real dependency set is narrow and directly
           # verified from its own steps: it starts only opensearch+ollama
-          # (never portal-api, so never Keycloak, so a Java/DMN/identity-
+          # (never api, so never Keycloak, so a Java/DMN/identity-
           # realm change can't affect it) and runs only `ai/`'s own corpus-
           # index/search-pipeline/run_eval modules -- unlike `e2e-ai` below,
           # it never touches data-platform's mf/dbt binaries or a live
-          # portal-api determination. So the deny-list here is deliberately
+          # api determination. So the deny-list here is deliberately
           # wider than `code`'s: every top-level directory this job's steps
           # provably never read from.
           #
           # `e2e-ai` and `e2e-data-platform` stay on the broader `code` flag,
-          # unchanged: both start portal-api, whose own Docker build pulls
+          # unchanged: both start api, whose own Docker build pulls
           # in `rules-engine/` via the root Maven reactor and `identity/`'s
           # realm export via Keycloak's bind mount (both confirmed by
           # reading docker-compose.yml and pom.xml, not assumed), so their
@@ -111,14 +111,14 @@ jobs:
           # unrecognized path counts as relevant, so the failure mode stays
           # "ran a job that didn't need to," never "silently skipped one
           # that did."
-          if [ -z "$changed" ] || echo "$changed" | grep -qvE '^(docs/|\.claude/|[^/]*\.md$|reporting/|infra/azure/|portal/|rules-engine/|identity/|data-platform/)'; then
+          if [ -z "$changed" ] || echo "$changed" | grep -qvE '^(docs/|\.claude/|[^/]*\.md$|reporting/|infra/azure/|api/|ui/|rules-engine/|identity/|data-platform/)'; then
             echo "ai_eval=true" >> "$GITHUB_OUTPUT"
           else
             echo "ai_eval=false" >> "$GITHUB_OUTPUT"
           fi
 
   java:
-    name: Java (portal + rules engine)
+    name: Java (api + rules engine)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -132,19 +132,19 @@ jobs:
       - run: ./mvnw -B verify
 
   web:
-    name: Web (React portal)
+    name: Web (React UI)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: portal/web
+        working-directory: ui
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: portal/web/package-lock.json
+          cache-dependency-path: ui/package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -241,9 +241,9 @@ jobs:
   # data-platform's e2e, then STOPPED seven of them and ran ai/'s e2e --
   # each suite waiting on services the other one needs and it never
   # touches. Verified from the suites' own port usage: data-platform's e2e
-  # hits portal-api/portal-web/metabase/keycloak/airflow/jaeger and never
-  # OpenSearch or Ollama; ai/'s hits OpenSearch/Ollama/portal-api and never
-  # Metabase/Airflow/Grafana/portal-web. Running them side by side on lean
+  # hits api/ui/metabase/keycloak/airflow/jaeger and never
+  # OpenSearch or Ollama; ai/'s hits OpenSearch/Ollama/api and never
+  # Metabase/Airflow/Grafana/ui. Running them side by side on lean
   # stacks makes wall-clock max(a, b) instead of a + b, and drops the two
   # heaviest services (OpenSearch's 2g heap, Ollama's ~3GB model) out of
   # the data-platform job entirely -- which also removes, structurally,
@@ -280,7 +280,7 @@ jobs:
       # postgres/keycloak/jaeger/airflow-init come along via depends_on.
       # No `ollama-init` here, so none of the docker/compose#10596
       # one-shot-service handling the ai job below still needs.
-      - run: docker compose -f infra/docker-compose.yml up -d --build --wait portal-api portal-web metabase prometheus grafana airflow-webserver airflow-scheduler
+      - run: docker compose -f infra/docker-compose.yml up -d --build --wait api ui metabase prometheus grafana airflow-webserver airflow-scheduler
       - run: cd data-platform && uv sync --dev && uv run pytest -m e2e
       - if: always()
         run: docker compose -f infra/docker-compose.yml logs --no-color > compose-logs-data-platform.txt
@@ -342,13 +342,13 @@ jobs:
       # returned 1). Fix is Compose's own documented pattern: exclude it
       # from the health-waited bring-up, start it separately, then block on
       # its own exit code with `compose wait`.
-      # postgres/keycloak/jaeger come along via portal-api's depends_on --
+      # postgres/keycloak/jaeger come along via api's depends_on --
       # ai/'s TestAnswerDenial submits a real application and decides a
-      # real determination through the live portal API under real Keycloak
+      # real determination through the live API under real Keycloak
       # tokens, so those three are genuinely required, unlike the seven
       # services this job no longer starts at all.
       - run: |
-          docker compose -f infra/docker-compose.yml up -d --build --wait opensearch ollama portal-api
+          docker compose -f infra/docker-compose.yml up -d --build --wait opensearch ollama api
           docker compose -f infra/docker-compose.yml up -d ollama-init
           docker compose -f infra/docker-compose.yml wait ollama-init
       - run: free -h

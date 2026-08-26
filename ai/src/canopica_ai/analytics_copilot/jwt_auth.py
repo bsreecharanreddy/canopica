@@ -1,13 +1,13 @@
 """Worker-realm JWT validation for the Analytics Copilot (design doc §2.4;
-Task 5 plan: "validated the same way the portal validates one, via the
+Task 5 plan: "validated the same way the API validates one, via the
 workers realm's JWKS endpoint -- this service is its own resource server,
-not routed through the portal").
+not routed through the API").
 
-Mirrors `portal/src/main/java/.../SecurityConfig.java`'s own worker chain:
+Mirrors `api/src/main/java/.../SecurityConfig.java`'s own worker chain:
 signature verified against the realm's live JWKS, `iss` compared against
 the issuer string, expiry checked, `realm_access.roles` read for the same
 WORKER/SUPERVISOR/ADMIN roles the Java side grants -- but independently,
-because this service never sees a token the portal has already validated.
+because this service never sees a token the API has already validated.
 No audience check, matching `JwtValidators.createDefaultWithIssuer`: these
 tokens carry no `aud` claim Keycloak's default client scopes would set.
 """

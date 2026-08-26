@@ -21,7 +21,7 @@ fidelity/cost tradeoff behind every substitution named below.
 ### AC-3 — Access Enforcement
 
 Every worker-facing API endpoint requires a valid Keycloak-issued JWT
-(`portal/src/main/java/canopica/portal/config/SecurityConfig.java`,
+(`api/src/main/java/canopica/api/config/SecurityConfig.java`,
 `oauth2ResourceServer(...)`), replacing Phase 1a's `X-Canopica-Role` header
 entirely (Task 1). `KeycloakWorkerSyncFilter` provisions the corresponding
 `worker` row from the token's claims on first use — every subsequent
@@ -125,7 +125,7 @@ touches real FTI:
 
 Stated plainly rather than implied by omission:
 
-- **Single application role.** `canopica_app` is both the portal's and the
+- **Single application role.** `canopica_app` is both the API's and the
   data-platform pipeline's Postgres role. AC-6's "narrower grant" language
   above (`revoke all on pii_token from public`) is real and enforced
   against every *other* role, but there is currently no second, narrower

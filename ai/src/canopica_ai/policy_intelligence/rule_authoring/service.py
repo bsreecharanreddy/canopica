@@ -15,7 +15,7 @@ narrowed as far as it can be and still be useful:
 * Anything it names that isn't already in the supplied parameter set is
   refused outright rather than shown to a reviewer, where a hallucinated
   parameter would look exactly like a real one.
-* Nothing here writes to `policy_parameter_set`. Publishing is the portal's
+* Nothing here writes to `policy_parameter_set`. Publishing is the API's
   `PolicyParameterPublishService`, and only after an explicit human accept.
 """
 
@@ -183,7 +183,7 @@ def propose_parameter_changes(
     `current_values` is supplied by the caller rather than read here: this
     service has no Postgres access to the operational schema (the same
     boundary Task 2 holds, where the only database it touches is its own
-    `ai` schema), so the portal fetches the effective parameter set and
+    `ai` schema), so the API fetches the effective parameter set and
     passes it in.
 
     Raises `ProposalGenerationError` if two consecutive attempts fail

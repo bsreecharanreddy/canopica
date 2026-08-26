@@ -9,11 +9,11 @@
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Canopica</name>
-  <description>Canopica — rules-driven benefits eligibility platform</description>
+  <description>Canopica — a deterministic, auditable decision system with an AI capability layer built on top</description>
 
   <modules>
     <module>rules-engine</module>
-    <module>portal</module>
+    <module>api</module>
   </modules>
 
   <properties>

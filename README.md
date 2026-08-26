@@ -5,7 +5,7 @@
 A portfolio project demonstrating a deterministic, auditable decision
 system — the kind where every dollar amount has to be explainable and
 reproducible — with an AI capability layer built on top of that core.
-Applied here to benefits eligibility: a Java/Spring + React portal, a
+Applied here to benefits eligibility: a Java/Spring API + React UI, a
 business-rules engine, a governed data platform, BI reporting.
 
 > Independent project inspired by publicly documented patterns in how
@@ -46,7 +46,7 @@ line — see the design docs for how that plays out component by component.
 
 ```mermaid
 flowchart TB
-    A["Customer / Worker Portal"]
+    A["React UI\n(citizen · worker)"]
 
     subgraph core["System of record — deterministic, auditable"]
         direction LR
@@ -83,7 +83,7 @@ Everything runs locally with Docker — no cloud account, no API keys, $0
 to clone and run.
 
 ```bash
-make up        # build + start postgres, portal-api, portal-web, metabase
+make up        # build + start postgres, api, ui, metabase
 make seed      # generate + load 500 synthetic households through the real intake API
 make pipeline  # ingest -> dbt build (silver/gold) -> serving materialization -> Metabase provisioning
 ```
@@ -92,8 +92,8 @@ Then:
 
 | | |
 |---|---|
-| Portal (customer/worker UI) | <http://localhost:3000> |
-| Portal API health | <http://localhost:8080/actuator/health> |
+| Web UI (citizen/worker) | <http://localhost:3000> |
+| API health | <http://localhost:8080/actuator/health> |
 | Metabase ("SNAP determinations" dashboard) | <http://localhost:3001> |
 
 `make seed` only exercises the customer-facing intake path (submitting an
@@ -102,7 +102,7 @@ worker action a household doesn't take for itself. So the gold mart and
 dashboard are legitimately empty right after `make pipeline` until a
 determination has actually been run for at least one submitted request
 (via the worker-facing `POST /api/program-requests/{id}/determinations`
-endpoint, or the portal UI signed in as a worker) — then `make pipeline`
+endpoint, or the UI signed in as a worker) — then `make pipeline`
 picks it up on its next run. `docs/demo.md` walks the full
 intake-through-determination-through-dashboard path end to end.
 
@@ -118,7 +118,7 @@ dashboard) runs end to end against real infrastructure, proven by
 identity, row-level authorization, mocked external verification, Airflow
 orchestration, full medallion coverage, widened reporting, governance
 (PII tokenization, `docs/design/compliance-mapping.md`), accessibility
-(axe-clean portal pages, `jsx-a11y` lint in CI), observability
+(axe-clean UI pages, `jsx-a11y` lint in CI), observability
 (OpenTelemetry traces in Jaeger, Prometheus/Grafana metrics), and
 reference Terraform for Azure (`infra/azure/`, validated in CI, never
 applied) are all in place.
@@ -170,7 +170,7 @@ production deployment.
 
 | Layer | Choice |
 |---|---|
-| Portal | Spring Boot (Java) + React, role-gated customer/worker views |
+| API + UI | Spring Boot (Java) + React, role-gated customer/worker views |
 | Identity | Keycloak (self-hosted OIDC) |
 | Rules engine | DMN decision tables on Drools/KIE, against effective-dated policy parameters |
 | Data platform | Python, dbt + DuckDB locally, real Delta Lake tables, Postgres serving layer |
@@ -214,7 +214,7 @@ usage) are in the design docs.
   above. Coming from a GUI ETL tool (Informatica, DataStage, SSIS)? See
   the tech-stack doc's §6 for how those concepts map onto this project's
   dbt implementation.
-- **Full-stack / Java / Spring / React** — `portal/`.
+- **Full-stack / Java / Spring / React** — `api/`, `ui/`.
 - **Platform / security / responsible-AI–minded roles** — the governance
   framework and the fraud-triage design.
 

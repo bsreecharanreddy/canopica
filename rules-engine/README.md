@@ -3,7 +3,7 @@
 DMN decision tables for SNAP eligibility, evaluated via Drools/KIE
 (`kie-dmn`), plus a thin pure-Java library around them. No Spring, no
 database, no clock of its own — `SnapFacts` and `SnapPolicyParameters` are
-already resolved by the caller (the portal's `FactAssembler` and
+already resolved by the caller (the API's `FactAssembler` and
 `PolicyParameterResolver`) before this module ever runs. That is what makes
 every rule table-driven testable in isolation and what makes an evaluation
 reproducible years later: replaying the exact same two inputs against this
@@ -18,7 +18,7 @@ same model always produces the exact same `SnapDecision`.
   formula) lives entirely in `src/main/resources/dmn/snap-eligibility.dmn`.
 
 If a change is "the FY2026 numbers came out," it's a new
-`policy_parameter_set` row in the portal, not a change here. If a change is
+`policy_parameter_set` row in the API, not a change here. If a change is
 "SNAP started applying deductions in a different order," it's a change to
 this DMN model.
 

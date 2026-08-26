@@ -1,7 +1,7 @@
 # Automated dependency-update PRs, one per ecosystem this repo actually
 # uses -- see CLAUDE.md's "Language policy" and "Tech stack" for why each
-# of these exists (Java portal + rules engine, the data platform's uv-managed
-# Python, the portal's npm web client, three Dockerfiles from Task 12, and
+# of these exists (Java API + rules engine, the data platform's uv-managed
+# Python, the React UI's npm client, three Dockerfiles from Task 12, and
 # this repo's own CI workflow).
 version: 2
 updates:
@@ -11,7 +11,7 @@ updates:
       interval: weekly
 
   - package-ecosystem: npm
-    directory: "/portal/web"
+    directory: "/ui"
     schedule:
       interval: weekly
 
@@ -21,12 +21,12 @@ updates:
       interval: weekly
 
   - package-ecosystem: docker
-    directory: "/portal"
+    directory: "/api"
     schedule:
       interval: weekly
 
   - package-ecosystem: docker
-    directory: "/portal/web"
+    directory: "/ui"
     schedule:
       interval: weekly
 

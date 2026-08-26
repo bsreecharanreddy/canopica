@@ -1,6 +1,6 @@
 """OpenTelemetry span instrumentation for the AI capability layer (design
 doc §2.8): `gen_ai.*` semantic-convention spans around every LLM call and
-every retrieval call, exported to the same Jaeger the portal API and the
+every retrieval call, exported to the same Jaeger the API and the
 data pipeline already export to. No new observability tool -- design doc
 §2.8's explicit "same stack, more attributes".
 

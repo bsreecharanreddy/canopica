@@ -260,7 +260,7 @@ doc's Observability row, already scoped to Azure Monitor/Splunk as the
 production equivalent), but it's more services than a demoable local
 Compose stack needs to prove the instrumentation pattern works.
 
-OpenTelemetry SDK instrumentation goes into both the portal API and the
+OpenTelemetry SDK instrumentation goes into both the API and the
 data-platform pipeline jobs — the roadmap's "OpenTelemetry across API +
 pipeline" line, taken literally rather than API-only.
 

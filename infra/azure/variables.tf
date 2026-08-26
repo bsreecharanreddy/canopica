@@ -19,16 +19,16 @@ variable "location" {
 variable "postgres_admin_login" {
   description = "Administrator login for the Postgres Flexible Server. The password is generated (random_password.postgres_admin in main.tf), never a literal here."
   type        = string
-  default     = "iesadmin"
+  default     = "canopicaadmin"
 }
 
-variable "portal_api_image" {
-  description = "Fully-qualified image ref for the portal API, e.g. <container-registry-login-server>/portal-api:<tag>, pushed to the registry this configuration provisions."
+variable "api_image" {
+  description = "Fully-qualified image ref for the API, e.g. <container-registry-login-server>/api:<tag>, pushed to the registry this configuration provisions."
   type        = string
 }
 
-variable "portal_web_image" {
-  description = "Fully-qualified image ref for the portal web frontend."
+variable "ui_image" {
+  description = "Fully-qualified image ref for the web frontend."
   type        = string
 }
 

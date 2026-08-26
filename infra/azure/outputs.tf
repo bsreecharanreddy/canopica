@@ -14,18 +14,18 @@ output "key_vault_uri" {
 }
 
 output "container_registry_login_server" {
-  description = "Login server for the Container Registry -- push portal_api_image/portal_web_image/airflow_image here before applying."
+  description = "Login server for the Container Registry -- push api_image/ui_image/airflow_image here before applying."
   value       = azurerm_container_registry.this.login_server
 }
 
-output "portal_api_url" {
-  description = "Public HTTPS FQDN of the portal API Container App."
-  value       = azurerm_container_app.portal_api.ingress[0].fqdn
+output "api_url" {
+  description = "Public HTTPS FQDN of the API Container App."
+  value       = azurerm_container_app.api.ingress[0].fqdn
 }
 
-output "portal_web_url" {
-  description = "Public HTTPS FQDN of the portal web Container App."
-  value       = azurerm_container_app.portal_web.ingress[0].fqdn
+output "ui_url" {
+  description = "Public HTTPS FQDN of the web UI Container App."
+  value       = azurerm_container_app.ui.ingress[0].fqdn
 }
 
 output "airflow_webserver_url" {

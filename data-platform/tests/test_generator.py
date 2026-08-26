@@ -48,7 +48,7 @@ def test_generated_payload_validates_against_the_real_intake_contract() -> None:
     # just look plausible -- since a drift here is exactly what would break Task 13's e2e test.
     # IntakePersonDto nests incomes/expenses per member and there is no top-level
     # "livingArrangement" object; arrangementType/paysUtilitiesSeparately are flat fields on
-    # IntakeRequest itself (portal/src/main/java/canopica/portal/api/dto/IntakeRequest.java).
+    # IntakeRequest itself (api/src/main/java/canopica/api/api/dto/IntakeRequest.java).
     payload = generate_households(1, seed=11)[0].to_intake_payload()
     assert set(payload) == {
         "county", "addressLine1", "city", "state", "zipCode",

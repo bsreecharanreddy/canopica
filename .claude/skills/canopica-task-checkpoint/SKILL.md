@@ -17,7 +17,7 @@ skill is that gate, run once per completed task.
 
 Both must be clean. `make test` runs every layer (Java Testcontainers,
 Python pytest, web Vitest) — a task that only touched `rules-engine/`
-still runs `portal/`'s and `data-platform/`'s tests too. The point is
+still runs `api/`'s, `ui/`'s, and `data-platform/`'s tests too. The point is
 catching a regression in earlier-phase work, not just verifying the new
 code.
 

@@ -22,7 +22,7 @@ four points):
 
 ## 1. What changed since Phase 1's design
 
-The original design was one vertical slice: portal → rules engine → data
+The original design was one vertical slice: API/UI → rules engine → data
 pipeline → Power BI, for a single SNAP applicant journey. Since then, a
 second brainstorming pass added a full AI capability layer on top of that
 same core — policy explainability, analytics, document processing,
@@ -52,7 +52,7 @@ component below, not left implicit.
 
 ```mermaid
 flowchart LR
-    subgraph Portal["Portal — Spring Boot API + React, role-based views"]
+    subgraph App["API + UI — Spring Boot API + React, role-based views"]
         CP[Customer intake] --> API[REST API]
         WP[Worker case view] --> API
     end
@@ -77,7 +77,7 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph SOR["System of record (3.1) — solid lines = binding"]
-        PORTAL2[Portal]
+        APP2[API + UI]
         RULES2[Rules engine]
         CASE2[(Case data)]
         DW2[(Governed warehouse)]
@@ -97,12 +97,12 @@ flowchart TB
     PI -. explains + proposes rule diffs, human-approved .-> RULES2
     AC -. queries, read-only .-> DW2
     DA -. proposes measures .-> BI2
-    DI -. pre-fills, human confirms .-> PORTAL2
-    CORR -. drafts, template-gated .-> PORTAL2
+    DI -. pre-fills, human confirms .-> APP2
+    CORR -. drafts, template-gated .-> APP2
     FRAUD -. flags for investigator review only .-> CASE2
-    SLA -. prioritizes worker queue .-> PORTAL2
+    SLA -. prioritizes worker queue .-> APP2
     QC -. flags discrepancies for reviewer .-> CASE2
-    SOP -. suggests next step, worker decides .-> PORTAL2
+    SOP -. suggests next step, worker decides .-> APP2
 ```
 
 ### 3.3 Cross-cutting decisions (apply across every phase)
@@ -119,7 +119,7 @@ flowchart TB
 | No-proxy-features policy | Fraud-triage model explicitly excludes nationality, name-origin patterns, and zip-code-as-race-proxy | This is exactly what the Dutch childcare-benefits algorithm got wrong. Documented as a deliberate exclusion, not an oversight. |
 | Threat model | The policy-document corpus is trusted; anything derived from applicant-submitted free text or uploaded documents is untrusted input to the AI layer, never concatenated into a prompt with policy-document authority | Standard prompt-injection boundary for a RAG system that also ingests user content. |
 | Observability | OpenTelemetry traces/metrics/logs across the API and data pipeline (general system health) **plus** AI-specific observability — token usage, latency, RAG groundedness scores (per-component health) | Two different things; both are in scope. The general layer doesn't get replaced by the AI-specific one. |
-| Accessibility | Section 508/WCAG-conformant portal (a11y linting, ARIA-correct components) | Actually non-negotiable for real government portals — cheap to add, and almost no portfolio project bothers, which makes it a disproportionately authentic detail. |
+| Accessibility | Section 508/WCAG-conformant UI (a11y linting, ARIA-correct components) | Actually non-negotiable for real government portals — cheap to add, and almost no portfolio project bothers, which makes it a disproportionately authentic detail. |
 | DMN runtime | **Drools / KIE** (`kie-dmn`), embedded in the Spring Boot service | Apache 2.0, actively developed, DMN-conformant. Supersedes the Phase 1 doc's Camunda choice: Camunda 7's community support has ended and Camunda 8 changed the engine's licensing posture. KIE also collapses the fallback into the primary — the Phase 1 doc named Drools as the backup if decision tables can't express SNAP's deduction stacking, and starting on KIE means DMN tables *and* DRL rules come from one runtime with no migration. |
 | Reporting toolchain | Semantic model authored as **TMDL text files**; visuals in the free Power BI Service; a containerized OSS dashboard (Metabase) in `docker-compose` | Power BI Desktop is Windows-only and this project is developed on macOS. Model-as-code also resolves the Phase 1 doc's §12 risk about `.pbix` binaries not diffing in git — the model becomes reviewable source. The OSS dashboard means the repo renders something real for anyone who clones it, rather than requiring a Power BI install to see any reporting at all. |
 | Temporality | Effective-dated policy parameter sets; every determination stamped with its parameter-set version | See §3.6. Without this, no determination is reproducible as of its decision date, and Phase 4's QC assistant cannot function. |
@@ -325,7 +325,7 @@ prevent.
 The thinnest path that touches every layer and produces a real, correct,
 auditable determination:
 
-- Portal: intake form + worker case view (Spring Boot + React, roles
+- API + UI: intake form + worker case view (Spring Boot + React, roles
   hardcoded for now — no Keycloak yet)
 - Domain model per §3.4.1, with effective dating per §3.5 built in from
   the start
@@ -381,11 +381,11 @@ documents:
 - Eval-suite CI gate for Policy Q&A groundedness/citation accuracy
 - **Public hosted demo goes live here** — this is the first point where
   there's something genuinely interactive worth putting in front of a
-  recruiter, not just a static portal
+  recruiter, not just a static UI
 
 ### Phase 3 — Case Intake & Communication AI
 
-Builds on Phase 1's portal and case model:
+Builds on Phase 1's API/UI and case model:
 
 - Intelligent Document Intake — classify/extract/route across document
   types (income reports, renewal packets, work activity reports,
@@ -398,7 +398,7 @@ Builds on Phase 1's portal and case model:
   is considered sent; dispatch is a **pgmq** job enqueued after the
   determination transaction commits, so drafting/sending never holds up
   the binding decision
-- Translation/localization of the portal and correspondence
+- Translation/localization of the UI and correspondence
 
 ### Phase 4 — Compliance & Integrity AI
 
@@ -449,7 +449,8 @@ canopica/
   docs/
     STATUS.md               <- authoritative implementation tracker; read first
     design/                 <- dated design docs (this one + Phase 1's)
-  portal/                   <- Spring Boot API + React app
+  api/                      <- Spring Boot API
+  ui/                       <- React app
   rules-engine/             <- DMN decision tables + evaluation service
   data-platform/             <- dbt project, ingestion scripts, Airflow DAGs
   ai/
@@ -480,7 +481,7 @@ canopica/
 - **Reporting / BI, Azure Synapse/Fabric-adjacent roles** — the governed
   warehouse, Power BI (including the fairness report), the analytics
   copilot, dashboard-authoring assist, and the documented cloud path.
-- **Full-stack / Java / Spring / React** — the portal itself, Keycloak
+- **Full-stack / Java / Spring / React** — the API/UI itself, Keycloak
   integration.
 - **Platform / security / responsible-AI–minded roles** — the governance
   framework, the trustworthy-AI CI gates, the threat model, and the

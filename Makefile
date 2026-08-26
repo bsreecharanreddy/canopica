@@ -9,11 +9,11 @@ help:
 
 build: ## Compile the Java modules and build the web bundle
 	./mvnw -B -q verify -DskipTests
-	cd portal/web && npm ci && npm run build
+	cd ui && npm ci && npm run build
 
 test: ## Run every unit/integration suite that does not need the Compose stack
 	./mvnw -B verify
-	cd portal/web && npm test
+	cd ui && npm test
 	# TESTCONTAINERS_RYUK_DISABLED works around a Docker-Desktop-for-macOS-
 	# specific bug in testcontainers-python's Ryuk reaper container ("error
 	# while creating mount source path ...docker.sock: operation not
@@ -26,7 +26,7 @@ test: ## Run every unit/integration suite that does not need the Compose stack
 lint: ## Type-check and lint every language
 	cd data-platform && uv run ruff check . && uv run mypy src tests
 	cd ai && uv run ruff check . && uv run mypy src tests
-	cd portal/web && npm run typecheck && npm run lint
+	cd ui && npm run typecheck && npm run lint
 
 up: ## Bring up the full local stack
 	docker compose -f infra/docker-compose.yml up -d --build
@@ -47,4 +47,4 @@ e2e: ## Run the end-to-end slice test against a running stack
 
 clean: ## Remove build output and the local warehouse
 	./mvnw -B -q clean
-	rm -rf portal/web/dist data-platform/warehouse
+	rm -rf ui/dist data-platform/warehouse

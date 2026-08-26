@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     ollama_num_ctx: int = 4096
 
     # Empirically measured (2026-08-23) against real CPU-bound generation
-    # sharing a host with OpenSearch/Keycloak/portal-api: successful calls
+    # sharing a host with OpenSearch/Keycloak/api: successful calls
     # took 1m10s-1m44s, and a 120s timeout actually cut one off at exactly
     # 2m0s (Ollama logged it as a 500 once the client gave up). That
     # measurement's prompts were not this project's largest, though:
@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     # smaller "should be enough" bump.
     ollama_timeout_seconds: float = 480.0
 
-    # Same Jaeger the portal API and the data pipeline already export to
+    # Same Jaeger the API and the data pipeline already export to
     # (infra/docker-compose.yml's `jaeger` service), and the same variable
     # name canopica_data.config.Settings uses, so one env var configures both.
     # The default is the *published* host port rather than a container
@@ -118,9 +118,9 @@ class Settings(BaseSettings):
     # rather than standing up a second database, per design doc §2.2.
     operational_dsn: str = "postgresql://canopica_app:canopica_app@localhost:5432/canopica_operational"
 
-    # Portal API's own base URL -- answer_denial() forwards the citizen's
+    # API's own base URL -- answer_denial() forwards the citizen's
     # bearer token here to read their own determination trace server-side.
-    portal_api_url: str = "http://localhost:8080"
+    api_url: str = "http://localhost:8080"
 
     # Relative to cwd, not the repo root: every entry point here runs via
     # `uv run` from inside ai/ (see the Makefile), matching data-platform's
@@ -128,9 +128,9 @@ class Settings(BaseSettings):
     corpus_raw_dir: Path = Path("src/canopica_ai/policy_intelligence/corpus/raw")
 
     # Analytics Copilot (Phase 2 Task 5). Same JWKS/issuer URIs
-    # portal-api's own SecurityConfig.java validates against (application.yml,
+    # api's own SecurityConfig.java validates against (application.yml,
     # env vars CANOPICA_KEYCLOAK_WORKERS_*) -- this service is its own resource
-    # server, not routed through the portal, so it fetches and verifies
+    # server, not routed through the API, so it fetches and verifies
     # signing keys independently rather than trusting a forwarded identity.
     keycloak_workers_jwks_uri: str = (
         "http://localhost:8081/realms/canopica-workers/protocol/openid-connect/certs"

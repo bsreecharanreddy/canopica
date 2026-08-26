@@ -64,7 +64,7 @@ re-derived per task:
   design doc (§2.9).
 - **Rule-authoring copilot's persistence split**: the Python AI service
   only computes a proposal and returns it as a validated Pydantic
-  response — it never writes to Postgres. The portal (Java) persists the
+  response — it never writes to Postgres. The API (Java) persists the
   proposal, records the review decision, and — only on accept — publishes
   through `PolicyParameterSetRepository`/`PolicyParameterRepository`'s
   existing `save()` (inherently insert-only; the `V3` immutability
@@ -201,15 +201,15 @@ canopica/
       test_eval_gate.py                     <- Task 7
       test_ai_observability.py              <- Task 8
       test_public_demo.py                   <- Task 9
-  portal/src/main/resources/db/migration/
+  api/src/main/resources/db/migration/
     V12__person_keycloak_identity.sql       <- Task 2
     V13__policy_parameter_proposal.sql      <- Task 3
-  portal/src/main/java/canopica/portal/
+  api/src/main/java/canopica/api/
     api/CitizenController.java              <- Task 2
     config/KeycloakCitizenLinkFilter.java   <- Task 2
     policy/PolicyParameterPublishService.java <- Task 3
     api/PolicyParameterProposalController.java <- Task 3
-  portal/web/src/
+  ui/src/
     pages/PolicyQaPage.tsx                  <- Task 2
     pages/RuleAuthoringPage.tsx             <- Task 3
   data-platform/dbt/canopica_warehouse/models/semantic/
@@ -356,7 +356,7 @@ this task proves retrieval alone returns the right chunks.
 
 Both entry points from design doc §2.2, sharing Task 1's retrieval core.
 "Why was I denied" needs a citizen to read their own determination trace
-— a capability that does not exist anywhere in the portal yet (see this
+— a capability that does not exist anywhere in the API yet (see this
 plan's opening note) — so this task also closes that gap.
 
 **Files:**
@@ -366,20 +366,20 @@ plan's opening note) — so this task also closes that gap.
   `OllamaClient`, the only implementation until Task 9 adds
   `OpenRouterTieredClient` behind the same interface
 - Create: `ai/tests/test_policy_qa.py`
-- Create: `portal/src/main/resources/db/migration/
+- Create: `api/src/main/resources/db/migration/
   V12__person_keycloak_identity.sql`
-- Create: `portal/src/main/java/canopica/portal/api/CitizenController.java`,
-  `portal/src/main/java/canopica/portal/config/KeycloakCitizenLinkFilter.java`
-- Create: `portal/src/test/java/canopica/portal/api/
+- Create: `api/src/main/java/canopica/api/api/CitizenController.java`,
+  `api/src/main/java/canopica/api/config/KeycloakCitizenLinkFilter.java`
+- Create: `api/src/test/java/canopica/api/api/
   CitizenDeterminationAccessTest.java`
-- Create: `portal/web/src/pages/PolicyQaPage.tsx`
-- Modify: `portal/src/main/java/canopica/portal/config/SecurityConfig.java`
+- Create: `ui/src/pages/PolicyQaPage.tsx`
+- Modify: `api/src/main/java/canopica/api/config/SecurityConfig.java`
   (new citizen-scoped `GET` routes)
 - Modify: `docs/STATUS.md`
 
 **Interfaces:**
 - Consumes: `canopica_ai.policy_intelligence.retrieval.hybrid_search()` (Task
-  1); a new portal endpoint `GET /api/my/determinations/{id}/trace`
+  1); a new API endpoint `GET /api/my/determinations/{id}/trace`
   (this task) for the "why was I denied" path.
 - Produces: `canopica_ai.policy_intelligence.qa.service.answer_general(question:
   str) -> QaAnswer` and `answer_denial(determination_id: UUID, jwt_sub: str)
@@ -475,7 +475,7 @@ alter table person add column keycloak_subject text unique;
       path), `created_at`.
 - [x] **Step 9: `api.py` + `PolicyQaPage.tsx`.** FastAPI router:
       `POST /qa/ask` (general), `POST /qa/why-was-i-denied` (forwards the
-      citizen's own bearer token to the portal's new trace endpoint
+      citizen's own bearer token to the API's new trace endpoint
       server-side — the AI service never receives a token it can use for
       anything beyond that one read). A minimal citizen-facing web page:
       a question box, an answer with visible citations, and (when
@@ -532,16 +532,16 @@ found by writing the code rather than by re-reading the plan:
   `schema.py`, `api.py`
 - Create: `ai/tests/test_rule_authoring.py`,
   `ai/tests/test_rule_authoring_api.py`
-- Create: `portal/src/main/resources/db/migration/
+- Create: `api/src/main/resources/db/migration/
   V14__policy_parameter_proposal.sql`,
   `V15__policy_parameter_set_closeable.sql`
-- Create: `portal/src/main/java/canopica/portal/policy/
+- Create: `api/src/main/java/canopica/api/policy/
   PolicyParameterPublishService.java`
-- Create: `portal/src/main/java/canopica/portal/api/
+- Create: `api/src/main/java/canopica/api/api/
   PolicyParameterProposalController.java`
-- Create: `portal/src/test/java/canopica/portal/policy/
+- Create: `api/src/test/java/canopica/api/policy/
   PolicyParameterPublishServiceTest.java`
-- Create: `portal/web/src/pages/RuleAuthoringPage.tsx`
+- Create: `ui/src/pages/RuleAuthoringPage.tsx`
 - Modify: `SecurityConfig.java` (new `ADMIN`-only routes)
 - Modify: `docs/STATUS.md`
 
@@ -551,7 +551,7 @@ found by writing the code rather than by re-reading the plan:
   UUID) -> ParameterProposal`, a Pydantic model: `parameter_set_id` (the
   set being diffed against), `proposed_values: list[ProposedParameter]`
   (`name`, `household_size | None`, `old_value`, `new_value`, `unit`,
-  `rationale: str`), `source_excerpt: str`. The portal calls this over
+  `rationale: str`), `source_excerpt: str`. The API calls this over
   HTTP (`POST /rule-authoring/propose`) and never constructs one itself.
 - Consumes: nothing from earlier AI tasks — this is independent of Task
   2's retrieval path, reading only the excerpt/diff supplied at call
@@ -579,7 +579,7 @@ create table policy_parameter_proposal (
 - [x] **Step 1: `schema.py` + `service.py`.** `ParameterProposal`/
       `ProposedParameter` Pydantic models; `propose_parameter_changes()`
       prompts the local Ollama model with the supplied excerpt and the
-      current effective parameter values (fetched by the portal, passed
+      current effective parameter values (fetched by the API, passed
       in the request — the AI service has no direct Postgres access,
       consistent with Task 2's provenance write being the *only* place
       this service touches a database, and only its own schema),
@@ -719,8 +719,8 @@ authorization resolved before any query compiles.
 **Interfaces:**
 - Consumes: Task 4's MetricFlow manifest (via `mf query`'s Python API,
   never raw SQL); a worker-realm Keycloak JWT (validated the same way the
-  portal validates one, via the workers realm's JWKS endpoint — this
-  service is its own resource server, not routed through the portal).
+  API validates one, via the workers realm's JWKS endpoint — this
+  service is its own resource server, not routed through the API).
 - Produces: `canopica_ai.analytics_copilot.service.ask(question: str, jwt:
   str) -> AnalyticsAnswer` (Pydantic: `compiled_sql: str`, `result_rows:
   list[dict]`, `metric_names_used: list[str]`) — `compiled_sql` is always
@@ -934,7 +934,7 @@ from Tasks 1, 2, 3, 5, and 6, plus a live per-request
       response metadata, `gen_ai.response.finish_reason`) — additive
       wrapping around existing call sites, no logic changes, same
       "wraps without touching" discipline Phase 1b's Task 9 already
-      applied to the portal/pipeline.
+      applied to the API/pipeline.
 - [x] **Step 3: `rag_citation_grounded` attribute.** Task 2's
       `answer_general()`/`answer_denial()` set this boolean attribute on
       their own span using the exact same `grounding.citation_grounded()`

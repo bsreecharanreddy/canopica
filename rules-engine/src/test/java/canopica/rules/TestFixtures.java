@@ -7,7 +7,7 @@ import java.util.UUID;
  * Test-only builders. The rules-engine module has no database, so these
  * hold the FY2025/FY2026 SNAP figures (see
  * docs/design/policy-parameter-provenance.md) as literals -- deliberately
- * not read from the same seed data the portal's resolver reads, so a
+ * not read from the same seed data the API's resolver reads, so a
  * scenario test cannot pass by coincidentally agreeing with a bug shared
  * between the seed and the fixture.
  */

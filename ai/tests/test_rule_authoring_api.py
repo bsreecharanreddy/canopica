@@ -1,4 +1,4 @@
-"""The HTTP wire contract between the Java portal and the rule-authoring
+"""The HTTP wire contract between the Java API and the rule-authoring
 copilot.
 
 Worth its own tests rather than folding into `test_rule_authoring.py`,
@@ -111,7 +111,7 @@ class TestProposeEndpoint:
     def test_a_generation_failure_is_a_502_not_a_500(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # The portal needs to tell "the copilot could not draft this" apart
+        # The API needs to tell "the copilot could not draft this" apart
         # from "the copilot is broken" -- the first is a normal outcome an
         # admin should see explained, the second is an incident.
         def fail(*_: Any) -> ParameterProposal:

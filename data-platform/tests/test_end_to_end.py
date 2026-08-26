@@ -193,7 +193,7 @@ def test_intake_through_determination_audit_warehouse_and_mart(stack: StackFixtu
 
     # 2. Determination -- through the real API, as a worker authenticated
     #    against the real Compose Keycloak. `as_of` must be on/after today:
-    #    FactAssembler (portal) only sees household_member rows whose
+    #    FactAssembler (API) only sees household_member rows whose
     #    effective_from -- set to the real submission date by IntakeService
     #    -- is <= as_of.
     worker_token = _fetch_worker_token(stack.keycloak_url)

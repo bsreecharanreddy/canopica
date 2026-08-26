@@ -3,7 +3,7 @@
 ## 1. Why this exists
 
 Phase 2 Task 3's rule-authoring copilot (Phase 2 design doc §2.3) ends in
-a human accepting a proposal, at which point the portal must **publish a
+a human accepting a proposal, at which point the API must **publish a
 new `policy_parameter_set`**. That is the first code path in this system
 that creates a parameter version at runtime — every set that exists today
 was seeded by the `V4` migration.

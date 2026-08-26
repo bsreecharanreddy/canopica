@@ -1,11 +1,11 @@
-"""The wire contract between the portal and the rule-authoring copilot
+"""The wire contract between the API and the rule-authoring copilot
 (design doc §2.3).
 
 Two things this module is responsible for, both load-bearing:
 
 1. **Money never touches a float.** Every figure here is a `Decimal` in
    Python and a decimal *string* on the wire, the same end-to-end rule the
-   portal's own DTOs and `portal/web/src/api/types.ts` already hold to.
+   API's own DTOs and `ui/src/api/types.ts` already hold to.
 2. **A proposed value has to be in its unit's domain before anyone sees
    it.** These are the bounds a benefit figure cannot be outside of
    regardless of what any policy document says -- a negative allotment, a
@@ -64,7 +64,7 @@ def _check_within_unit_domain(value: Decimal, unit: Unit) -> None:
 
 class CurrentParameter(WireModel):
     """One figure from the parameter set being diffed against, supplied by
-    the portal. This service has no database access of its own -- everything
+    the API. This service has no database access of its own -- everything
     it knows about what is currently in force arrives in the request."""
 
     name: str

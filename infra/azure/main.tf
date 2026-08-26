@@ -2,7 +2,7 @@
 # README.md's table): Postgres stands in for infra/docker-compose.yml's
 # `postgres` service (three databases, same names, on one server, same as
 # the compose stack's own `postgres/init` scripts); Container Apps stand
-# in for `portal-api`, `portal-web`, `airflow-webserver`, and
+# in for `api`, `ui`, `airflow-webserver`, and
 # `airflow-scheduler`; Key Vault is the Secrets row's real-production
 # target and Log Analytics/Azure Monitor is the Observability row's
 # (tradeoffs doc). Keycloak, Metabase, and the Jaeger/Prometheus/Grafana
@@ -142,7 +142,7 @@ resource "azurerm_container_registry" "this" {
   tags = var.tags
 }
 
-# --- Compute: Container Apps stand in for portal-api, portal-web, and
+# --- Compute: Container Apps stand in for api, ui, and
 # both Airflow processes from infra/docker-compose.yml. -------------------
 
 resource "azurerm_container_app_environment" "this" {
@@ -154,8 +154,8 @@ resource "azurerm_container_app_environment" "this" {
   tags                       = var.tags
 }
 
-resource "azurerm_container_app" "portal_api" {
-  name                         = "${local.name_prefix}-portal-api"
+resource "azurerm_container_app" "api" {
+  name                         = "${local.name_prefix}-api"
   container_app_environment_id = azurerm_container_app_environment.this.id
   resource_group_name          = azurerm_resource_group.this.name
   revision_mode                = "Single"
@@ -187,8 +187,8 @@ resource "azurerm_container_app" "portal_api" {
 
   template {
     container {
-      name   = "portal-api"
-      image  = var.portal_api_image
+      name   = "api"
+      image  = var.api_image
       cpu    = 0.5
       memory = "1Gi"
 
@@ -213,8 +213,8 @@ resource "azurerm_container_app" "portal_api" {
   tags = var.tags
 }
 
-resource "azurerm_container_app" "portal_web" {
-  name                         = "${local.name_prefix}-portal-web"
+resource "azurerm_container_app" "ui" {
+  name                         = "${local.name_prefix}-ui"
   container_app_environment_id = azurerm_container_app_environment.this.id
   resource_group_name          = azurerm_resource_group.this.name
   revision_mode                = "Single"
@@ -241,8 +241,8 @@ resource "azurerm_container_app" "portal_web" {
 
   template {
     container {
-      name   = "portal-web"
-      image  = var.portal_web_image
+      name   = "ui"
+      image  = var.ui_image
       cpu    = 0.25
       memory = "0.5Gi"
     }

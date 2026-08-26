@@ -1,4 +1,4 @@
-"""A real portal request and a real pipeline stage each produce a trace
+"""A real API request and a real pipeline stage each produce a trace
 Jaeger's own query API can find -- the same "verify against the real
 thing" standard as test_stack_smoke.py's endpoint checks, not a mock.
 
@@ -42,11 +42,11 @@ def _wait_for_trace(service: str, *, deadline_seconds: float = 20.0) -> None:
 
 
 @pytest.mark.e2e
-def test_a_real_portal_request_produces_a_trace_in_jaeger() -> None:
+def test_a_real_api_request_produces_a_trace_in_jaeger() -> None:
     household = generate_households(1, seed=9001)[0]
     post_households([household], "http://localhost:8080")
 
-    _wait_for_trace("canopica-portal")
+    _wait_for_trace("canopica-api")
 
 
 @pytest.mark.e2e

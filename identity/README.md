@@ -12,7 +12,7 @@ applies to the TMDL semantic model and the dbt project.
   onto `worker.role`'s existing `CHECK` constraint values.
 - **`canopica-citizens`** — self-registration enabled (`registrationAllowed`),
   matching how a real applicant creates their own account. No realm roles:
-  authenticating against this realm at all is what the portal API treats
+  authenticating against this realm at all is what the API treats
   as `CUSTOMER` — there's only one kind of citizen account.
 
 Both realms also carry a confidential `test-worker` / `test-customer`

@@ -56,7 +56,7 @@ a fresh download, or to point at a newer vintage.
 
 `RELSHIPP` (a 19-way federal relationship code) maps onto the six values
 `household_member.relationship`'s CHECK constraint allows
-(`portal/src/main/resources/db/migration/V1__core_entities.sql`):
+(`api/src/main/resources/db/migration/V1__core_entities.sql`):
 
 | RELSHIPP | Canopica relationship |
 |---|---|
