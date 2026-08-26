@@ -103,8 +103,9 @@ See the roadmap doc for full detail. At a glance:
 - **Phase 3 — planned.** Case Intake & Communication AI.
 - **Phase 4 — planned.** Compliance & Integrity AI (fraud triage, SLA/QC,
   SOP copilot).
-- **Phase 5 — planned.** Domain expansion (Medicaid/TANF) & real cloud
-  deployment demos.
+- **Phase 5 — planned.** Domain expansion (TANF; Medicaid is the same
+  shape of work and is stated as a deliberately-not-built extension
+  point, not silently absent) & real cloud deployment demos.
 
 ## Testing policy — non-negotiable
 

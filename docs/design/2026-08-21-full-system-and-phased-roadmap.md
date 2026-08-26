@@ -259,8 +259,10 @@ throughout.
 ### 3.7 Government cloud & compliance tier
 
 The data this system is modeled around — income data handled with FTI-style
-safeguards from Phase 1, and Medicaid-adjacent health data from Phase 5 —
-is exactly the category real state systems run in **Azure Government**
+safeguards from Phase 1, and (were a health-adjacent domain like Medicaid
+ever added, per Phase 5's stated-but-deliberately-not-built extension
+point) health data — is exactly the category real state systems run in
+**Azure Government**
 rather than commercial Azure: a physically and logically separate Azure
 instance, restricted to U.S. federal/state/local government entities and
 their vetted partners, staffed only by screened U.S. persons, carrying
@@ -427,8 +429,18 @@ meaningful, which is why it comes after intake and correspondence exist:
 
 ### Phase 5 — Domain expansion & cloud realization
 
-- Medicaid/TANF domain logic (pregnancy, MAGI household rules, cash-
-  assistance work pathways)
+- **TANF domain logic** (cash-assistance work pathways, work
+  activity/exemption status) — the actual build. Scoped to TANF only,
+  not Medicaid/TANF both: the goal this phase is proving the platform
+  generalizes to a second, structurally-different domain, and TANF alone
+  already demonstrates that (different eligibility rules, same DMN/audit/
+  warehouse architecture underneath). A second full domain on top of that
+  would be repeated engineering effort for a portfolio project, not new
+  signal — this repo optimizes for engineering breadth, not benefits-
+  program coverage. Medicaid is the same shape of work (pregnancy, MAGI
+  household rules) and is stated here as a deliberately-not-built
+  extension point, per this project's own "considered, deliberately
+  deferred" convention, rather than silently absent.
 - Correspondence and interfaces breadth beyond SNAP
 - Real cloud deployment demos: the existing dbt project run for real on
   a free Databricks tier, and the existing Terraform applied to an Azure

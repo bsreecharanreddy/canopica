@@ -130,7 +130,7 @@ applied) are all in place.
 | 2 | Policy Intelligence & Analytics AI — RAG-based policy Q&A, rule-authoring copilot, natural-language analytics | Planned |
 | 3 | Case Intake & Communication AI — document classification/extraction, AI-drafted correspondence, localization | Planned |
 | 4 | Compliance & Integrity AI — fraud risk triage, SLA/QC monitoring, caseworker SOP copilot | Planned |
-| 5 | Domain expansion (Medicaid/TANF) & real cloud deployment demos | Planned |
+| 5 | Domain expansion (TANF; Medicaid stated as a deliberately-not-built extension point) & real cloud deployment demos | Planned |
 
 See `docs/design/2026-08-21-full-system-and-phased-roadmap.md` for the
 full breakdown of every phase, and [`docs/STATUS.md`](docs/STATUS.md) for

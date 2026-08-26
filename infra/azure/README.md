@@ -54,8 +54,10 @@ to:
 ## The `usgovcloud` swap
 
 The data this system is modeled around — income data handled with
-FTI-style safeguards, Medicaid-adjacent health data from Phase 5 — is
-exactly the category real state systems run in **Azure Government**
+FTI-style safeguards, and (were a health-adjacent domain like Medicaid
+ever added, per Phase 5's stated-but-deliberately-not-built extension
+point) health data — is exactly the category real state systems run in
+**Azure Government**
 rather than commercial Azure (design doc §3.7). Azure Government isn't
 self-service: provisioning it requires the tenant to already be a
 verified U.S. government entity or an approved contractor, so this
