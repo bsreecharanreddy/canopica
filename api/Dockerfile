@@ -11,7 +11,7 @@ COPY api/pom.xml api/pom.xml
 COPY api/src api/src
 RUN ./mvnw -B -q -pl api -am package -DskipTests
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:25-jre
 # curl backs the healthcheck below -- not present in the base -jre image.
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
