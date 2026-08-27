@@ -110,6 +110,65 @@ class TestCheckAgainstBaseline:
         assert run_eval.check_against_baseline(results) is False
 
 
+class _OneShotMetric:
+    """Fakes a DeepEval metric instance: `.measure()` always returns the
+    one score it was built with, regardless of the `test_case` passed in."""
+
+    def __init__(self, score: float) -> None:
+        self._score = score
+
+    def measure(self, test_case: object) -> float:
+        return self._score
+
+
+class _SequentialScoreMetric:
+    """Fakes a DeepEval metric *class* whose successive constructions hand
+    out the next score from a fixed sequence, cycling if exhausted -- lets
+    a test prove `_judge` builds several fresh instances (one per repeat)
+    and averages their scores, rather than judging once and trusting it."""
+
+    def __init__(self, scores: list[float]) -> None:
+        self._scores = scores
+        self._next = 0
+
+    def __call__(self, *, model: object, include_reason: bool, async_mode: bool) -> _OneShotMetric:
+        score = self._scores[self._next % len(self._scores)]
+        self._next += 1
+        return _OneShotMetric(score)
+
+
+class TestJudgingAveragesRepeatedPassesToAbsorbJudgeNoise:
+    """A real incident (2026-08-27): the same 8-question judged sample
+    scored `faithfulness` 1.000 on one full run and 0.875 on the next,
+    against a `_REGRESSION_MARGIN` of 0.05 -- a single question's judged
+    score flipping is a 1/8 = 0.125 swing in the mean, comfortably enough
+    to fail the gate on judge noise alone, not a real regression. Judging
+    is cheap and parallel (a remote call, no local resource contention),
+    unlike generation, so repeating *it* -- not adding more questions --
+    is what run_eval.py's module docstring point 6 left as the next lever
+    once judged-N alone couldn't close the gap."""
+
+    def test_a_single_question_scores_the_mean_of_its_repeated_judge_passes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repeats = run_eval._JUDGE_REPEATS
+        # All-but-one pass scores 1.0, one scores 0.0 -- the exact shape of
+        # the real incident (one bad pass dragging an otherwise-perfect
+        # question down), computed against whatever `_JUDGE_REPEATS`
+        # actually is rather than a hardcoded repeat count.
+        scores = [1.0] * (repeats - 1) + [0.0]
+        monkeypatch.setattr(run_eval, "FaithfulnessMetric", _SequentialScoreMetric(scores))
+        monkeypatch.setattr(run_eval, "ContextualPrecisionMetric", _SequentialScoreMetric([1.0]))
+        monkeypatch.setattr(run_eval, "ContextualRecallMetric", _SequentialScoreMetric([1.0]))
+        answered = run_eval._AnsweredQuestion(
+            question=_QUESTION, actual_output="x", retrieval_context=["t"]
+        )
+
+        result = run_eval._judge(answered, judge=None)  # type: ignore[arg-type]
+
+        assert result.faithfulness == pytest.approx((repeats - 1) / repeats)
+
+
 class TestProgressReportingDuringALongRun:
     """`run()` is the slowest thing in CI (13-35 min) and used to emit
     nothing between start and final scores, so a working run and a hung one

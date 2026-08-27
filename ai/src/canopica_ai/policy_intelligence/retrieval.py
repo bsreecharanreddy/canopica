@@ -34,13 +34,21 @@ from canopica_ai.config import Settings
 # same "try again shortly" signal and want the same handling. Matching on
 # the human-readable string instead would be brittle for no benefit.
 _RETRYABLE_SEARCH_STATUS = 429
-_MAX_SEARCH_ATTEMPTS = 4
-# Linear escalation (2s, 4s, 6s), the same shape and constant as
-# judge_model.py's retry against OpenRouter. Generous next to the ~400ms
-# collection actually observed, and trivial against an eval run measured
-# in minutes -- so the ceiling is set by what makes the gate trustworthy,
-# not by what makes it fast.
-_RETRY_BACKOFF_SECONDS = 2.0
+# 4 attempts / 2s-4s-6s (12s total backoff) held until `_CI_GATE_QUESTIONS`
+# grew 8 -> 12 (2026-08-26): CI run 33037187113 exhausted all 4 attempts
+# for real, heap still at 94% against the 92% threshold on the last one --
+# 12s wasn't always enough headroom for GC to catch up under the heavier
+# per-run reranker/hybrid-search load. Widened alongside the docker-compose
+# heap bump (2g -> 3g) rather than instead of it: this buys the *retry*
+# more time to wait out a slow collection, the heap bump buys more room
+# before the threshold trips at all -- the same "handle the signal,
+# don't just raise the limit" reasoning from the comment above applied to
+# both knobs. Doubled attempts and raised the constant a further 50%
+# rather than picking new numbers from scratch, so the ceiling (3+6+9+12+15
+# = 45s) stays proportional to the ~400ms-3s collections actually observed
+# and trivial against an eval run measured in minutes.
+_MAX_SEARCH_ATTEMPTS = 6
+_RETRY_BACKOFF_SECONDS = 3.0
 
 
 class RetrievedChunk(BaseModel):

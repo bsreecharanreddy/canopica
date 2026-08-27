@@ -117,6 +117,22 @@ _METRIC_NAMES = ("faithfulness", "contextual_precision", "contextual_recall")
 # with one question's own ~181s generation time.
 _JUDGE_CONCURRENCY = 4
 
+# Widening the judged sample 4 -> 8 (module docstring point 6) reduced but
+# did not close the gap: with only 8 questions actually judged, one
+# question's score flipping is still a 1/8 = 0.125 swing in the mean,
+# comfortably past `_REGRESSION_MARGIN`'s 0.05 -- confirmed live
+# (2026-08-27): the same 8-question sample scored `faithfulness` 1.000 on
+# one full run and 0.875 on the next, with retrieval/citation numbers
+# unchanged, so the swing was judge noise, not a real regression. Adding
+# more *questions* would need roughly 20 judged to get a single flip's
+# impact under the margin -- expensive, since each one pays the ~181s
+# retrieval+generation cost. Repeating the *judge* instead is nearly free
+# by comparison: judging has no local resource contention (the comment
+# above) and no generation cost, so this trades a few more remote judge
+# calls per question for exactly the noise reduction that adding 12
+# questions' worth of generation would have bought.
+_JUDGE_REPEATS = 3
+
 # Questions per §2.1 coverage area (income eligibility, deductions,
 # expedited processing, categorical eligibility), picked from the full
 # golden_set.yaml -- see module docstring point 4 for why this exists at
@@ -199,6 +215,17 @@ def _retrieve_and_answer(
     )
 
 
+def _mean_score(metric_cls: type, *, judge: OpenRouterJudgeModel, test_case: LLMTestCase) -> float:
+    """Builds a fresh metric instance per repeat (not one instance measured
+    `_JUDGE_REPEATS` times) so no state a real DeepEval metric might keep
+    between calls can leak across repeats -- each pass is judged cold."""
+    scores: list[float] = [
+        metric_cls(model=judge, include_reason=False, async_mode=False).measure(test_case)
+        for _ in range(_JUDGE_REPEATS)
+    ]
+    return sum(scores) / len(scores)
+
+
 def _judge(answered: _AnsweredQuestion, *, judge: OpenRouterJudgeModel) -> MetricScores:
     test_case = LLMTestCase(
         input=answered.question.question,
@@ -209,13 +236,12 @@ def _judge(answered: _AnsweredQuestion, *, judge: OpenRouterJudgeModel) -> Metri
         # not a type mismatch in practice.
         retrieval_context=answered.retrieval_context,  # type: ignore[arg-type]
     )
-    faithfulness = FaithfulnessMetric(model=judge, include_reason=False, async_mode=False)
-    precision = ContextualPrecisionMetric(model=judge, include_reason=False, async_mode=False)
-    recall = ContextualRecallMetric(model=judge, include_reason=False, async_mode=False)
     return MetricScores(
-        faithfulness=faithfulness.measure(test_case),
-        contextual_precision=precision.measure(test_case),
-        contextual_recall=recall.measure(test_case),
+        faithfulness=_mean_score(FaithfulnessMetric, judge=judge, test_case=test_case),
+        contextual_precision=_mean_score(
+            ContextualPrecisionMetric, judge=judge, test_case=test_case
+        ),
+        contextual_recall=_mean_score(ContextualRecallMetric, judge=judge, test_case=test_case),
     )
 
 

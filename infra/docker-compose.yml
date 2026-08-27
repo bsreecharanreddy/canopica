@@ -214,9 +214,20 @@ services:
       # ai/'s e2e suite now runs real Ollama generation on top of Task 1's
       # embeddings-only load, and 1200m didn't clear the same
       # percentage-of-heap threshold under that heavier, real-generation
-      # session. 2g widens the same margin further rather than guessing a
-      # second small bump.
-      OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
+      # session. 2g widened the same margin further, and held for months --
+      # until `_CI_GATE_QUESTIONS` grew 8 -> 12 in the same commit as the
+      # runner resize (2026-08-27, CI run 33037187113): `ai-eval` tripped
+      # the same breaker again, this time surviving all of
+      # retrieval.py's own retry budget (heap read 94% against ml-commons'
+      # 92% threshold at the final attempt). A local repro of the identical
+      # 12-question run against this same 2g cap did *not* reproduce it --
+      # so this is the same marginal sawtooth as ever, just pushed closer
+      # to the edge by more questions' worth of reranker/hybrid-search load
+      # per run, not a new failure mode. 3g buys back that margin the same
+      # way 1200m -> 2g did last time load grew, rather than raising
+      # ml-commons' own *percentage* threshold again -- 85 -> 92 already
+      # proved that doesn't fix a sawtooth, it just moves the peak.
+      OPENSEARCH_JAVA_OPTS: "-Xms3g -Xmx3g"
     ports:
       - "9200:9200"
     volumes:
