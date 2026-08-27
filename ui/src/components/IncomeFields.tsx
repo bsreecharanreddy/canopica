@@ -1,4 +1,8 @@
 import type { IntakeIncome } from '../api/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { FormField } from '@/components/design-system/FormField';
+import { RecordSheet } from '@/components/design-system/RecordSheet';
 
 const INCOME_TYPES = [
   'WAGES',
@@ -34,63 +38,70 @@ export default function IncomeFields({ memberIndex, incomes, onChange }: Props) 
   }
 
   return (
-    <fieldset>
-      <legend>Income</legend>
-      {incomes.map((income, index) => {
-        const idPrefix = `member-${memberIndex}-income-${index}`;
-        const amountLabel = income.earned ? 'Monthly earned income' : 'Monthly unearned income';
-        return (
-          <div key={index}>
-            <label htmlFor={`${idPrefix}-type`}>Income type</label>
-            <select
-              id={`${idPrefix}-type`}
-              value={income.incomeType}
-              onChange={(e) => updateAt(index, { incomeType: e.target.value })}
-            >
-              {INCOME_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+    <RecordSheet>
+      <h3 className="font-display text-lg">Income</h3>
+      <div className="mt-4 flex flex-col gap-4">
+        {incomes.map((income, index) => {
+          const idPrefix = `member-${memberIndex}-income-${index}`;
+          const amountLabel = income.earned ? 'Monthly earned income' : 'Monthly unearned income';
+          return (
+            <div key={index} className="flex flex-col gap-4">
+              <FormField id={`${idPrefix}-type`} label="Income type">
+                <select
+                  id={`${idPrefix}-type`}
+                  value={income.incomeType}
+                  onChange={(e) => updateAt(index, { incomeType: e.target.value })}
+                  className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {INCOME_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
 
-            <label htmlFor={`${idPrefix}-earned`}>
-              <input
-                id={`${idPrefix}-earned`}
-                type="checkbox"
-                checked={income.earned}
-                onChange={(e) => updateAt(index, { earned: e.target.checked })}
-              />
-              Earned income
-            </label>
+              <label htmlFor={`${idPrefix}-earned`} className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  id={`${idPrefix}-earned`}
+                  type="checkbox"
+                  checked={income.earned}
+                  onChange={(e) => updateAt(index, { earned: e.target.checked })}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                Earned income
+              </label>
 
-            <label htmlFor={`${idPrefix}-amount`}>{amountLabel}</label>
-            <input
-              id={`${idPrefix}-amount`}
-              type="number"
-              min="0"
-              step="0.01"
-              value={income.monthlyAmount}
-              onChange={(e) => updateAt(index, { monthlyAmount: e.target.value })}
-            />
+              <FormField id={`${idPrefix}-amount`} label={amountLabel}>
+                <Input
+                  id={`${idPrefix}-amount`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={income.monthlyAmount}
+                  onChange={(e) => updateAt(index, { monthlyAmount: e.target.value })}
+                />
+              </FormField>
 
-            <label htmlFor={`${idPrefix}-from`}>Income effective from</label>
-            <input
-              id={`${idPrefix}-from`}
-              type="date"
-              value={income.effectiveFrom}
-              onChange={(e) => updateAt(index, { effectiveFrom: e.target.value })}
-            />
+              <FormField id={`${idPrefix}-from`} label="Income effective from">
+                <Input
+                  id={`${idPrefix}-from`}
+                  type="date"
+                  value={income.effectiveFrom}
+                  onChange={(e) => updateAt(index, { effectiveFrom: e.target.value })}
+                />
+              </FormField>
 
-            <button type="button" onClick={() => remove(index)}>
-              Remove income
-            </button>
-          </div>
-        );
-      })}
-      <button type="button" onClick={add}>
-        Add income
-      </button>
-    </fieldset>
+              <Button type="button" variant="outline" onClick={() => remove(index)} className="self-start">
+                Remove income
+              </Button>
+            </div>
+          );
+        })}
+        <Button type="button" variant="secondary" onClick={add} className="self-start">
+          Add income
+        </Button>
+      </div>
+    </RecordSheet>
   );
 }

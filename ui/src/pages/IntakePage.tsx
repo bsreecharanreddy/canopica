@@ -2,6 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { ApiValidationError, submitApplication } from '../api/client';
 import type { IntakePerson, IntakeRequest } from '../api/types';
 import HouseholdMemberFields, { emptyMember } from '../components/HouseholdMemberFields';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { FormField } from '@/components/design-system/FormField';
+import { RecordSheet } from '@/components/design-system/RecordSheet';
 
 const ARRANGEMENT_TYPES = ['RENTS', 'OWNS', 'HOMELESS', 'SHARED_HOUSING', 'INSTITUTION'] as const;
 
@@ -66,22 +70,22 @@ export default function IntakePage() {
 
   if (confirmation) {
     return (
-      <section>
-        <h2>Application submitted</h2>
-        <p>
+      <RecordSheet>
+        <h2 className="font-display text-xl">Application submitted</h2>
+        <p className="mt-2 text-sm text-foreground">
           Your reference number is <strong>{confirmation.programRequestId}</strong>. A caseworker will
           review your application.
         </p>
-      </section>
+      </RecordSheet>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Apply for SNAP</h2>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <h2 className="font-display text-xl">Apply for SNAP</h2>
 
       {errors.length > 0 && (
-        <div role="alert">
+        <div role="alert" className="text-sm text-destructive">
           <ul>
             {errors.map((message) => (
               <li key={message}>{message}</li>
@@ -90,57 +94,71 @@ export default function IntakePage() {
         </div>
       )}
 
-      <fieldset>
-        <legend>Household</legend>
+      <RecordSheet>
+        <h3 className="font-display text-lg">Household</h3>
+        <div className="mt-4 flex flex-col gap-4">
+          <FormField id="county" label="County">
+            <Input id="county" value={county} onChange={(e) => setCounty(e.target.value)} />
+          </FormField>
 
-        <label htmlFor="county">County</label>
-        <input id="county" value={county} onChange={(e) => setCounty(e.target.value)} />
+          <FormField id="addressLine1" label="Street address">
+            <Input id="addressLine1" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+          </FormField>
 
-        <label htmlFor="addressLine1">Street address</label>
-        <input id="addressLine1" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+          <FormField id="city" label="City">
+            <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
+          </FormField>
 
-        <label htmlFor="city">City</label>
-        <input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
+          <FormField id="state" label="State">
+            <Input id="state" value={state} onChange={(e) => setState(e.target.value)} />
+          </FormField>
 
-        <label htmlFor="state">State</label>
-        <input id="state" value={state} onChange={(e) => setState(e.target.value)} />
+          <FormField id="zipCode" label="ZIP code">
+            <Input id="zipCode" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
+          </FormField>
 
-        <label htmlFor="zipCode">ZIP code</label>
-        <input id="zipCode" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
+          <FormField id="arrangementType" label="Living arrangement">
+            <select
+              id="arrangementType"
+              value={arrangementType}
+              onChange={(e) => setArrangementType(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {ARRANGEMENT_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
-        <label htmlFor="arrangementType">Living arrangement</label>
-        <select id="arrangementType" value={arrangementType} onChange={(e) => setArrangementType(e.target.value)}>
-          {ARRANGEMENT_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
+          <label htmlFor="paysUtilitiesSeparately" className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              id="paysUtilitiesSeparately"
+              type="checkbox"
+              checked={paysUtilitiesSeparately}
+              onChange={(e) => setPaysUtilitiesSeparately(e.target.checked)}
+              className="h-4 w-4 rounded border-input accent-primary"
+            />
+            Pays utilities separately from rent
+          </label>
 
-        <label htmlFor="paysUtilitiesSeparately">
-          <input
-            id="paysUtilitiesSeparately"
-            type="checkbox"
-            checked={paysUtilitiesSeparately}
-            onChange={(e) => setPaysUtilitiesSeparately(e.target.checked)}
-          />
-          Pays utilities separately from rent
-        </label>
-
-        <label htmlFor="liquidResources">Cash and bank accounts on hand ($)</label>
-        <input
-          id="liquidResources"
-          inputMode="decimal"
-          value={liquidResources}
-          onChange={(e) => setLiquidResources(e.target.value)}
-        />
-      </fieldset>
+          <FormField id="liquidResources" label="Cash and bank accounts on hand ($)">
+            <Input
+              id="liquidResources"
+              inputMode="decimal"
+              value={liquidResources}
+              onChange={(e) => setLiquidResources(e.target.value)}
+            />
+          </FormField>
+        </div>
+      </RecordSheet>
 
       <HouseholdMemberFields members={members} onChange={setMembers} />
 
-      <button type="submit" disabled={submitting}>
+      <Button type="submit" disabled={submitting} className="self-start">
         Submit application
-      </button>
+      </Button>
     </form>
   );
 }

@@ -49,3 +49,8 @@ infra/ollama-models/
 
 # OS
 .DS_Store
+
+# Playwright MCP session artifacts (screenshots, page snapshots, console
+# logs) -- written to repo root by the browser tool during manual
+# verification checks, never meant to be committed.
+.playwright-mcp/
