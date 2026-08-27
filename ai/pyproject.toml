@@ -26,6 +26,12 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.10.1",
     "pyyaml>=6.0.2",
+    # Only ever undeclared-transitive before Task 9 Step 4/5 -- uv.lock
+    # already resolved it (some other dependency needs it), but the
+    # public demo's own server entry point (`uvicorn canopica_ai.
+    # public_demo.app:app`) is a real, direct use now, not a coincidence
+    # of what else happens to be installed.
+    "uvicorn>=0.52.4",
 ]
 
 [build-system]
