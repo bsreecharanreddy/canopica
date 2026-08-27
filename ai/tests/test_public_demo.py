@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from canopica_ai.common.llm_client import InferenceUnavailableError, LlmResponse
+from canopica_ai.common.llm_client import InferenceUnavailableError, LlmResponse, OllamaClient
 from canopica_ai.common.rate_limit import SessionRateLimiter
 from canopica_ai.config import Settings
 from canopica_ai.policy_intelligence.qa.service import QaAnswer
@@ -127,6 +127,39 @@ class TestInferenceUnavailable:
         response = client.post("/demo/ask", json={"question": "a question"})
 
         assert response.status_code == 503
+
+
+@pytest.mark.e2e
+class TestRealLocalStack:
+    """Task 9 plan Step 6's own last checklist item: a real request
+    against `app.py`'s test client, through its actual guardrail/rate-
+    limit/`answer_general` wiring (no monkeypatched fake answer, unlike
+    every test above), returns a grounded answer with real citations --
+    unchanged behavior from Task 2's own `TestAnswerGeneral` in
+    `test_policy_qa.py`. Runs `inference_mode=local` against the real
+    Compose stack (`make up`), not `public_demo`/OpenRouter, so this
+    needs no `CANOPICA_OPENROUTER_API_KEY` -- only `_get_llm_client`/
+    `_get_rate_limiter` are overridden; `answer_general` itself is not,
+    which is the whole point of this test."""
+
+    def test_a_real_question_returns_a_grounded_answer_through_the_full_demo_path(
+        self, indexed_corpus: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(demo_app, "_get_llm_client", lambda: OllamaClient(indexed_corpus))
+        monkeypatch.setattr(
+            demo_app, "_get_rate_limiter", lambda: SessionRateLimiter(indexed_corpus)
+        )
+        client = TestClient(demo_app.app)
+
+        response = client.post(
+            "/demo/ask",
+            json={"question": "What is the gross income test for a household?"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["abstained"] is False
+        assert body["citations"]
 
 
 class TestRateLimit:

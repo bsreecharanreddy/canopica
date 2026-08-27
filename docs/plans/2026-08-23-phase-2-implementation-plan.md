@@ -1085,14 +1085,39 @@ requires for the one unauthenticated surface in this phase.
       the rest of Task 9 -- the actual `fly deploy` is held until the
       repo is close to going public (see `docs/STATUS.md`'s Open
       Questions).
-- [ ] **Step 6: `test_public_demo.py`.** Local (non-deployed) tests: the
+- [x] **Step 6: `test_public_demo.py`.** Local (non-deployed) tests: the
       tiered client actually falls back on a simulated rate-limit
-      response (mocked OpenRouter, not a real account call in CI); the
-      spend-cap counter stops the paid fallback once exceeded; a
-      guardrail-triggering input is blocked before reaching the model; a
-      real request against `app.py`'s local test client returns a
-      grounded answer with citations, unchanged behavior from Task 2's
-      own general-question path.
+      response (mocked OpenRouter, not a real account call in CI) —
+      already covered by `test_openrouter_tiered_client.py`'s
+      `TestFallbackOnUpstreamOutage` (Step 1); the spend-cap counter
+      stops the paid fallback once exceeded — already covered by that
+      same file's spend-cap tests (Step 1); a guardrail-triggering input
+      is blocked before reaching the model — already covered by
+      `test_public_demo.py`'s `TestInputGuardrail`/`TestOutputGuardrail`
+      (Step 4). The one genuinely new piece, added 2026-08-26: a real
+      request against `app.py`'s test client, through its actual
+      guardrail/rate-limit/`answer_general` wiring (not a monkeypatched
+      fake answer, unlike every other test in this file), returns a
+      grounded answer with real citations — `TestRealLocalStack`,
+      `@pytest.mark.e2e`, run against the real local Compose stack
+      (`inference_mode=local`, no `CANOPICA_OPENROUTER_API_KEY` needed).
+      **Run for real, not just written**: `docker compose up
+      opensearch ollama` alone (matching `ai-eval`'s own CI scope, not
+      the full `make up`, after `make up`'s full stack genuinely
+      OOM-killed OpenSearch on this 7.65GB Docker Desktop VM —
+      `docker inspect` confirmed `OOMKilled: true`; `metabase` alone was
+      resident at 1.36GB and the full stack's combined footprint left no
+      headroom once OpenSearch's own 2g heap needed to allocate), then
+      `opensearch ollama api` (cascading postgres/keycloak/jaeger) to
+      match `test_policy_qa.py`'s own e2e scope — passed clean both
+      times. `ai/`'s non-e2e suite (173 passed) confirms no regression;
+      `ruff`/`mypy --strict` clean. The full `-m e2e` battery across
+      every `ai/` test file was deliberately not run in this same pass —
+      real memory measurement showed only ~800MB headroom left on this
+      host with `opensearch`/`ollama`/`api` all up before any test load,
+      genuinely tight for the ~110s real-generation tests elsewhere in
+      the suite — that full run happens once, at Step 7, not repeated
+      here for a change that didn't touch those other tests.
 - [ ] **Step 7: Full suite + commit, then the live Fly.io smoke check**
       (not part of CI — a one-time, by-hand verification the same way
       Phase 1a's Task 13 walked `docs/demo.md` by hand): open the public
