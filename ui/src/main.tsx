@@ -1,5 +1,5 @@
-import '@fontsource/dm-serif-display';
-import '@fontsource-variable/dm-sans';
+import '@fontsource-variable/inter';
+import '@fontsource/courier-prime';
 import './index.css';
 
 import { StrictMode } from 'react';

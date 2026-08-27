@@ -5,7 +5,7 @@ type RecordSheetProps = { children: ReactNode; className?: string } & HTMLAttrib
 
 export function RecordSheet({ children, className, ...rest }: RecordSheetProps) {
   return (
-    <div className={cn('border-t-[3px] border-t-foreground bg-card px-6 py-5', className)} {...rest}>
+    <div className={cn('rounded-lg border border-border bg-card px-6 py-5 shadow-sm', className)} {...rest}>
       {children}
     </div>
   );

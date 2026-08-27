@@ -21,9 +21,9 @@ function AuthedAppShell({ role, signOut }: { role: Role; signOut: () => void }) 
   return (
     <PageChromeProvider>
       <div className="flex min-h-screen">
-        <NavRail role={role} />
+        <NavRail role={role} onSignOut={signOut} />
         <div className="flex flex-1 flex-col">
-          <TopUtilityBar role={role} onSignOut={signOut} />
+          <TopUtilityBar />
           <main className="flex-1 bg-background p-8">
             <div className="mx-auto max-w-[1640px]">
               <Routes>

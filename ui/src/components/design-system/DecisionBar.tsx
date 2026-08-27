@@ -10,12 +10,14 @@ export function DecisionBar({
   note: ReactNode;
 }) {
   return (
-    <div className="flex items-baseline justify-between border-y border-border bg-card px-4 py-3">
-      <span className="font-display text-2xl tabular-nums text-foreground">${amount}/month</span>
-      <span className="text-xs text-muted-foreground">
-        Policy <strong className="font-medium text-foreground">{policyVersion}</strong>
-      </span>
-      <span className="text-xs text-muted-foreground">{note}</span>
+    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/60 px-4 py-4">
+      <span className="font-display text-3xl font-bold tabular-nums text-foreground">${amount}/month</span>
+      <div className="flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
+        <span>
+          Policy <strong className="font-semibold text-foreground">{policyVersion}</strong>
+        </span>
+        <span>{note}</span>
+      </div>
     </div>
   );
 }
