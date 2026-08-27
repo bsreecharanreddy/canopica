@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { CanopicaAuthProvider, useIesAuth, type Role } from './auth/AuthContext';
 import { NavRail } from './components/design-system/NavRail';
 import { TopUtilityBar } from './components/design-system/TopUtilityBar';
+import { PageChromeProvider } from './components/design-system/PageChrome';
 import IntakePage from './pages/IntakePage';
 import WorkerCasesPage from './pages/WorkerCasesPage';
 import CaseDetailPage from './pages/CaseDetailPage';
@@ -18,24 +19,26 @@ const HOME_FOR: Record<Role, string> = {
 
 function AuthedAppShell({ role, signOut }: { role: Role; signOut: () => void }) {
   return (
-    <div className="flex min-h-screen">
-      <NavRail role={role} />
-      <div className="flex flex-1 flex-col">
-        <TopUtilityBar role={role} onSignOut={signOut} />
-        <main className="flex-1 bg-background p-8">
-          <div className="mx-auto max-w-[1640px]">
-            <Routes>
-              <Route path="/" element={<Navigate to={HOME_FOR[role]} replace />} />
-              <Route path="/apply" element={<IntakePage />} />
-              <Route path="/ask" element={<PolicyQaPage />} />
-              <Route path="/cases" element={<WorkerCasesPage />} />
-              <Route path="/cases/:programRequestId" element={<CaseDetailPage />} />
-              <Route path="/rule-authoring" element={<RuleAuthoringPage />} />
-            </Routes>
-          </div>
-        </main>
+    <PageChromeProvider>
+      <div className="flex min-h-screen">
+        <NavRail role={role} />
+        <div className="flex flex-1 flex-col">
+          <TopUtilityBar role={role} onSignOut={signOut} />
+          <main className="flex-1 bg-background p-8">
+            <div className="mx-auto max-w-[1640px]">
+              <Routes>
+                <Route path="/" element={<Navigate to={HOME_FOR[role]} replace />} />
+                <Route path="/apply" element={<IntakePage />} />
+                <Route path="/ask" element={<PolicyQaPage />} />
+                <Route path="/cases" element={<WorkerCasesPage />} />
+                <Route path="/cases/:programRequestId" element={<CaseDetailPage />} />
+                <Route path="/rule-authoring" element={<RuleAuthoringPage />} />
+              </Routes>
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </PageChromeProvider>
   );
 }
 

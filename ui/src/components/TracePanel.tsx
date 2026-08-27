@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { getTrace } from '../api/client';
 import type { TraceResponse } from '../api/types';
+import { CalculationMatrix } from './design-system/CalculationMatrix';
+import { CustodySpine } from './design-system/CustodySpine';
 
 type Props = {
   determinationId: string;
@@ -36,25 +38,32 @@ export default function TracePanel({ determinationId }: Props) {
   }
 
   return (
-    <details onToggle={handleToggle}>
-      <summary>DMN evaluation trace</summary>
-      {loading && <p>Loading trace…</p>}
+    <details onToggle={handleToggle} className="mt-3">
+      <summary className="cursor-pointer text-sm font-medium text-primary">DMN evaluation trace</summary>
+      {loading && <p className="mt-2 text-sm text-muted-foreground">Loading trace…</p>}
       {error && (
-        <p role="alert">{error}</p>
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          {error}
+        </p>
       )}
       {trace && (
         <>
-          <p>
-            Model hash <code>{trace.dmnModelHash}</code>, policy parameters{' '}
-            <strong>{trace.policyParameterVersion}</strong>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Model hash <code className="font-mono">{trace.dmnModelHash}</code>, policy parameters{' '}
+            <strong className="text-foreground">{trace.policyParameterVersion}</strong>
           </p>
-          <ol aria-label="DMN decisions in evaluation order">
-            {Object.entries(trace.decisionResults).map(([name, value]) => (
-              <li key={name}>
-                <strong>{name}:</strong> {renderValue(value)}
-              </li>
-            ))}
-          </ol>
+          <CustodySpine
+            items={Object.entries(trace.decisionResults).map(([label, value]) => ({
+              label,
+              value: renderValue(value),
+            }))}
+          />
+          <CalculationMatrix
+            items={Object.entries(trace.decisionResults).map(([label, value]) => ({
+              label,
+              value: renderValue(value),
+            }))}
+          />
         </>
       )}
     </details>
