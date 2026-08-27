@@ -103,9 +103,11 @@ See the roadmap doc for full detail. At a glance:
 - **Phase 3 — planned.** Case Intake & Communication AI.
 - **Phase 4 — planned.** Compliance & Integrity AI (fraud triage, SLA/QC,
   SOP copilot).
-- **Phase 5 — planned.** Domain expansion (TANF; Medicaid is the same
-  shape of work and is stated as a deliberately-not-built extension
-  point, not silently absent) & real cloud deployment demos.
+- **Phase 5 — planned.** Real cloud deployment demos. Domain expansion
+  (TANF, Medicaid) is a deliberately-not-built extension point, not
+  silently absent — the engineering signal this repo targets is depth,
+  not benefits-program coverage; that generalization story is real
+  professional experience to state, not portfolio-repo work to redo.
 
 ## Testing policy — non-negotiable
 

@@ -427,20 +427,26 @@ meaningful, which is why it comes after intake and correspondence exist:
 - Data-quality anomaly detection on refreshed fact tables, plus
   AI-drafted root-cause summaries when a pipeline/dbt test fails
 
-### Phase 5 — Domain expansion & cloud realization
+### Phase 5 — Cloud realization (domain expansion: stated, not built)
 
-- **TANF domain logic** (cash-assistance work pathways, work
-  activity/exemption status) — the actual build. Scoped to TANF only,
-  not Medicaid/TANF both: the goal this phase is proving the platform
-  generalizes to a second, structurally-different domain, and TANF alone
-  already demonstrates that (different eligibility rules, same DMN/audit/
-  warehouse architecture underneath). A second full domain on top of that
-  would be repeated engineering effort for a portfolio project, not new
-  signal — this repo optimizes for engineering breadth, not benefits-
-  program coverage. Medicaid is the same shape of work (pregnancy, MAGI
-  household rules) and is stated here as a deliberately-not-built
-  extension point, per this project's own "considered, deliberately
-  deferred" convention, rather than silently absent.
+- **Domain expansion (TANF, Medicaid) is a deliberately-not-built
+  extension point, not an actual build** — narrowed further on
+  2026-08-26 from an earlier plan to build TANF alone. Reasoning:
+  a prospective employer evaluating senior-engineer/architect-level work
+  is judging engineering depth (DMN determinism, tamper-evident audit,
+  governed data platform, bounded AI copilots) — not how many benefits
+  programs a demo repo covers. A second domain, TANF or otherwise, would
+  mostly re-exercise the same architectural patterns SNAP already proves
+  (different eligibility rules over the same DMN/audit/warehouse shape),
+  which is repeated engineering effort for a portfolio project, not new
+  signal. The extension point itself is structural, not hand-waved —
+  `determination` already carries a program-agnostic `program_code`
+  field (visible in the Analytics Copilot's own semantic layer) — so the
+  claim that this architecture generalizes rests on a real, inspectable
+  detail. The generalization story itself (scaling this pattern to TANF
+  and Medicaid) is real professional experience to state in an interview,
+  not portfolio-repo work to redo. Per this project's own "considered,
+  deliberately deferred" convention: stated rather than silently absent.
 - Correspondence and interfaces breadth beyond SNAP
 - Real cloud deployment demos: the existing dbt project run for real on
   a free Databricks tier, and the existing Terraform applied to an Azure
