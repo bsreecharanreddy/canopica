@@ -1036,12 +1036,28 @@ requires for the one unauthenticated surface in this phase.
       bundles the `public_demo` app plus a pre-ingested OpenSearch data
       volume (Task 1's corpus, indexed once and shipped, not re-ingested
       on every deploy); `fly.toml` configures the app + a small OpenSearch
-      process on the same always-on instance (design doc §2.7's "small
-      always-on host," ~$5/mo real cost, not free — see that section's
-      2026-08-26 correction — revisit only if OpenSearch's memory
-      footprint doesn't fit, per that section's own stated fallback
-      plan). Deploy for real; confirm the live URL answers a real
-      question end to end.
+      process **+ Ollama, serving only the embedding model** on the same
+      always-on instance (design doc §2.7's "small always-on host," ~$5/mo
+      real cost, not free — see that section's 2026-08-26 correction —
+      revisit only if the combined memory footprint doesn't fit, per that
+      section's own stated fallback plan). **Corrected 2026-08-26,
+      caught before writing the Dockerfile**: `hybrid_search()` calls
+      `embed_text()`, which always calls Ollama for the query embedding
+      regardless of `inference_mode` -- `inference_mode` only selects the
+      *generation* client (`build_llm_client`), never the embedding path.
+      §2.7's own "App + retrieval hosting: embeddings, OpenSearch, and the
+      FastAPI app" already named embeddings as something the host runs;
+      this step's file list just hadn't translated that into "Ollama
+      needs to run here too" until now. Generation still goes through the
+      tiered OpenRouter client -- only retrieval's embedding step is
+      local, keeping citation grounding fully deterministic and matching
+      §2.7's actual intent, not a scope change. Deploy for real; confirm
+      the live URL answers a real question end to end. Per the user's
+      2026-08-26 sequencing decision, this step's *files* (Dockerfile,
+      fly.toml) are built and locally verified (`docker build`/`docker
+      run`, no Fly.io account interaction) today along with the rest of
+      Task 9 -- the actual `fly deploy` is held until the repo is close
+      to going public (see `docs/STATUS.md`'s Open Questions).
 - [ ] **Step 6: `test_public_demo.py`.** Local (non-deployed) tests: the
       tiered client actually falls back on a simulated rate-limit
       response (mocked OpenRouter, not a real account call in CI); the

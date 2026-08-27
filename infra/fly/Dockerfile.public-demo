@@ -1,0 +1,191 @@
+# Bundles three processes Task 9's public demo needs on one small
+# always-on Fly.io machine (design doc §2.7): OpenSearch (retrieval),
+# Ollama serving only the embedding model (embed_text() calls it
+# regardless of inference_mode -- generation is the only tiered/remote
+# piece, via OpenRouter), and the FastAPI app itself. One machine, not
+# three, to keep real monthly cost down -- Fly bills per machine.
+#
+# Build context is the repo root, not ai/ -- corpus/index.py and
+# search_pipeline.py both resolve infra/opensearch/*.json relative to
+# the repo root (parents[5] from their own file location), so both
+# ai/ and infra/opensearch/ have to land in the image at that same
+# relative depth. See infra/fly/public-demo-entrypoint.sh for the
+# runtime startup sequence.
+#
+# OpenSearch's own image refuses to run as root ("OpenSearch cannot run
+# as root"), so every process in this container runs as its existing
+# `opensearch` user (uid 1000) rather than fighting that -- simpler than
+# splitting privileges for a single-tenant demo container.
+#
+# Verified compatible with this image's Amazon Linux 2023 base + glibc
+# 2.34 before committing to this approach (2026-08-26): Ollama's binary
+# only links libc/libstdc++/libm/libpthread/libdl/libresolv, all
+# present; uv successfully installs a managed Python 3.12 here too.
+#
+# **Known local-verification gap, root-caused not guessed (2026-08-26)**:
+# `docker build` succeeds reliably (real corpus indexing, real reranker
+# model deployment, confirmed across multiple builds), but a fresh
+# `docker run` of the *built* image fails at OpenSearch startup on this
+# Docker-Desktop-for-Mac host with `AlreadyClosedException: Underlying
+# file changed by an external force` on `node.lock`. Isolated to the
+# environment, not this Dockerfile: reproduced identically using the
+# 100% vanilla, unmodified `opensearchproject/opensearch:2.19.6` image
+# with zero customization -- `docker run` it, let it index anything,
+# `docker commit` it, then `docker run` a fresh container from that
+# image hits the exact same exception. This is a documented Lucene
+# `NativeFSLockFactory` incompatibility with certain virtualized/
+# networked filesystems (NFS, GlusterFS, and Docker Desktop for Mac's
+# own file-sharing backend all have open reports of this exact message);
+# it does not reproduce on a genuinely new container from a genuinely
+# fresh image (only on baked-in-then-rerun data), and Fly.io machines
+# run real Linux (Firecracker microVMs, native block storage), not this
+# virtualization layer -- the same class of gap CLAUDE.md already
+# accepts for `TESTCONTAINERS_RYUK_DISABLED` (a Docker-Desktop-for-macOS-
+# specific bug unrelated to what actually runs in CI/production).
+# **Not yet verified**: a real `docker run` end-to-end request against
+# this image, on this machine. Real verification happens at Step 7's
+# live Fly.io smoke check, on real infrastructure -- see
+# `docs/STATUS.md`'s verification log for this same finding.
+
+# A separate stage, not a direct COPY --from=ollama/ollama, so the
+# ~3.5GB of GPU runtime libraries (cuda_jetpack5/6, cuda_v12/v13) never
+# land in the final image -- this is a CPU-only demo host, and Ollama's
+# own binary needs its sibling libllama/libggml files + llama-server
+# without the ~150x-larger GPU variants. `ollama --version` runs fine
+# with just the binary, but actually serving a model failed with
+# "llama-server binary not found" until this runtime dir was placed at
+# /usr/local/lib/ollama specifically -- found empirically from the
+# error's own logged search list, which checks paths relative to the
+# ollama binary's directory (/usr/local/bin/../lib/ollama/...).
+FROM ollama/ollama:0.32.15 AS ollama-cpu-runtime
+RUN rm -rf /usr/lib/ollama/cuda_jetpack5 /usr/lib/ollama/cuda_jetpack6 \
+           /usr/lib/ollama/cuda_v12 /usr/lib/ollama/cuda_v13
+
+FROM opensearchproject/opensearch:2.19.6
+
+SHELL ["/bin/bash", "-c"]
+USER root
+
+COPY --from=ollama-cpu-runtime /bin/ollama /usr/local/bin/ollama
+COPY --from=ollama-cpu-runtime /usr/lib/ollama /usr/local/lib/ollama
+COPY --from=ghcr.io/astral-sh/uv:0.9.9 /uv /uvx /usr/local/bin/
+
+RUN mkdir -p /usr/share/opensearch/public-demo && \
+    chown -R opensearch:opensearch /usr/share/opensearch/public-demo
+
+WORKDIR /usr/share/opensearch/public-demo
+
+COPY --chown=opensearch:opensearch infra/opensearch/*.json infra/opensearch/
+COPY --chown=opensearch:opensearch ai/pyproject.toml ai/uv.lock ai/README.md ai/
+COPY --chown=opensearch:opensearch ai/src ai/src
+
+USER opensearch
+
+RUN cd ai && uv python install 3.12 && uv sync --frozen --no-dev
+
+# Pre-pull the embedding model at build time, not first boot: a Fly
+# volume mount happens after the image is already running, and baking
+# this in means the model is ready on the very first request rather
+# than depending on Ollama's registry being reachable at deploy time.
+# Explicit PID capture, not job-control `%1` syntax -- a Dockerfile
+# RUN's non-interactive shell has no job control to rely on.
+RUN /usr/local/bin/ollama serve & \
+    OLLAMA_PID=$! && \
+    sleep 3 && \
+    /usr/local/bin/ollama pull nomic-embed-text && \
+    kill "$OLLAMA_PID"
+
+# Same settings the runtime entrypoint needs (below), set here too
+# because the indexing step right after this needs OpenSearch to
+# actually start during the *build* -- ENV instructions only affect
+# instructions that come after them, so these have to precede the RUN
+# that starts OpenSearch, not just live near the bottom of this file.
+# discovery.type/DISABLE_SECURITY_PLUGIN missing here was tried first
+# and failed exactly this way: OpenSearch's security plugin demanded an
+# admin password it was never given, refused to start, and the health
+# check below spun for its full 2-minute timeout against a server that
+# was never coming up.
+#
+# 2048m, not 1200m: measured empirically across 5 real build attempts
+# at 1200m, not assumed from this repo's own prior "1200m cleared it on
+# an 8GB+ dev machine" note (docker-compose.yml's comment) -- that
+# measurement had no concurrent Ollama generation load either, same as
+# here, and 1200m still tripped ml-commons' "Memory Circuit Breaker is
+# open" on 2 of 5 builds (a genuine ~40% failure rate, not a rare
+# fluke). 2048m ran clean on retry with real headroom to spare against
+# this Docker Desktop VM's 7.65GB total.
+ENV OPENSEARCH_JAVA_OPTS="-Xms2048m -Xmx2048m"
+ENV discovery.type=single-node
+ENV DISABLE_SECURITY_PLUGIN=true
+
+# Bakes the real, already-committed CFR corpus (ai/src/.../corpus/raw/)
+# into this image's own OpenSearch data directory -- "indexed once and
+# shipped, not re-ingested on every deploy" (Task 9 plan Step 5). Needs
+# both OpenSearch and Ollama (embed_text() calls it) running during the
+# build; both are stopped again once indexing completes so the final
+# image doesn't ship with them still running. `uv run --no-dev` on both
+# steps, matching the `uv sync` above, so `uv run`'s own implicit sync
+# check doesn't quietly pull the dev dependency group back in.
+# Semicolons between each backgrounded step's own PID capture, not `&&`
+# -- found empirically: chaining a second `&`-backgrounded command onto
+# the same `&&` list as the first pushes that whole tail (including its
+# own `PID=$!`) into an implicit subshell, where `$!` is unset because
+# that subshell hasn't backgrounded anything of its own yet. `kill`
+# logged "not a pid or valid job spec" for the empty result -- harmless
+# here since Docker tears down the whole build container regardless once
+# the RUN completes, but real enough to fix rather than leave confusing.
+# `wait`, not a fixed `sleep`, for both PIDs after `kill`: a short sleep
+# was tried first and baked in a genuinely broken image -- OpenSearch's
+# `node.lock` was committed to the layer mid-shutdown, still holding an
+# OS-level file lock the JVM hadn't released yet. `wait` blocks until
+# the process has actually exited, not just been signaled, so the layer
+# is only committed once OpenSearch has genuinely finished shutting down.
+#
+# Deleting node.lock afterward turned out to be necessary too, for a
+# different reason: even a *cleanly released* lock file, baked into a
+# read-only image layer, still failed the identical
+# AlreadyClosedException ("Underlying file changed by an external
+# force") on the next `docker run` of the finished image. Root cause,
+# not guessed: Docker's overlay2 storage driver copies a file up into
+# the new container's own writable layer the first time anything in
+# that container touches it, which changes the file's inode identity --
+# and Lucene's NativeFSLockFactory validates a lock by comparing file
+# identity at acquire-time against a later re-check, so the copy-up
+# itself looks identical to a concurrent external process stealing the
+# lock. node.lock is a pure runtime concurrency-control artifact OpenSearch
+# always recreates fresh on startup regardless, so shipping the image
+# without one -- rather than trying to preserve whatever state a prior
+# container instance left it in -- sidesteps the whole class of problem.
+RUN /usr/local/bin/ollama serve & \
+    OLLAMA_PID=$! ; \
+    /usr/share/opensearch/opensearch-docker-entrypoint.sh & \
+    OPENSEARCH_PID=$! ; \
+    ready=false ; \
+    for i in $(seq 1 60); do \
+      if curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null 2>&1; then ready=true; break; fi; \
+      sleep 2; \
+    done ; \
+    if [ "$ready" != "true" ]; then echo "OpenSearch did not come up in time" >&2; exit 1; fi ; \
+    cd ai && \
+    CANOPICA_OPENSEARCH_URL=http://127.0.0.1:9200 \
+      uv run --no-dev python -m canopica_ai.policy_intelligence.corpus.search_pipeline && \
+    CANOPICA_OPENSEARCH_URL=http://127.0.0.1:9200 \
+      uv run --no-dev python -m canopica_ai.policy_intelligence.corpus.index ; \
+    INDEX_EXIT=$? ; \
+    kill "$OLLAMA_PID" "$OPENSEARCH_PID" ; \
+    wait "$OLLAMA_PID" "$OPENSEARCH_PID" 2>/dev/null ; \
+    find /usr/share/opensearch/data -name node.lock -delete ; \
+    exit "$INDEX_EXIT"
+
+COPY --chown=opensearch:opensearch infra/fly/public-demo-entrypoint.sh /usr/local/bin/public-demo-entrypoint.sh
+USER root
+RUN chmod +x /usr/local/bin/public-demo-entrypoint.sh
+USER opensearch
+
+ENV CANOPICA_OPENSEARCH_URL=http://127.0.0.1:9200
+ENV CANOPICA_OLLAMA_BASE_URL=http://127.0.0.1:11434
+ENV CANOPICA_INFERENCE_MODE=public_demo
+
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/public-demo-entrypoint.sh"]

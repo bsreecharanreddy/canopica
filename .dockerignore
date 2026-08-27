@@ -1,14 +1,29 @@
-# Repo-root .dockerignore -- only api/Dockerfile builds from this
-# context (it needs the multi-module Maven reactor: root pom.xml plus the
-# rules-engine module api depends on). Trims the build context down to
-# what a Java build actually touches; ui and data-platform have
-# their own, self-contained build contexts and their own .dockerignore.
+# Repo-root .dockerignore -- two Dockerfiles build from this context.
+# api/Dockerfile needs the multi-module Maven reactor: root pom.xml plus
+# the rules-engine module api depends on. infra/fly/Dockerfile.public-demo
+# (Task 9 Step 5) needs ai/ plus infra/opensearch/'s index mapping and
+# search pipeline JSON (corpus/index.py and search_pipeline.py both
+# resolve those paths relative to the repo root). ui and data-platform
+# have their own, self-contained build contexts and their own
+# .dockerignore.
+#
+# infra/ is excluded subdirectory-by-subdirectory rather than as a whole
+# tree, specifically so infra/opensearch and infra/fly stay included --
+# Docker's .dockerignore cannot re-include a path via `!pattern` once a
+# parent directory is already excluded, so this has to be the explicit
+# list rather than an exclude-all-then-negate.
 .git
 .claude
 data-platform
 reporting
 docs
-infra
+infra/.env.example
+infra/airflow
+infra/azure
+infra/docker-compose.yml
+infra/observability
+infra/ollama-models
+infra/postgres
 ui
 **/target
 **/node_modules
