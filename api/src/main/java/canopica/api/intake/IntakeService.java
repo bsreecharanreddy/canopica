@@ -95,59 +95,21 @@ public class IntakeService {
         LocalDate today = LocalDate.now(clock);
         List<IntakePersonDto> members = request.members();
 
-        int headIndex = -1;
-        for (int i = 0; i < members.size(); i++) {
-            if ("SELF".equals(members.get(i).relationship())) {
-                headIndex = i;
-                break;
-            }
-        }
-        if (headIndex < 0) {
-            throw new InvalidIntakeException("household must include exactly one member with relationship SELF");
-        }
-
-        List<UUID> memberPersonIds = new ArrayList<>(members.size());
-        for (int i = 0; i < members.size(); i++) {
-            IntakePersonDto member = members.get(i);
-            UUID personId = UUID.randomUUID();
-            // Only the head's row carries the submitter's identity -- see Person.keycloakSubject's own
-            // javadoc for why the other members' rows stay unlinked.
-            String keycloakSubject = i == headIndex ? actorId : null;
-            persons.save(new Person(personId, member.firstName(), member.lastName(), member.dateOfBirth(),
-                    "tok-" + personId, member.sex(), member.isUsCitizenOrDefault(), keycloakSubject));
-            memberPersonIds.add(personId);
-        }
+        int headIndex = findHeadOfHouseholdIndex(members);
+        List<UUID> memberPersonIds = persistPersons(members, headIndex, actorId);
         UUID headPersonId = memberPersonIds.get(headIndex);
 
         UUID householdId = UUID.randomUUID();
         households.save(new Household(householdId, headPersonId, request.county(), request.addressLine1(),
                 request.addressLine2(), request.city(), request.state(), request.zipCode()));
 
-        for (int i = 0; i < members.size(); i++) {
-            IntakePersonDto member = members.get(i);
-            householdMembers.save(new HouseholdMember(UUID.randomUUID(), householdId, memberPersonIds.get(i),
-                    member.relationship(), member.purchasesAndPreparesFoodTogetherOrDefault(), today, null));
-        }
+        persistHouseholdMembers(members, householdId, memberPersonIds, today);
 
         livingArrangements.save(new LivingArrangement(UUID.randomUUID(), householdId, request.arrangementType(),
                 request.paysUtilitiesSeparatelyOrDefault(), today, null));
 
-        for (int i = 0; i < members.size(); i++) {
-            UUID personId = memberPersonIds.get(i);
-            for (IntakeIncomeDto income : members.get(i).incomes()) {
-                incomeRecords.save(new IncomeRecord(UUID.randomUUID(), personId, income.incomeType(),
-                        income.earned(), income.monthlyAmount(), income.effectiveFrom(), income.effectiveTo()));
-            }
-            for (IntakeExpenseDto expense : members.get(i).expenses()) {
-                expenseRecords.save(new ExpenseRecord(UUID.randomUUID(), personId, expense.expenseType(),
-                        expense.monthlyAmount(), expense.effectiveFrom(), expense.effectiveTo()));
-            }
-        }
-
-        for (IntakeResourceDto resource : request.resources()) {
-            resourceRecords.save(new ResourceRecord(UUID.randomUUID(), householdId, resource.resourceType(),
-                    resource.amount(), resource.effectiveFrom(), resource.effectiveTo()));
-        }
+        persistIncomeAndExpenses(members, memberPersonIds);
+        persistResources(request.resources(), householdId);
 
         boolean expedited = isExpedited(request);
 
@@ -171,6 +133,60 @@ public class IntakeService {
                 "program_request", programRequestId, payload);
 
         return new IntakeResult(applicationId, programRequestId);
+    }
+
+    private static int findHeadOfHouseholdIndex(List<IntakePersonDto> members) {
+        for (int i = 0; i < members.size(); i++) {
+            if ("SELF".equals(members.get(i).relationship())) {
+                return i;
+            }
+        }
+        throw new InvalidIntakeException("household must include exactly one member with relationship SELF");
+    }
+
+    private List<UUID> persistPersons(List<IntakePersonDto> members, int headIndex, String actorId) {
+        List<UUID> memberPersonIds = new ArrayList<>(members.size());
+        for (int i = 0; i < members.size(); i++) {
+            IntakePersonDto member = members.get(i);
+            UUID personId = UUID.randomUUID();
+            // Only the head's row carries the submitter's identity -- see Person.keycloakSubject's own
+            // javadoc for why the other members' rows stay unlinked.
+            String keycloakSubject = i == headIndex ? actorId : null;
+            persons.save(new Person(personId, member.firstName(), member.lastName(), member.dateOfBirth(),
+                    "tok-" + personId, member.sex(), member.isUsCitizenOrDefault(), keycloakSubject));
+            memberPersonIds.add(personId);
+        }
+        return memberPersonIds;
+    }
+
+    private void persistHouseholdMembers(List<IntakePersonDto> members, UUID householdId,
+            List<UUID> memberPersonIds, LocalDate today) {
+        for (int i = 0; i < members.size(); i++) {
+            IntakePersonDto member = members.get(i);
+            householdMembers.save(new HouseholdMember(UUID.randomUUID(), householdId, memberPersonIds.get(i),
+                    member.relationship(), member.purchasesAndPreparesFoodTogetherOrDefault(), today, null));
+        }
+    }
+
+    private void persistIncomeAndExpenses(List<IntakePersonDto> members, List<UUID> memberPersonIds) {
+        for (int i = 0; i < members.size(); i++) {
+            UUID personId = memberPersonIds.get(i);
+            for (IntakeIncomeDto income : members.get(i).incomes()) {
+                incomeRecords.save(new IncomeRecord(UUID.randomUUID(), personId, income.incomeType(),
+                        income.earned(), income.monthlyAmount(), income.effectiveFrom(), income.effectiveTo()));
+            }
+            for (IntakeExpenseDto expense : members.get(i).expenses()) {
+                expenseRecords.save(new ExpenseRecord(UUID.randomUUID(), personId, expense.expenseType(),
+                        expense.monthlyAmount(), expense.effectiveFrom(), expense.effectiveTo()));
+            }
+        }
+    }
+
+    private void persistResources(List<IntakeResourceDto> resources, UUID householdId) {
+        for (IntakeResourceDto resource : resources) {
+            resourceRecords.save(new ResourceRecord(UUID.randomUUID(), householdId, resource.resourceType(),
+                    resource.amount(), resource.effectiveFrom(), resource.effectiveTo()));
+        }
     }
 
     /**
