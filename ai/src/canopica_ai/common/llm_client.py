@@ -256,13 +256,22 @@ class InferenceUnavailableError(RuntimeError):
 
 
 _OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
-_HTTP_RATE_LIMITED = 429
+
+# Matches judge_model.py's own `_RETRYABLE_ERROR_CODES` for the identical
+# OpenRouter error shape -- 429 (rate limit), 502/503 (upstream outage,
+# hit live 2026-08-26: a real "Service temporarily overloaded" 502 from
+# the free-tier model), and 404 (a real transient gap this project also
+# hit, per that module's own history). Design doc §2.10's "Tiered
+# circuit breaker" is explicit that the fallback exists for "once both
+# are exhausted **or on an upstream outage**", not only a 429.
+_RETRYABLE_UPSTREAM_ERROR_CODES = frozenset({404, 429, 502, 503})
 
 
-class _RateLimitedError(RuntimeError):
-    """Internal control-flow signal: this tier's model returned a rate
-    limit. Never escapes `OpenRouterTieredClient.generate` -- every path
-    through it either falls back to the other tier or is re-raised as the
+class _RetryableUpstreamError(RuntimeError):
+    """Internal control-flow signal: this tier's model hit a retryable
+    upstream failure (see `_RETRYABLE_UPSTREAM_ERROR_CODES`). Never
+    escapes `OpenRouterTieredClient.generate` -- every path through it
+    either falls back to the other tier or is re-raised as the
     caller-facing `InferenceUnavailableError` above."""
 
 
@@ -344,7 +353,7 @@ class OpenRouterTieredClient:
         settings = self._settings
         try:
             return self._call(settings.openrouter_public_demo_free_model, prompt)
-        except _RateLimitedError:
+        except _RetryableUpstreamError:
             pass
 
         # Held across the cap check, the paid call, and the spend record --
@@ -354,7 +363,7 @@ class OpenRouterTieredClient:
                 settings.openrouter_public_demo_monthly_cap_usd
             ):
                 raise InferenceUnavailableError(
-                    "free tier is rate-limited and this month's paid-tier spend cap "
+                    "free tier is unavailable and this month's paid-tier spend cap "
                     f"(${settings.openrouter_public_demo_monthly_cap_usd:.2f}) is already reached"
                 )
 
@@ -362,9 +371,9 @@ class OpenRouterTieredClient:
                 response, cost_usd = self._call_and_cost(
                     settings.openrouter_public_demo_paid_model, prompt
                 )
-            except _RateLimitedError as error:
+            except _RetryableUpstreamError as error:
                 raise InferenceUnavailableError(
-                    "both the free and paid OpenRouter tiers are rate-limited"
+                    "both the free and paid OpenRouter tiers are unavailable"
                 ) from error
 
             _add_spend(settings.openrouter_public_demo_spend_file, cost_usd)
@@ -387,14 +396,18 @@ class OpenRouterTieredClient:
                 json=body,
                 timeout=settings.openrouter_timeout_seconds,
             )
-            if response.status_code == _HTTP_RATE_LIMITED:
-                raise _RateLimitedError(f"{model} is rate-limited")
+            if response.status_code in _RETRYABLE_UPSTREAM_ERROR_CODES:
+                raise _RetryableUpstreamError(
+                    f"{model} returned a retryable upstream error: {response.status_code}"
+                )
             response.raise_for_status()
             payload = response.json()
             if "error" in payload:
                 error = payload["error"]
-                if error.get("code") == _HTTP_RATE_LIMITED:
-                    raise _RateLimitedError(f"{model} is rate-limited")
+                if error.get("code") in _RETRYABLE_UPSTREAM_ERROR_CODES:
+                    raise _RetryableUpstreamError(
+                        f"{model} returned a retryable upstream error: {error}"
+                    )
                 raise RuntimeError(f"OpenRouter call to {model} failed: {error}")
             usage = payload.get("usage", {})
             input_tokens = usage.get("prompt_tokens", 0)

@@ -62,6 +62,17 @@ def _rate_limited(url: str) -> httpx.Response:
     )
 
 
+def _upstream_error(url: str, status_code: int, *, wrapped: bool = False) -> httpx.Response:
+    """A non-2xx upstream failure -- `wrapped=True` matches the 200-status,
+    error-in-body shape OpenRouter also uses (the same two-shapes pattern
+    `judge_model.py`'s own retry logic already handles), `wrapped=False`
+    matches a genuine non-2xx HTTP status."""
+    message = {"message": "Upstream error", "code": status_code}
+    if wrapped:
+        return httpx.Response(200, json={"error": message}, request=httpx.Request("POST", url))
+    return httpx.Response(status_code, json={"error": message}, request=httpx.Request("POST", url))
+
+
 class TestFreeTierSuccess:
     def test_a_clean_free_tier_response_is_returned_with_no_paid_call(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -156,6 +167,78 @@ class TestFallbackOnRateLimit:
 
         recorded = json.loads(settings.openrouter_public_demo_spend_file.read_text())
         assert recorded["spent_usd"] == pytest.approx(0.0004)
+
+
+class TestFallbackOnUpstreamOutage:
+    """Found live (2026-08-26), not assumed: a real request against the
+    public demo hit `nvidia/nemotron-3-ultra-550b-a55b:free` returning a
+    genuine 502 ("Service temporarily overloaded"), which raised a raw
+    `RuntimeError` instead of falling back -- `generate()` only caught
+    `_RateLimitedError`, so any non-429 upstream failure skipped the paid
+    tier entirely. Design doc §2.10's own "Tiered circuit breaker" is
+    explicit that the fallback exists for both "once both are exhausted
+    or on an upstream outage" -- a 502 is exactly that outage case, not
+    only a 429. Fixed by widening what counts as retryable to match
+    `judge_model.py`'s own already-established `_RETRYABLE_ERROR_CODES`
+    for the identical OpenRouter error shape.
+    """
+
+    def test_a_free_tier_502_falls_back_to_the_paid_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        models_called: list[str] = []
+
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            models_called.append(json["model"])
+            if json["model"] == _FREE_MODEL:
+                return _upstream_error(url, 502)
+            return _ok(url, "a grounded paid-tier answer")
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        response = OpenRouterTieredClient(_settings(tmp_path)).generate("a question")
+
+        assert response.text == "a grounded paid-tier answer"
+        assert models_called == [_FREE_MODEL, _PAID_MODEL]
+
+    def test_a_free_tier_200_wrapped_502_falls_back_to_the_paid_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            if json["model"] == _FREE_MODEL:
+                return _upstream_error(url, 502, wrapped=True)
+            return _ok(url, "a grounded paid-tier answer")
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        response = OpenRouterTieredClient(_settings(tmp_path)).generate("a question")
+
+        assert response.text == "a grounded paid-tier answer"
+
+    def test_a_non_retryable_error_does_not_fall_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A 400 is this project's own request, not an upstream outage --
+        the paid tier would fail identically, so this should surface
+        immediately rather than waste a paid-tier call."""
+        models_called: list[str] = []
+
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            models_called.append(json["model"])
+            return _upstream_error(url, 400)
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        with pytest.raises(httpx.HTTPStatusError, match="400"):
+            OpenRouterTieredClient(_settings(tmp_path)).generate("a question")
+
+        assert models_called == [_FREE_MODEL]
 
 
 class TestMonthlyCap:
