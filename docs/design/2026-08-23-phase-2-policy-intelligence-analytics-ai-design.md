@@ -309,10 +309,18 @@ inference needs real compute either way):
   and ruled out on a harder constraint, not cost: its serverless
   functions have no persistent process, no arbitrary TCP ports, and a
   capped execution duration, so an always-resident, disk-backed OpenSearch
-  process cannot run there at all, on any plan. Fly.io stays the pick —
-  ~$5/mo all-in for the smallest always-on shared-cpu-1x machine plus a
-  small volume, a real but small recurring cost, not free. See
-  `docs/STATUS.md`'s verification log for the live pricing check.
+  process cannot run there at all, on any plan. Fly.io stays the pick.
+  **Sizing corrected 2026-08-26, once `infra/fly/fly.toml` was actually
+  written**: the smallest always-on shared-cpu-1x machine tops out at
+  2GB, which does not fit OpenSearch's own 2048m JVM heap (Task 9 Step
+  5's Dockerfile — measured against a real ~40% circuit-breaker failure
+  rate at a smaller heap) plus its off-heap usage, Ollama's daemon, and
+  the Python app. The tier actually configured is shared-cpu-2x/4GB,
+  live-priced (fly.io/docs/about/pricing/, Amsterdam rate) at ~$22/mo
+  compute plus a $0.15/GB/mo volume for the spend-cap counter file — a
+  real, now-pinned number, not the earlier "~$5/mo" estimate, which
+  assumed a machine roughly a quarter this size. See `docs/STATUS.md`'s
+  verification log for the sourced numbers.
 
 ### 2.8 AI observability
 

@@ -72,18 +72,27 @@ re-derived per task:
   system decides" a structural property, not a convention the AI service
   has to honor voluntarily.
 - **Public demo hosting**: **Fly.io** — Docker-native (deploys the same
-  images this repo already builds), persistent volumes for OpenSearch's
-  index data. The concrete pick the design doc's §2.7 left open. **Not a
-  free tier** (corrected 2026-08-26, live-checked at Task 9
-  implementation time): Fly.io removed free-tier signups in October
-  2024; realistic all-in cost for the smallest always-on machine plus a
-  small volume is ~$5/mo. Render was the other option §2.7 named and is
-  ruled out on a hard constraint, not cost — its free web services have
-  no persistent disk, which the OpenSearch volume below needs. Vercel was
-  considered when this cost was reassessed and ruled out on an even
-  harder constraint: its serverless functions support no persistent
-  process and no arbitrary TCP ports, so an always-resident OpenSearch
-  process cannot run there on any plan, free or paid.
+  images this repo already builds). The concrete pick the design doc's
+  §2.7 left open. **Not a free tier** (corrected 2026-08-26, live-checked
+  at Task 9 implementation time): Fly.io removed free-tier signups in
+  October 2024. Render was the other option §2.7 named and is ruled out
+  on a hard constraint, not cost — its free web services have no
+  persistent disk. Vercel was considered when this cost was reassessed
+  and ruled out on an even harder constraint: its serverless functions
+  support no persistent process and no arbitrary TCP ports, so an
+  always-resident OpenSearch process cannot run there on any plan, free
+  or paid. **Sizing corrected 2026-08-26, once `infra/fly/fly.toml` was
+  actually written**: OpenSearch's own 2048m JVM heap (measured against a
+  real ~40% ml-commons circuit-breaker failure rate at a smaller heap —
+  see Step 5 below) doesn't fit the smallest always-on tier's 2GB
+  ceiling; the smallest tier that actually fits is shared-cpu-2x/4GB,
+  live-priced (fly.io/docs/about/pricing/) at ~$22/mo compute plus a
+  small volume — not the ~$5/mo a quarter-sized machine would have cost.
+  The Fly volume mounted in `fly.toml` holds only the OpenRouter
+  spend-cap counter file, not OpenSearch's index data — that corpus is
+  baked into the image at build time (Step 5 below), not
+  volume-mounted, so it isn't re-ingested on every deploy and can't be
+  accidentally shadowed by an empty volume.
 
 ---
 
@@ -1033,14 +1042,15 @@ requires for the one unauthenticated surface in this phase.
       question path only; no login, no "why was I denied" link on this
       surface.
 - [ ] **Step 5: Fly.io deploy.** `infra/fly/Dockerfile.public-demo`
-      bundles the `public_demo` app plus a pre-ingested OpenSearch data
-      volume (Task 1's corpus, indexed once and shipped, not re-ingested
-      on every deploy); `fly.toml` configures the app + a small OpenSearch
-      process **+ Ollama, serving only the embedding model** on the same
-      always-on instance (design doc §2.7's "small always-on host," ~$5/mo
-      real cost, not free — see that section's 2026-08-26 correction —
-      revisit only if the combined memory footprint doesn't fit, per that
-      section's own stated fallback plan). **Corrected 2026-08-26,
+      bundles the `public_demo` app plus the CFR corpus baked directly
+      into OpenSearch's own data directory at build time (Task 1's
+      corpus, indexed once and shipped, not re-ingested on every deploy
+      and not on a mounted volume — see the correction below on why);
+      `fly.toml` configures the app + a small OpenSearch process
+      **+ Ollama, serving only the embedding model** on the same
+      always-on instance (design doc §2.7's "small always-on host" —
+      revisit only if the combined memory footprint doesn't fit, per
+      that section's own stated fallback plan). **Corrected 2026-08-26,
       caught before writing the Dockerfile**: `hybrid_search()` calls
       `embed_text()`, which always calls Ollama for the query embedding
       regardless of `inference_mode` -- `inference_mode` only selects the
@@ -1051,13 +1061,30 @@ requires for the one unauthenticated surface in this phase.
       needs to run here too" until now. Generation still goes through the
       tiered OpenRouter client -- only retrieval's embedding step is
       local, keeping citation grounding fully deterministic and matching
-      §2.7's actual intent, not a scope change. Deploy for real; confirm
-      the live URL answers a real question end to end. Per the user's
-      2026-08-26 sequencing decision, this step's *files* (Dockerfile,
-      fly.toml) are built and locally verified (`docker build`/`docker
-      run`, no Fly.io account interaction) today along with the rest of
-      Task 9 -- the actual `fly deploy` is held until the repo is close
-      to going public (see `docs/STATUS.md`'s Open Questions).
+      §2.7's actual intent, not a scope change. **Corrected again
+      2026-08-26, once `fly.toml` was actually written**: this step's own
+      bullet above originally said "pre-ingested OpenSearch data volume,"
+      but the Dockerfile that was actually built bakes the corpus into an
+      image layer instead — simpler, and it sidesteps a real footgun a
+      volume would introduce (mounting anything over
+      `/usr/share/opensearch/data` would shadow the baked-in index with
+      an empty volume on first attach). `fly.toml`'s one volume mount is
+      scoped narrowly to the OpenRouter spend-cap counter file instead.
+      Sizing corrected the same day too: the actual configured tier is
+      shared-cpu-2x/4GB (~$22/mo, not the design doc's superseded
+      "~$5/mo" quarter-sized-machine estimate) — see the hosting-pick
+      bullet above and `docs/STATUS.md`'s verification log for the
+      sourced numbers. Deploy for real; confirm the live URL answers a
+      real question end to end. Per the user's 2026-08-26 sequencing
+      decision, this step's *files* (Dockerfile, `fly.toml`) are built
+      and locally reasoned through (`docker build`/`docker run`, no
+      Fly.io account interaction — `fly.toml` itself couldn't be
+      `fly config validate`-checked since flyctl isn't installed on this
+      machine, so its syntax was instead checked against Fly's own
+      current docs and validated as well-formed TOML) today along with
+      the rest of Task 9 -- the actual `fly deploy` is held until the
+      repo is close to going public (see `docs/STATUS.md`'s Open
+      Questions).
 - [ ] **Step 6: `test_public_demo.py`.** Local (non-deployed) tests: the
       tiered client actually falls back on a simulated rate-limit
       response (mocked OpenRouter, not a real account call in CI); the

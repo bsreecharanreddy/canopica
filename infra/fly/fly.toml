@@ -1,0 +1,88 @@
+# Task 9 Step 5 (docs/plans/2026-08-23-phase-2-implementation-plan.md).
+# Built and locally reasoned-through today per the user's 2026-08-26
+# sequencing decision; the actual `fly deploy` is deliberately deferred
+# until the repo is close to going public (docs/STATUS.md's Open
+# Questions). Nothing here has been applied against a real Fly.io
+# account yet.
+#
+# Deploy command, run from the REPO ROOT (not this directory) -- the
+# Dockerfile's COPY instructions resolve `ai/` and `infra/opensearch/`
+# relative to the build context, which must therefore be the repo root,
+# not the directory this file lives in:
+#
+#   fly deploy --config infra/fly/fly.toml
+#
+# `[build].dockerfile` below is resolved relative to that same build
+# context (the working directory `fly deploy` is run from), not relative
+# to this file's own location -- verified against Fly's docs and
+# community reports before relying on it, since the opposite assumption
+# is a documented, easy-to-hit mistake for a Dockerfile that isn't at
+# the fly.toml's own path.
+#
+# Before the first real deploy: `fly secrets set
+# CANOPICA_OPENROUTER_API_KEY=...` -- never put that key in this file,
+# which is committed to git.
+
+app = "canopica-policy-demo"
+primary_region = "iad"
+
+[build]
+  dockerfile = "infra/fly/Dockerfile.public-demo"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # "Small always-on host" (design doc §2.7) is a deliberate choice, not
+  # a default left alone: OpenSearch + Ollama's own boot sequence (see
+  # public-demo-entrypoint.sh's up-to-120s health-poll loop, which the
+  # FastAPI app doesn't even start listening until after) would make
+  # Fly's normal scale-to-zero behavior a multi-minute cold start for
+  # whichever visitor's request wakes the machine -- unacceptable for a
+  # portfolio demo a stranger clicks once.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    # Generous relative to Fly's own defaults: matches the entrypoint's
+    # own up-to-120s OpenSearch health-poll loop that runs *before*
+    # uvicorn starts listening at all, so a shorter grace period would
+    # have Fly judge a normally-booting machine as failed.
+    grace_period = "150s"
+    interval = "30s"
+    timeout = "10s"
+    method = "GET"
+    path = "/"
+    protocol = "http"
+
+# 4GB, not the 2GB a plain shared-cpu-1x tops out at: OpenSearch alone
+# runs a 2048m JVM heap (Dockerfile.public-demo's own comment on why --
+# 1200m measured a real ~40% ml-commons circuit-breaker failure rate
+# across 5 build attempts), which already exceeds shared-cpu-1x's 2GB
+# ceiling before counting the JVM's own off-heap usage, the loaded
+# reranker/embedding models, Ollama's daemon, or the Python process.
+# shared-cpu-2x's 4GB ceiling is the smallest real Fly tier this
+# actually fits, live-priced (fly.io/docs/about/pricing/, Amsterdam
+# rate, 2026-08-26) at ~$22.22/mo compute alone -- correcting this
+# plan's and the design doc's earlier "~$5/mo" figure, which assumed a
+# machine roughly a quarter this size. See docs/STATUS.md's verification
+# log for the sourced numbers and docs/design/2026-08-23-phase-2-policy-
+# intelligence-analytics-ai-design.md §2.7 for the corrected estimate.
+[[vm]]
+  size = "shared-cpu-2x"
+  memory_mb = 4096
+
+# Persists ONLY the OpenRouter monthly-spend-cap counter
+# (config.py's `openrouter_public_demo_spend_file`,
+# ai/data/public_demo_spend.json relative to the entrypoint's cwd) across
+# machine restarts -- deliberately not the OpenSearch data directory
+# (/usr/share/opensearch/data), which holds the CFR corpus baked into
+# the image at build time (Task 9 plan Step 5: "indexed once and
+# shipped, not re-ingested on every deploy"). Mounting a volume over
+# that path would shadow the baked-in index with an empty volume on
+# first attach and break retrieval entirely -- this mount's destination
+# is scoped narrowly to avoid that class of mistake.
+[[mounts]]
+  source = "canopica_demo_data"
+  destination = "/usr/share/opensearch/public-demo/ai/data"
+  initial_size = "1gb"
