@@ -120,6 +120,12 @@ def _parses_as_json_object(content: str) -> bool:
     return True
 
 
+def _should_give_up(is_last_attempt: bool, retryable: bool) -> bool:
+    """True once further retries can't help: attempts are exhausted, or this
+    failure was never retryable to begin with."""
+    return is_last_attempt or not retryable
+
+
 class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
     """Temperature 0: a judge's job is consistent grading, not creative
     variance -- the same reasoning the (since-removed) local-Ollama judge
@@ -186,7 +192,7 @@ class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
             # against the same `_RETRYABLE_ERROR_CODES`, so neither shape can
             # silently skip the retry this gate exists for.
             if response.status_code != _HTTP_OK:
-                if response.status_code not in _RETRYABLE_ERROR_CODES or is_last_attempt:
+                if _should_give_up(is_last_attempt, response.status_code in _RETRYABLE_ERROR_CODES):
                     # Wrapped as RuntimeError rather than left as the raw
                     # httpx.HTTPStatusError, so a caller sees one exception
                     # type from this adapter regardless of which of
@@ -245,7 +251,7 @@ class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
                 time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
                 continue
             error = payload["error"]
-            if error.get("code") not in _RETRYABLE_ERROR_CODES or is_last_attempt:
+            if _should_give_up(is_last_attempt, error.get("code") in _RETRYABLE_ERROR_CODES):
                 raise RuntimeError(f"OpenRouter judge call failed: {error}")
             time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
         raise AssertionError("unreachable: the loop above always returns or raises")
