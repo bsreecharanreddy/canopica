@@ -77,6 +77,91 @@ function PublicationFields({
 
 const EMPTY_DETAILS: PublicationDetails = { versionLabel: '', effectiveFrom: '', sourceCitation: '' };
 
+function PendingProposalsList({
+  waiting,
+  onReview,
+}: {
+  waiting: ParameterProposal[];
+  onReview: (proposal: ParameterProposal) => void;
+}) {
+  if (waiting.length === 0) return null;
+  return (
+    <>
+      <h3>Waiting for review</h3>
+      <ul>
+        {waiting.map((each) => (
+          <li key={each.id}>
+            <button type="button" onClick={() => onReview(each)}>
+              Review the draft against {each.currentVersionLabel}, proposed by {each.proposedBy}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function ReviewedStatusBanner({ proposal }: { proposal: ParameterProposal }) {
+  if (proposal.status === 'PENDING') return null;
+  return (
+    <p>
+      {proposal.status === 'ACCEPTED' ? 'Accepted' : 'Rejected'} by {proposal.reviewedBy}.
+      {proposal.publishedParameterSetId &&
+        ` Published as parameter set ${proposal.publishedParameterSetId}.`}
+    </p>
+  );
+}
+
+function ProposalReview({
+  proposal,
+  details,
+  onDetailsChange,
+  reviewing,
+  onAccept,
+  onReject,
+}: {
+  proposal: ParameterProposal;
+  details: PublicationDetails;
+  onDetailsChange: (next: PublicationDetails) => void;
+  reviewing: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const hasChanges = proposal.proposedValues.length > 0;
+  const pending = proposal.status === 'PENDING';
+  const complete = Boolean(details.versionLabel && details.effectiveFrom && details.sourceCitation);
+
+  return (
+    <article>
+      <h3>Draft against {proposal.currentVersionLabel}</h3>
+      <p>
+        Drafted by {proposal.generationModel} (prompt {proposal.promptVersion}). A draft, not a decision
+        — nothing is published until you accept it.
+      </p>
+
+      {hasChanges ? (
+        <DiffTable changes={proposal.proposedValues} />
+      ) : (
+        <p>No parameter changes were found in this excerpt.</p>
+      )}
+
+      <ReviewedStatusBanner proposal={proposal} />
+
+      {pending && hasChanges && (
+        <>
+          <PublicationFields details={details} onChange={onDetailsChange} />
+          <button type="button" disabled={reviewing || !complete} onClick={onAccept}>
+            Accept and publish
+          </button>
+          <button type="button" disabled={reviewing} onClick={onReject}>
+            Reject
+          </button>
+        </>
+      )}
+    </article>
+  );
+}
+
 export default function RuleAuthoringPage() {
   const [excerpt, setExcerpt] = useState('');
   const [proposal, setProposal] = useState<ParameterProposal | null>(null);
@@ -100,10 +185,6 @@ export default function RuleAuthoringPage() {
     setDetails(EMPTY_DETAILS);
     setError(null);
   }
-
-  const complete = Boolean(details.versionLabel && details.effectiveFrom && details.sourceCitation);
-  const pending = proposal?.status === 'PENDING';
-  const hasChanges = (proposal?.proposedValues.length ?? 0) > 0;
 
   async function handleDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,55 +234,17 @@ export default function RuleAuthoringPage() {
         </button>
       </form>
 
-      {waiting.length > 0 && (
-        <>
-          <h3>Waiting for review</h3>
-          <ul>
-            {waiting.map((each) => (
-              <li key={each.id}>
-                <button type="button" onClick={() => review(each)}>
-                  Review the draft against {each.currentVersionLabel}, proposed by {each.proposedBy}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <PendingProposalsList waiting={waiting} onReview={review} />
 
       {proposal && (
-        <article>
-          <h3>Draft against {proposal.currentVersionLabel}</h3>
-          <p>
-            Drafted by {proposal.generationModel} (prompt {proposal.promptVersion}). A draft, not a decision
-            — nothing is published until you accept it.
-          </p>
-
-          {hasChanges ? (
-            <DiffTable changes={proposal.proposedValues} />
-          ) : (
-            <p>No parameter changes were found in this excerpt.</p>
-          )}
-
-          {proposal.status !== 'PENDING' && (
-            <p>
-              {proposal.status === 'ACCEPTED' ? 'Accepted' : 'Rejected'} by {proposal.reviewedBy}.
-              {proposal.publishedParameterSetId &&
-                ` Published as parameter set ${proposal.publishedParameterSetId}.`}
-            </p>
-          )}
-
-          {pending && hasChanges && (
-            <>
-              <PublicationFields details={details} onChange={setDetails} />
-              <button type="button" disabled={reviewing || !complete} onClick={() => handleReview(true)}>
-                Accept and publish
-              </button>
-              <button type="button" disabled={reviewing} onClick={() => handleReview(false)}>
-                Reject
-              </button>
-            </>
-          )}
-        </article>
+        <ProposalReview
+          proposal={proposal}
+          details={details}
+          onDetailsChange={setDetails}
+          reviewing={reviewing}
+          onAccept={() => handleReview(true)}
+          onReject={() => handleReview(false)}
+        />
       )}
     </section>
   );
