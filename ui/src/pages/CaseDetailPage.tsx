@@ -32,16 +32,42 @@ export default function CaseDetailPage() {
     if (!programRequestId) {
       return;
     }
+    // React StrictMode double-invokes effects in dev, and this one can race the
+    // access token becoming available (AuthContext sets it asynchronously) -- an
+    // early 401 from the first invocation must not clobber a later successful
+    // load from the second. Same cancellation-guard pattern as WorkerCasesPage.
+    let cancelled = false;
     getCase(programRequestId)
-      .then(setCaseDetail)
-      .catch(() => setLoadError('Could not load this case.'));
+      .then((result) => {
+        if (!cancelled) {
+          setCaseDetail(result);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError('Could not load this case.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [programRequestId]);
 
   useBreadcrumb(caseDetail ? `${caseDetail.programCode} · ${caseDetail.householdHeadName}` : null);
 
   async function handleRunDetermination(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!programRequestId) {
+    if (!programRequestId || !caseDetail) {
+      return;
+    }
+    // A worker can already see every prior determination in the history below --
+    // running a second one for a month that already has a result is almost always
+    // an accidental double-click, not the "changed circumstance" the domain model's
+    // append-only design exists for. This is a UI guard against that mistake, not a
+    // data-layer constraint: a genuine redetermination is still just an API call away.
+    const alreadyDecided = caseDetail.determinations.some((d) => d.benefitMonth === benefitMonth);
+    if (alreadyDecided) {
+      setRunError(`Benefit month ${benefitMonth} already has a determination. Review it below, or choose a different month.`);
       return;
     }
     setRunning(true);

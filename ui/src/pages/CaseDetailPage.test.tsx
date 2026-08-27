@@ -71,6 +71,35 @@ test('running a determination calls the API and re-renders with the new result',
   expect(await axe(container)).toHaveNoViolations();
 });
 
+test('running a determination for a benefit month that already has one shows a validation message and does not call the API', async () => {
+  // jsdom's <input type="date"> doesn't sync a fireEvent.change back into React's
+  // controlled state (a known jsdom limitation, confirmed against this exact
+  // component), so this test can't drive the collision through the date field.
+  // It instead matches the fixture to CaseDetailPage's own default benefit-month
+  // calculation (first of the current month) -- the same collision a worker would
+  // hit by just clicking "Run determination" without touching the date at all.
+  const now = new Date();
+  const defaultBenefitMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const caseWithCurrentMonthDetermination: CaseDetailResponse = {
+    ...caseDetail,
+    determinations: [{ ...firstDetermination, benefitMonth: defaultBenefitMonth }],
+  };
+  vi.spyOn(client, 'getCase').mockResolvedValue(caseWithCurrentMonthDetermination);
+  // Nothing in this file resets mocks between tests, so a fresh spy on an
+  // already-spied method inherits the previous test's call history -- clear it so
+  // this test's own assertion isn't polluted by the prior test's real call.
+  const run = vi.spyOn(client, 'runDetermination');
+  run.mockClear();
+
+  renderAtCase();
+  await screen.findByText('Eligible');
+
+  await userEvent.click(screen.getByRole('button', { name: /run determination/i }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(/already.*determination/i);
+  expect(run).not.toHaveBeenCalled();
+});
+
 test('the trace panel lists each DMN decision name and value in evaluation order once expanded', async () => {
   vi.spyOn(client, 'getCase').mockResolvedValue(caseDetail);
   vi.spyOn(client, 'getTrace').mockResolvedValue({
