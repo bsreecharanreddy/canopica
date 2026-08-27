@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-amber: var(--amber);
+  --color-amber-foreground: var(--amber-foreground);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --font-display: "DM Serif Display", Georgia, serif;
+  --font-sans: "DM Sans Variable", "DM Sans", system-ui, sans-serif;
+}
+
+:root {
+  /* Public Ledger palette (design doc §3/§5) -- values re-set here as
+     this app's own tokens, not imported from the source exploration. */
+  --background: #f8f6ef;
+  --foreground: #1b2b26;
+  --card: #fffdf8;
+  --card-foreground: #1b2b26;
+  --popover: #fffdf8;
+  --popover-foreground: #1b2b26;
+  --primary: #167c6b;
+  --primary-foreground: #f7f3e9;
+  --secondary: #efece1;
+  --secondary-foreground: #1b2b26;
+  --muted: #efece1;
+  --muted-foreground: #56665e;
+  --accent: #efece1;
+  --accent-foreground: #1b2b26;
+  --destructive: #a13f2e;
+  --destructive-foreground: #f7f3e9;
+  --amber: #fbf3e7;
+  --amber-foreground: #8a672c;
+  --info: #2f5f8a;
+  --border: #d8d6cb;
+  --input: #d8d6cb;
+  --ring: #167c6b;
+  --sidebar: #17221f;
+  --sidebar-foreground: #f7f3e9;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+  }
+}

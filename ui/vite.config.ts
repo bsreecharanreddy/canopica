@@ -1,9 +1,14 @@
 /// <reference types="vitest/config" />
+import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: { '@': path.resolve(__dirname, './src') },
+  },
   server: {
     port: 3000,
     // The API is same-origin in the Compose stack (nginx proxies /api);

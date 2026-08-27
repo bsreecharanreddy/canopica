@@ -1,3 +1,7 @@
+import '@fontsource/dm-serif-display';
+import '@fontsource-variable/dm-sans';
+import './index.css';
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 

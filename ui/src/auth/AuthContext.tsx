@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from 'react-oidc-context';
 import { setAccessToken } from '../api/client';
 import { authConfigFor, clearRealmChoice, readRealmChoice, storeRealmChoice, type Realm } from './oidc-config';
 
-type Role = 'CUSTOMER' | 'WORKER' | 'ADMIN';
+export type Role = 'CUSTOMER' | 'WORKER' | 'ADMIN';
 
 /**
  * Reads Keycloak's `realm_access.roles` out of the access token, unverified.
