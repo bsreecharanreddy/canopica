@@ -86,7 +86,7 @@ export default function PolicyQaPage() {
           <Input id="question" value={question} onChange={(e) => setQuestion(e.target.value)} />
         </FormField>
         <Button type="submit" disabled={asking || !question} className="self-start">
-          Ask
+          {asking ? 'Asking…' : 'Ask'}
         </Button>
       </form>
       {answer && <AnswerPanel answer={answer} />}
@@ -106,7 +106,7 @@ export default function PolicyQaPage() {
           />
         </FormField>
         <Button type="submit" disabled={explaining || !determinationId} className="self-start">
-          Explain this determination
+          {explaining ? 'Explaining…' : 'Explain this determination'}
         </Button>
       </form>
       {denialAnswer && <AnswerPanel answer={denialAnswer} />}

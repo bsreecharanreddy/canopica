@@ -157,7 +157,7 @@ export default function IntakePage() {
       <HouseholdMemberFields members={members} onChange={setMembers} />
 
       <Button type="submit" disabled={submitting} className="self-start">
-        Submit application
+        {submitting ? 'Submitting…' : 'Submit application'}
       </Button>
     </form>
   );

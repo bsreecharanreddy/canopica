@@ -202,10 +202,10 @@ function ProposalReview({
           <PublicationFields details={details} onChange={onDetailsChange} />
           <div className="mt-4 flex gap-3">
             <Button type="button" disabled={reviewing || !complete} onClick={onAccept}>
-              Accept and publish
+              {reviewing ? 'Reviewing…' : 'Accept and publish'}
             </Button>
             <Button variant="outline" type="button" disabled={reviewing} onClick={onReject}>
-              Reject
+              {reviewing ? 'Reviewing…' : 'Reject'}
             </Button>
           </div>
         </>
@@ -289,7 +289,7 @@ export default function RuleAuthoringPage() {
           <Textarea id="excerpt" rows={6} value={excerpt} onChange={(e) => setExcerpt(e.target.value)} />
         </FormField>
         <Button type="submit" disabled={drafting || !excerpt.trim()} className="self-start">
-          Draft proposed changes
+          {drafting ? 'Drafting…' : 'Draft proposed changes'}
         </Button>
       </form>
 

@@ -133,7 +133,7 @@ export default function CaseDetailPage() {
           </FormField>
 
           <Button type="submit" disabled={running} className="self-start">
-            Run determination
+            {running ? 'Running…' : 'Run determination'}
           </Button>
         </form>
       </RecordSheet>
