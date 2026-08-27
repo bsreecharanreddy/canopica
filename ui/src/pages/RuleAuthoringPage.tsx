@@ -1,6 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { listProposals, proposeParameterChanges, reviewProposal } from '../api/client';
 import type { ParameterProposal, ProposedParameterValue, PublicationDetails } from '../api/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { FormField } from '@/components/design-system/FormField';
+import { RecordSheet } from '@/components/design-system/RecordSheet';
+import { StatusPill } from '@/components/design-system/StatusPill';
+import { AiAdvisoryBadge } from '@/components/design-system/AiAdvisoryBadge';
 
 function scopeLabel(householdSize: number | null): string {
   return householdSize === null ? 'All sizes' : `Size ${householdSize}`;
@@ -8,27 +15,59 @@ function scopeLabel(householdSize: number | null): string {
 
 function DiffTable({ changes }: { changes: ProposedParameterValue[] }) {
   return (
-    <table>
-      <caption>Proposed parameter changes</caption>
+    <table className="w-full border-collapse text-sm">
+      <caption className="mb-2 text-left text-sm text-muted-foreground">Proposed parameter changes</caption>
       <thead>
         <tr>
-          <th scope="col">Parameter</th>
-          <th scope="col">Household</th>
-          <th scope="col">Current</th>
-          <th scope="col">Proposed</th>
-          <th scope="col">Unit</th>
-          <th scope="col">Why</th>
+          <th
+            scope="col"
+            className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
+          >
+            Parameter
+          </th>
+          <th
+            scope="col"
+            className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
+          >
+            Household
+          </th>
+          <th
+            scope="col"
+            className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
+          >
+            Current
+          </th>
+          <th
+            scope="col"
+            className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
+          >
+            Proposed
+          </th>
+          <th
+            scope="col"
+            className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
+          >
+            Unit
+          </th>
+          <th
+            scope="col"
+            className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
+          >
+            Why
+          </th>
         </tr>
       </thead>
       <tbody>
         {changes.map((change) => (
-          <tr key={`${change.name}/${change.householdSize}`}>
-            <th scope="row">{change.name}</th>
-            <td>{scopeLabel(change.householdSize)}</td>
-            <td>{change.oldValue}</td>
-            <td>{change.newValue}</td>
-            <td>{change.unit}</td>
-            <td>{change.rationale}</td>
+          <tr key={`${change.name}/${change.householdSize}`} className="border-b border-border">
+            <th scope="row" className="px-3 py-2 text-left font-normal text-foreground">
+              {change.name}
+            </th>
+            <td className="px-3 py-2 text-muted-foreground">{scopeLabel(change.householdSize)}</td>
+            <td className="px-3 py-2 text-muted-foreground">{change.oldValue}</td>
+            <td className="px-3 py-2 font-medium text-foreground">{change.newValue}</td>
+            <td className="px-3 py-2 text-muted-foreground">{change.unit}</td>
+            <td className="px-3 py-2 text-muted-foreground">{change.rationale}</td>
           </tr>
         ))}
       </tbody>
@@ -50,28 +89,31 @@ function PublicationFields({
   onChange: (next: PublicationDetails) => void;
 }) {
   return (
-    <fieldset>
-      <legend>Publication details</legend>
-      <label htmlFor="versionLabel">Version label</label>
-      <input
-        id="versionLabel"
-        value={details.versionLabel}
-        onChange={(e) => onChange({ ...details, versionLabel: e.target.value })}
-      />
-      <label htmlFor="effectiveFrom">Effective from</label>
-      <input
-        id="effectiveFrom"
-        type="date"
-        value={details.effectiveFrom}
-        onChange={(e) => onChange({ ...details, effectiveFrom: e.target.value })}
-      />
-      <label htmlFor="sourceCitation">Source citation</label>
-      <input
-        id="sourceCitation"
-        value={details.sourceCitation}
-        onChange={(e) => onChange({ ...details, sourceCitation: e.target.value })}
-      />
-    </fieldset>
+    <RecordSheet className="mt-4 flex flex-col gap-4">
+      <h4 className="font-display text-base">Publication details</h4>
+      <FormField id="versionLabel" label="Version label">
+        <Input
+          id="versionLabel"
+          value={details.versionLabel}
+          onChange={(e) => onChange({ ...details, versionLabel: e.target.value })}
+        />
+      </FormField>
+      <FormField id="effectiveFrom" label="Effective from">
+        <Input
+          id="effectiveFrom"
+          type="date"
+          value={details.effectiveFrom}
+          onChange={(e) => onChange({ ...details, effectiveFrom: e.target.value })}
+        />
+      </FormField>
+      <FormField id="sourceCitation" label="Source citation">
+        <Input
+          id="sourceCitation"
+          value={details.sourceCitation}
+          onChange={(e) => onChange({ ...details, sourceCitation: e.target.value })}
+        />
+      </FormField>
+    </RecordSheet>
   );
 }
 
@@ -87,13 +129,15 @@ function PendingProposalsList({
   if (waiting.length === 0) return null;
   return (
     <>
-      <h3>Waiting for review</h3>
-      <ul>
+      <h3 className="font-display text-lg">Waiting for review</h3>
+      <ul className="mt-2 flex flex-col gap-3">
         {waiting.map((each) => (
           <li key={each.id}>
-            <button type="button" onClick={() => onReview(each)}>
-              Review the draft against {each.currentVersionLabel}, proposed by {each.proposedBy}
-            </button>
+            <RecordSheet>
+              <Button variant="outline" type="button" onClick={() => onReview(each)}>
+                Review the draft against {each.currentVersionLabel}, proposed by {each.proposedBy}
+              </Button>
+            </RecordSheet>
           </li>
         ))}
       </ul>
@@ -104,8 +148,11 @@ function PendingProposalsList({
 function ReviewedStatusBanner({ proposal }: { proposal: ParameterProposal }) {
   if (proposal.status === 'PENDING') return null;
   return (
-    <p>
-      {proposal.status === 'ACCEPTED' ? 'Accepted' : 'Rejected'} by {proposal.reviewedBy}.
+    <p className="mt-2 text-sm text-muted-foreground">
+      <StatusPill tone={proposal.status === 'ACCEPTED' ? 'affirmed' : 'exception'}>
+        {proposal.status === 'ACCEPTED' ? 'Accepted' : 'Rejected'}
+      </StatusPill>{' '}
+      by {proposal.reviewedBy}.
       {proposal.publishedParameterSetId &&
         ` Published as parameter set ${proposal.publishedParameterSetId}.`}
     </p>
@@ -132,17 +179,20 @@ function ProposalReview({
   const complete = Boolean(details.versionLabel && details.effectiveFrom && details.sourceCitation);
 
   return (
-    <article>
-      <h3>Draft against {proposal.currentVersionLabel}</h3>
-      <p>
+    <RecordSheet>
+      <AiAdvisoryBadge />
+      <h3 className="mt-2 font-display text-lg">Draft against {proposal.currentVersionLabel}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
         Drafted by {proposal.generationModel} (prompt {proposal.promptVersion}). A draft, not a decision
         — nothing is published until you accept it.
       </p>
 
       {hasChanges ? (
-        <DiffTable changes={proposal.proposedValues} />
+        <div className="mt-4">
+          <DiffTable changes={proposal.proposedValues} />
+        </div>
       ) : (
-        <p>No parameter changes were found in this excerpt.</p>
+        <p className="mt-4 text-sm text-muted-foreground">No parameter changes were found in this excerpt.</p>
       )}
 
       <ReviewedStatusBanner proposal={proposal} />
@@ -150,15 +200,17 @@ function ProposalReview({
       {pending && hasChanges && (
         <>
           <PublicationFields details={details} onChange={onDetailsChange} />
-          <button type="button" disabled={reviewing || !complete} onClick={onAccept}>
-            Accept and publish
-          </button>
-          <button type="button" disabled={reviewing} onClick={onReject}>
-            Reject
-          </button>
+          <div className="mt-4 flex gap-3">
+            <Button type="button" disabled={reviewing || !complete} onClick={onAccept}>
+              Accept and publish
+            </Button>
+            <Button variant="outline" type="button" disabled={reviewing} onClick={onReject}>
+              Reject
+            </Button>
+          </div>
         </>
       )}
-    </article>
+    </RecordSheet>
   );
 }
 
@@ -218,20 +270,27 @@ export default function RuleAuthoringPage() {
   }
 
   return (
-    <section>
-      <h2>Rule authoring</h2>
-      <p>
-        Paste an excerpt from a published policy document. The copilot drafts the parameter changes it
-        states, and you review every one of them before deciding.
-      </p>
+    <section className="flex flex-col gap-6">
+      <div>
+        <h2 className="font-display text-xl">Rule authoring</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Paste an excerpt from a published policy document. The copilot drafts the parameter changes it
+          states, and you review every one of them before deciding.
+        </p>
+      </div>
 
-      <form onSubmit={handleDraft}>
-        {error && <p role="alert">{error}</p>}
-        <label htmlFor="excerpt">Policy document excerpt</label>
-        <textarea id="excerpt" rows={6} value={excerpt} onChange={(e) => setExcerpt(e.target.value)} />
-        <button type="submit" disabled={drafting || !excerpt.trim()}>
+      <form onSubmit={handleDraft} className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <FormField id="excerpt" label="Policy document excerpt">
+          <Textarea id="excerpt" rows={6} value={excerpt} onChange={(e) => setExcerpt(e.target.value)} />
+        </FormField>
+        <Button type="submit" disabled={drafting || !excerpt.trim()} className="self-start">
           Draft proposed changes
-        </button>
+        </Button>
       </form>
 
       <PendingProposalsList waiting={waiting} onReview={review} />
