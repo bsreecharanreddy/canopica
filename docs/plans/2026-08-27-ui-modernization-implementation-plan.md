@@ -9,12 +9,16 @@
 **Goal:** Apply the "Public Ledger" design system to `ui/`'s 5 real pages
 on a Tailwind v4 + shadcn/ui foundation, replacing today's fully unstyled
 markup — with zero change to any component's logic, handlers, or API
-surface.
+surface. Extended, after a Stitch design review mid-execution (design doc
+§11), with two further tasks that add real new scope: an audit-trail
+read endpoint and display, and a Caseworker Dashboard page.
 
 **Architecture:** One foundation task builds the design tokens, the app
 shell (`NavRail` + `TopUtilityBar`), and a small set of shared primitives.
 Each of the 5 pages then gets its own migration task — a pure restyle,
-verified by its existing test file passing unmodified.
+verified by its existing test file passing unmodified. Tasks 7–8 are not
+restyles — each adds one narrow, real backend read path plus the display
+built on it.
 
 **Tech Stack:** Tailwind CSS v4 (`@tailwindcss/vite`), shadcn/ui
 (`Button`/`Input`/`Textarea`/`Label`, generated as owned source, not an
@@ -49,10 +53,15 @@ hand). This plan adds:
 5. **Motion respects `prefers-reduced-motion`, and never animates a
    dollar amount or a determination's own value** (CLAUDE.md's governing
    principle; design doc §7).
-6. **Every migration task is a restyle, not a rewrite.** State,
+6. **Every migration task (1–6) is a restyle, not a rewrite.** State,
    handlers, prop shapes, and API calls in existing components are
    copied unchanged; only the returned JSX changes. `api/client.ts` and
-   `api/types.ts` are not modified by this plan.
+   `api/types.ts` are not modified by Tasks 1–6. **Tasks 7–8 are the
+   exception** (design doc §11, added after Stitch design review): they
+   add genuinely new backend surface (an audit-read endpoint, a
+   caseload-stats endpoint) and do modify `api/client.ts`/`api/types.ts`
+   and the Java API — called out explicitly in each task rather than
+   left to contradict this constraint silently.
 7. **Native `<select>` and native `<input type="checkbox">` elements are
    kept, styled with Tailwind utility classes directly — not swapped for
    shadcn's Radix-based `Select`/`Checkbox`.** Both of those wrap native
@@ -110,13 +119,28 @@ canopica/
         IncomeFields.tsx                             <- modified: Task 2
         ExpenseFields.tsx                             <- modified: Task 2
         DeterminationPanel.tsx                        <- modified: Task 5
-        TracePanel.tsx                                <- modified: Task 5
+        TracePanel.tsx                                <- modified: Task 5, 7
+        design-system/StatTile.tsx                    <- Task 8
+        design-system/CalculationMatrix.tsx            <- Task 5
+        design-system/AiAdvisoryBadge.tsx              <- Task 3
+        design-system/AuditTrail.tsx                   <- Task 7
       pages/
         IntakePage.tsx                                <- modified: Task 2
         PolicyQaPage.tsx                              <- modified: Task 3
         WorkerCasesPage.tsx                            <- modified: Task 4
-        CaseDetailPage.tsx                             <- modified: Task 5
+        CaseDetailPage.tsx                             <- modified: Task 5, 7
         RuleAuthoringPage.tsx                          <- modified: Task 6
+        DashboardPage.tsx                              <- Task 8
+      api/
+        types.ts                                       <- modified: Task 7 (AuditEventResponse), Task 8 (CaseloadStatsResponse)
+        client.ts                                      <- modified: Task 7 (getAuditTrail), Task 8 (getCaseloadStats)
+  api/
+    src/main/java/canopica/api/
+      api/dto/AuditEventResponse.java                  <- Task 7
+      api/dto/CaseloadStatsResponse.java                <- Task 8
+      api/WorkerCaseController.java                     <- modified: Task 7 (audit endpoint), Task 8 (stats endpoint)
+      audit/AuditService.java                            <- modified: Task 7 (+ read method)
+    src/test/java/canopica/api/                          <- corresponding tests, Tasks 7-8
   docs/STATUS.md                                       <- modified: every task
 ```
 
@@ -128,8 +152,10 @@ canopica/
 | 2 | Migrate `IntakePage` | Applicant's form restyled with `FormField`/shadcn primitives; `IntakePage.test.tsx` passes unmodified |
 | 3 | Migrate `PolicyQaPage` | Q&A restyled; abstention visually distinct from a grounded answer (design doc §3's evidence-first principle, made real) |
 | 4 | Migrate `WorkerCasesPage` | Case list restyled in place, `StatusPill` for status |
-| 5 | Migrate `CaseDetailPage` (+ `DeterminationPanel`, `TracePanel`) | `DecisionBar` + `CustodySpine` — the design system's signature elements, live |
-| 6 | Migrate `RuleAuthoringPage` | Last page; already-refactored sub-components (`PendingProposalsList`, `ProposalReview`, `ReviewedStatusBanner`) each get the same primitives |
+| 5 | Migrate `CaseDetailPage` (+ `DeterminationPanel`, `TracePanel`) | `DecisionBar` + `CustodySpine` — the design system's signature elements, live; plus `CalculationMatrix` and `TopUtilityBar`'s breadcrumb slot (design doc §11) |
+| 6 | Migrate `RuleAuthoringPage` | Last page; already-refactored sub-components (`PendingProposalsList`, `ProposalReview`, `ReviewedStatusBanner`) each get the same primitives, plus the AI-advisory treatment on the AI-drafted proposal (design doc §11) |
+| 7 | Audit trail read API + `CaseDetailPage` display | New `GET` endpoint + DTO exposing `audit_event` rows for a case; richer, typed audit display replacing the current DMN-trace-only view (design doc §11) |
+| 8 | Caseworker Dashboard | New `/dashboard` page and worker-scoped aggregate-stats endpoint — real case counts only, no fabricated SLA/QC/health metrics (design doc §11) |
 
 The design doc left exact migration order to this plan (§9). Order chosen:
 walk each role's screens in the order that role actually encounters them
@@ -930,11 +956,34 @@ pages first.
 - Test (unmodified, must keep passing): `src/pages/PolicyQaPage.test.tsx`
 
 **Interfaces:**
-- Consumes: `FormField`, `Button`, `Input`, `StatusPill` (Task 1).
+- Consumes: `FormField`, `Button`, `Input`, `StatusPill` (Task 1),
+  `AiAdvisoryBadge` (new, this task).
 - `AnswerPanel`'s prop shape (`{ answer: QaAnswer }`) and both handlers
   (`handleAsk`, `handleExplainDenial`) are unchanged.
+- Produces: `AiAdvisoryBadge(): JSX.Element`
+  (`src/components/design-system/AiAdvisoryBadge.tsx`) — a small,
+  no-props label marking content as AI-generated and advisory-only.
+  Reused unmodified by Task 6.
 
-- [ ] **Step 1: Restyle `AnswerPanel`.** This is design doc §3's
+- [ ] **Step 1: Build `AiAdvisoryBadge`.** Design doc §11: the Stitch
+      review surfaced that no component visually distinguishes
+      AI-generated content from deterministic/human-owned content,
+      despite that being both this doc's §3 principle and CLAUDE.md's
+      governing principle. Built on the `--info` token — already
+      defined and contrast-verified in Task 1's `src/index.css`
+      (`info`/`background`: 6.21:1), unused until now:
+
+  ```tsx
+  export function AiAdvisoryBadge() {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-sm bg-info/10 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-info">
+        AI-generated · advisory only
+      </span>
+    );
+  }
+  ```
+
+- [ ] **Step 2: Restyle `AnswerPanel`.** This is design doc §3's
       "evidence before assertion" principle made concrete: an abstention
       must look distinct from a grounded answer, not just carry a
       `className="qa-abstention"` that's never had a stylesheet to back
@@ -942,7 +991,10 @@ pages first.
       class name** alongside the new Tailwind classes —
       `PolicyQaPage.test.tsx` asserts `toHaveClass('qa-abstention')`
       directly (verified against the real test before writing this
-      step), so it's a real compatibility hook, not dead weight to drop:
+      step), so it's a real compatibility hook, not dead weight to drop.
+      A grounded answer also gets `AiAdvisoryBadge` — an abstention
+      doesn't need it (it's already visually and textually flagged as
+      uncertain, not presented as a fact):
 
   ```tsx
   function AnswerPanel({ answer }: { answer: QaAnswer }) {
@@ -955,7 +1007,8 @@ pages first.
     }
     return (
       <output className="block rounded-md border border-border bg-card px-4 py-3">
-        <p className="text-foreground">{answer.answer}</p>
+        <AiAdvisoryBadge />
+        <p className="mt-2 text-foreground">{answer.answer}</p>
         {answer.citations.length > 0 && (
           <>
             <h3 className="mt-3 font-display text-sm">Citations</h3>
@@ -971,7 +1024,7 @@ pages first.
   }
   ```
 
-- [ ] **Step 2: Restyle the two forms.** Both `question` and
+- [ ] **Step 3: Restyle the two forms.** Both `question` and
       `determinationId` `<input>`s become `FormField`+`Input`; both
       submit buttons become `Button`; both `role="alert"` error
       paragraphs get `className="text-sm text-destructive"`. The page's
@@ -979,7 +1032,7 @@ pages first.
       via `src/index.css`'s `@layer base` rule from Task 1 — no class
       needed.
 
-- [ ] **Step 3: Run the existing test, unmodified.**
+- [ ] **Step 4: Run the existing test, unmodified.**
 
   ```bash
   npx vitest run src/pages/PolicyQaPage.test.tsx
@@ -987,17 +1040,18 @@ pages first.
 
   Expect PASS, including its `axe` assertion.
 
-- [ ] **Step 4: Manual browser check.** `npm run dev`, ask a policy
-      question, confirm a grounded answer and an abstention (trigger one
-      with a nonsense question if the local AI stack is running,
-      otherwise verify visually via React DevTools by forcing
-      `answer.abstained = true`) are visually distinct.
+- [ ] **Step 5: Manual browser check.** `npm run dev`, ask a policy
+      question, confirm a grounded answer shows the AI-advisory badge,
+      an abstention (trigger one with a nonsense question if the local
+      AI stack is running, otherwise verify visually via React DevTools
+      by forcing `answer.abstained = true`) reads as visually distinct
+      from both a grounded answer and the badge.
 
-- [ ] **Step 5: Full suite + commit.**
+- [ ] **Step 6: Full suite + commit.**
 
   ```bash
   make test && make lint
-  git add ui/src/pages/PolicyQaPage.tsx docs/STATUS.md
+  git add ui/src/pages/PolicyQaPage.tsx ui/src/components/design-system/AiAdvisoryBadge.tsx docs/STATUS.md
   git commit -m "Migrate PolicyQaPage to the Public Ledger design system"
   ```
 
@@ -1112,12 +1166,34 @@ pages first.
 
 **Files:**
 - Modify: `src/pages/CaseDetailPage.tsx`, `src/components/DeterminationPanel.tsx`,
-  `src/components/TracePanel.tsx`
+  `src/components/TracePanel.tsx`, `src/App.tsx`,
+  `src/components/design-system/TopUtilityBar.tsx`
+- Create: `src/components/design-system/CalculationMatrix.tsx`,
+  `src/components/design-system/PageChrome.tsx`
 - Test (unmodified, must keep passing): `src/pages/CaseDetailPage.test.tsx`
 
 **Interfaces:**
 - Consumes: `RecordSheet`, `FormField`, `Input`, `Button`, `DecisionBar`,
   `CustodySpine`, `StatusPill` (Task 1).
+- Produces: `CalculationMatrix({ items: { label: string, value: string }[] })`
+  (`src/components/design-system/CalculationMatrix.tsx`) — design doc §11:
+  a tabular companion to `CustodySpine` for the same
+  `TraceResponse.decisionResults` data, showing the same
+  deduction-by-deduction values as rows in a Variable/Value table rather
+  than a list, since a determination with several intermediate
+  deductions reads more legibly as a table.
+- Produces: `PageChromeProvider({ children })`,
+  `useBreadcrumb(value: string | null): void`
+  (`src/components/design-system/PageChrome.tsx`) — closes design doc
+  §6's already-approved but not-yet-built spec for `TopUtilityBar`
+  carrying "the current case/program-request id." A page calls
+  `useBreadcrumb('SNAP-FY2025 · Jane Doe')` on mount; `TopUtilityBar`
+  reads the current value via context. `App.tsx`'s `AuthedAppShell` wraps
+  its content in `PageChromeProvider`; `TopUtilityBar` gains an optional
+  breadcrumb slot before the role label. No page other than
+  `CaseDetailPage` calls `useBreadcrumb` in this task — `WorkerCasesPage`
+  and the others simply render with an empty breadcrumb, unchanged from
+  today.
 - `DecisionBar`'s `note` slot carries `Decided {decidedAt}` here —
   `DeterminationResponse` has no human-reviewer field (a determination
   is a deterministic auto-decision, not a human-reviewed record), so
@@ -1133,7 +1209,100 @@ pages first.
   `getByText(/649\.00/)` as a regex substring match. The code below is
   written to satisfy all three literally, not just visually.
 
-- [ ] **Step 1: Restyle `CaseDetailPage.tsx`.**
+- [ ] **Step 1: Build `PageChrome.tsx`.**
+
+  ```tsx
+  import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+
+  type BreadcrumbCtx = { breadcrumb: string | null; setBreadcrumb: (v: string | null) => void };
+  const BreadcrumbContext = createContext<BreadcrumbCtx | null>(null);
+
+  export function PageChromeProvider({ children }: { children: ReactNode }) {
+    const [breadcrumb, setBreadcrumb] = useState<string | null>(null);
+    return (
+      <BreadcrumbContext.Provider value={{ breadcrumb, setBreadcrumb }}>{children}</BreadcrumbContext.Provider>
+    );
+  }
+
+  /** Call on a page's mount to show it in TopUtilityBar's breadcrumb slot; clears on unmount. */
+  export function useBreadcrumb(value: string | null) {
+    const ctx = useContext(BreadcrumbContext);
+    useEffect(() => {
+      ctx?.setBreadcrumb(value);
+      return () => ctx?.setBreadcrumb(null);
+    }, [ctx, value]);
+  }
+
+  export function useBreadcrumbValue(): string | null {
+    return useContext(BreadcrumbContext)?.breadcrumb ?? null;
+  }
+  ```
+
+  Edit `TopUtilityBar.tsx` to read it:
+
+  ```tsx
+  import { useBreadcrumbValue } from './PageChrome';
+
+  export function TopUtilityBar({ role, onSignOut }: { role: Role; onSignOut: () => void }) {
+    const breadcrumb = useBreadcrumbValue();
+    return (
+      <div className="flex items-center justify-between gap-4 border-b border-border bg-card px-6 py-3">
+        <span className="text-sm text-muted-foreground">{breadcrumb}</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground">Signed in as {ROLE_LABEL[role]}</span>
+          <Button variant="outline" size="sm" onClick={onSignOut}>
+            Sign out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  ```
+
+  Edit `App.tsx`, wrapping `AuthedAppShell`'s returned `<div>` content in
+  `PageChromeProvider` (import from `./components/design-system/PageChrome`)
+  — everything else in `AuthedAppShell` is unchanged.
+
+  Run `src/App.test.tsx` and `NavRail.test.tsx` — expect PASS unmodified;
+  neither queries `TopUtilityBar`'s now-empty breadcrumb span.
+
+- [ ] **Step 2: Build `CalculationMatrix.tsx`.**
+
+  ```tsx
+  export function CalculationMatrix({ items }: { items: { label: string; value: string }[] }) {
+    return (
+      <table aria-label="Calculation logic matrix" className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            <th scope="col" className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              Variable
+            </th>
+            <th scope="col" className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              Value
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.label} className="border-b border-border">
+              <th scope="row" className="px-3 py-2 text-left font-normal text-foreground">
+                {item.label}
+              </th>
+              <td className="px-3 py-2 font-mono text-muted-foreground">{item.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+  ```
+
+  No independent test needed — same reasoning as `DecisionBar`/`CustodySpine`
+  (Task 1): a pure presentational wrapper, exercised by `CaseDetailPage.test.tsx`.
+
+- [ ] **Step 3: Restyle `CaseDetailPage.tsx`.** Also calls `useBreadcrumb`
+      once `caseDetail` loads, so `TopUtilityBar` shows which case is
+      open:
 
   ```tsx
   import { useEffect, useState, type FormEvent } from 'react';
@@ -1145,6 +1314,7 @@ pages first.
   import { Input } from '@/components/ui/input';
   import { FormField } from '@/components/design-system/FormField';
   import { RecordSheet } from '@/components/design-system/RecordSheet';
+  import { useBreadcrumb } from '@/components/design-system/PageChrome';
 
   function todayIso(): string {
     return new Date().toISOString().slice(0, 10);
@@ -1173,6 +1343,8 @@ pages first.
         .then(setCaseDetail)
         .catch(() => setLoadError('Could not load this case.'));
     }, [programRequestId]);
+
+    useBreadcrumb(caseDetail ? `${caseDetail.programCode} · ${caseDetail.householdHeadName}` : null);
 
     async function handleRunDetermination(event: FormEvent<HTMLFormElement>) {
       event.preventDefault();
@@ -1264,7 +1436,7 @@ pages first.
   }
   ```
 
-- [ ] **Step 2: Restyle `DeterminationPanel.tsx`.** The original
+- [ ] **Step 4: Restyle `DeterminationPanel.tsx`.** The original
       renders the literal text `Eligible`/`Not eligible` as its own
       `<strong>` — the test asserts on that exact text
       (`findByText('Eligible')`), so it has to keep existing as its own
@@ -1315,13 +1487,15 @@ pages first.
   currently query by it — real, useful information for a screen-reader
   user either way.
 
-- [ ] **Step 3: Restyle `TracePanel.tsx`** to use `CustodySpine` in
-      place of the current `<ol>`:
+- [ ] **Step 5: Restyle `TracePanel.tsx`** to use `CustodySpine` in
+      place of the current `<ol>`, plus `CalculationMatrix` as a
+      companion table view of the same data (design doc §11):
 
   ```tsx
   import { useState } from 'react';
   import { getTrace } from '../api/client';
   import type { TraceResponse } from '../api/types';
+  import { CalculationMatrix } from './design-system/CalculationMatrix';
   import { CustodySpine } from './design-system/CustodySpine';
 
   type Props = {
@@ -1373,6 +1547,12 @@ pages first.
                 value: renderValue(value),
               }))}
             />
+            <CalculationMatrix
+              items={Object.entries(trace.decisionResults).map(([label, value]) => ({
+                label,
+                value: renderValue(value),
+              }))}
+            />
           </>
         )}
       </details>
@@ -1380,7 +1560,13 @@ pages first.
   }
   ```
 
-- [ ] **Step 4: Run the existing test, unmodified.**
+  `CalculationMatrix` reuses the same `renderValue`-mapped array as
+  `CustodySpine` rather than a second data shape — both read
+  `trace.decisionResults` unchanged, just presented two ways (an ordered
+  timeline vs. a variable/value table); no new field is added to
+  `TraceResponse`.
+
+- [ ] **Step 6: Run the existing test, unmodified.**
 
   ```bash
   npx vitest run src/pages/CaseDetailPage.test.tsx
@@ -1391,18 +1577,23 @@ pages first.
   original list's own `aria-label` exactly (see Task 1's `CustodySpine`)
   — if the test queries by that label, it still resolves.
 
-- [ ] **Step 5: Manual browser check.** `npm run dev`, sign in as a
-      worker, open a case with at least one determination, expand its
-      trace, confirm the `DecisionBar` and `CustodySpine` render as the
-      design doc's signature elements (amount/policy/decided-at side by
-      side; a connected vertical line with node markers down the trace).
+- [ ] **Step 7: Manual browser check.** `npm run dev`, sign in as a
+      worker, confirm the top bar now shows the open case's breadcrumb;
+      open a case with at least one determination, expand its trace,
+      confirm the `DecisionBar` and `CustodySpine` render as the design
+      doc's signature elements (amount/policy/decided-at side by side; a
+      connected vertical line with node markers down the trace), and
+      `CalculationMatrix` renders the same trace values as a legible
+      Variable/Value table alongside it.
 
-- [ ] **Step 6: Full suite + commit.**
+- [ ] **Step 8: Full suite + commit.**
 
   ```bash
   make test && make lint
   git add ui/src/pages/CaseDetailPage.tsx ui/src/components/DeterminationPanel.tsx \
-    ui/src/components/TracePanel.tsx ui/src/components/design-system/RecordSheet.tsx docs/STATUS.md
+    ui/src/components/TracePanel.tsx ui/src/components/design-system/RecordSheet.tsx \
+    ui/src/components/design-system/CalculationMatrix.tsx ui/src/components/design-system/PageChrome.tsx \
+    ui/src/components/design-system/TopUtilityBar.tsx ui/src/App.tsx docs/STATUS.md
   git commit -m "Migrate CaseDetailPage to the Public Ledger design system"
   ```
 
@@ -1416,7 +1607,7 @@ pages first.
 
 **Interfaces:**
 - Consumes: `RecordSheet`, `StatusPill`, `FormField`, `Input`, `Button`
-  (Task 1).
+  (Task 1), `AiAdvisoryBadge` (Task 3, reused unmodified).
 - This file's own component split (`PendingProposalsList`,
   `ReviewedStatusBanner`, `ProposalReview`, `PublicationFields`,
   `DiffTable`) — the direct result of the earlier cyclomatic-complexity
@@ -1443,14 +1634,19 @@ pages first.
       wrapping the existing text content.
 
 - [ ] **Step 4: Restyle `ProposalReview` and the top-level page.** The
-      `<article>` becomes a `RecordSheet`; the hasChanges ternary's two
-      branches keep their structure (real `DiffTable` vs. a
-      `text-sm text-muted-foreground` message); the Accept/Reject
-      buttons become `Button` (`variant="default"` for accept,
-      `variant="outline"` for reject). At the top level, the excerpt
-      `<textarea>` becomes a shadcn `Textarea` wrapped in `FormField`;
-      the submit button becomes `Button`; the error paragraph gets
-      `className="text-sm text-destructive"`.
+      `<article>` becomes a `RecordSheet`, gaining `AiAdvisoryBadge` at
+      its top — design doc §11: an AI-drafted DMN proposal awaiting a
+      human accept/reject is the clearest instance in the app of the
+      exact fact pattern the badge exists for, the same one `Task 3`
+      built it for. The hasChanges ternary's two branches keep their
+      structure (real `DiffTable` vs. a `text-sm text-muted-foreground`
+      message); the Accept/Reject buttons become `Button`
+      (`variant="default"` for accept, `variant="outline"` for reject) —
+      accepting/rejecting stays a human action the badge sits next to,
+      never inside or below a styling that could blur the two. At the
+      top level, the excerpt `<textarea>` becomes a shadcn `Textarea`
+      wrapped in `FormField`; the submit button becomes `Button`; the
+      error paragraph gets `className="text-sm text-destructive"`.
 
 - [ ] **Step 5: Run the existing test, unmodified.**
 
@@ -1473,4 +1669,268 @@ pages first.
   make test && make lint
   git add ui/src/pages/RuleAuthoringPage.tsx docs/STATUS.md
   git commit -m "Migrate RuleAuthoringPage to the Public Ledger design system"
+  ```
+
+---
+
+## Task 7: Audit trail read API + richer `CaseDetailPage` display
+
+Design doc §11. Unlike Tasks 1–6, this is not a pure restyle: no read
+path over `audit_event` exists anywhere in the API today (verified —
+`AuditService` only exposes `append`; `WorkerCaseController` writes one
+event type, `CASE_VIEWED`, and reads nothing back). This task adds one
+narrow, real read path — a case's own audit events, in order — and a
+richer display for it. It does **not** add the mockup's per-stage
+verification icons or a general audit-log browser; those need either a
+finer `event_type` taxonomy or payload-parsing rules this task doesn't
+try to guess at.
+
+**Files:**
+- Create (Java): `api/src/main/java/canopica/api/api/dto/AuditEventResponse.java`
+- Modify (Java): `api/src/main/java/canopica/api/audit/AuditService.java`,
+  `api/src/main/java/canopica/api/api/WorkerCaseController.java`
+- Create (Java test): `api/src/test/java/canopica/api/api/WorkerCaseControllerAuditTest.java`
+  (or the existing `WorkerCaseController` test class, whichever this
+  repo's convention is — confirm by reading the existing test file
+  before creating a new one)
+- Modify (TS): `ui/src/api/types.ts`, `ui/src/api/client.ts`,
+  `ui/src/pages/CaseDetailPage.tsx`
+- Create (TS): `ui/src/components/design-system/AuditTrail.tsx`
+
+**Interfaces:**
+- Produces (Java): `AuditService.findBySubject(String subjectType, UUID subjectId): List<AuditEventRecord>`
+  — a plain read method alongside the existing `append`, backed by the
+  same `audit_event` table (raw JDBC, since — as today — no JPA entity
+  exists for an append-only, trigger-managed table; follow whatever
+  JDBC pattern the current `append` implementation already uses, not a
+  new one).
+- Produces (Java): `GET /api/cases/{programRequestId}/audit` →
+  `List<AuditEventResponse>`, on `WorkerCaseController`, following its
+  existing `getCase`/`getTrace` pattern (worker-only, same
+  caseload-scoping check those two already apply). Response fields:
+  `eventType` (the real `AuditEventType` enum value), `occurredAt`,
+  `actorId`, `actorType` (`"SYSTEM"` when `actorId.equals("SYSTEM")`,
+  else `"HUMAN"` — computed in the DTO mapping, not a new database
+  column; adding a schema column for a fact already fully determined by
+  the existing sentinel string would be schema growth without new
+  information). `payload` is passed through as-is (already jsonb,
+  already `Map<String, Object>`-shaped in `AuditService.append`'s
+  signature) — no attempt to flatten or reinterpret it per event type in
+  this task.
+- Produces (TS): `getAuditTrail(programRequestId: string): Promise<AuditEventResponse[]>`
+  (`api/client.ts`), `AuditEventResponse` type (`api/types.ts`) mirroring
+  the Java DTO field-for-field.
+- Produces (TS): `AuditTrail({ events: AuditEventResponse[] })`
+  (`design-system/AuditTrail.tsx`) — a `RecordSheet`-based list, one row
+  per event, `StatusPill` (`tone="neutral"`) showing `actorType`, plain
+  text for `eventType` and `occurredAt`. No per-event-type icon set —
+  the mockup's iconography implies a taxonomy (ingested/verified/
+  executed/drafted) finer than the real five `AuditEventType` values;
+  building icons for a taxonomy that doesn't exist yet would be
+  decorating a guess.
+
+- [ ] **Step 1: Write the failing Java test first.** Read the existing
+      `WorkerCaseController` test file to confirm its actual test
+      fixture/setup pattern (Testcontainers Postgres, per CLAUDE.md's
+      testing policy for this layer), then add a case asserting: given a
+      case with an `APPLICATION_SUBMITTED` and a `DETERMINATION_MADE`
+      event already in its audit chain (from fixture setup, or from
+      calling the real intake/determination flow first, matching
+      whatever the existing test file already does for similar
+      setup), `GET /api/cases/{id}/audit` returns both, ordered by
+      `occurredAt`, with `actorType` correctly `"HUMAN"` for the
+      application-submitted event's real actor id and `"SYSTEM"` for
+      the determination event. Run it — expect FAIL (no endpoint yet).
+
+- [ ] **Step 2: Add `AuditService.findBySubject`.** Read
+      `AuditService`'s current implementation (the class behind the
+      `AuditService` interface, not shown in this plan since it wasn't
+      read while writing it — find it via
+      `grep -rl "implements AuditService"`) to match its existing
+      `JdbcTemplate`/connection pattern exactly; add a query method
+      selecting `event_type, occurred_at, actor_id, payload` from
+      `audit_event` where `subject_type = ? and subject_id = ?`, ordered
+      by `occurred_at`.
+
+- [ ] **Step 3: Add `AuditEventResponse` and the endpoint.** DTO fields
+      as specified above; endpoint method on `WorkerCaseController`
+      mirroring `getTrace`'s existing shape (path variable, caseload
+      authorization check, service call, map to DTO list). Run the
+      Step 1 test — expect PASS.
+
+- [ ] **Step 4: Add the TS client function and type**, mirroring
+      `getTrace`/`TraceResponse`'s existing pattern in `client.ts`/`types.ts`
+      exactly (same fetch-and-parse shape, same error handling).
+
+- [ ] **Step 5: Build `AuditTrail.tsx`** and wire it into
+      `CaseDetailPage.tsx` as a new section below the determination
+      history, fetched via `getAuditTrail(programRequestId)` in a
+      `useEffect` alongside the existing `getCase` call — same
+      loading/error pattern already used for `caseDetail`.
+
+- [ ] **Step 6: Run the full existing `CaseDetailPage.test.tsx`,
+      unmodified** — expect PASS; this is an addition to the page, not a
+      change to anything the test already asserts on. Add one new test
+      case to `CaseDetailPage.test.tsx` for the audit section itself
+      (fetches and renders the events) — this file **is** allowed to
+      change in this task, unlike Tasks 2–6's pages, since this is new
+      functionality, not a restyle of existing functionality.
+
+- [ ] **Step 7: Manual browser check.** `npm run dev`, sign in as a
+      worker, open a case with at least one determination, confirm the
+      audit trail section lists its real events in order with correct
+      `actorType` badges.
+
+- [ ] **Step 8: Full suite + commit.**
+
+  ```bash
+  make test && make lint
+  git add api/src/main/java/canopica/api/audit/AuditService.java \
+    api/src/main/java/canopica/api/api/WorkerCaseController.java \
+    api/src/main/java/canopica/api/api/dto/AuditEventResponse.java \
+    api/src/test/java/canopica/api/api/*.java \
+    ui/src/api/types.ts ui/src/api/client.ts ui/src/pages/CaseDetailPage.tsx \
+    ui/src/pages/CaseDetailPage.test.tsx ui/src/components/design-system/AuditTrail.tsx \
+    docs/STATUS.md
+  git commit -m "Add a case audit-trail read endpoint and display it on CaseDetailPage"
+  ```
+
+---
+
+## Task 8: Caseworker Dashboard
+
+Design doc §11. New page and new scope, sequenced after Task 7 so its
+Recent Activity panel can be built on real audit events rather than
+inventing a second data source. Deliberately narrower than the Stitch
+mockup: it ships only stats with a real, traceable query behind them.
+**Not built**: SLA Compliance %, QC Accuracy %, or an Integration
+Health panel — none has a backing definition anywhere in Canopica (no
+SLA tracking, no QC sampling process, no service-health feed), and a
+fabricated number next to real determinism everywhere else in this app
+would undercut the entire project's premise (CLAUDE.md: "every dollar
+amount has to be explainable and reproducible"). If real SLA/QC
+tracking is ever built, this page gets those tiles then — not before.
+
+**Files:**
+- Create (Java): `api/src/main/java/canopica/api/api/dto/CaseloadStatsResponse.java`
+- Modify (Java): `api/src/main/java/canopica/api/api/WorkerCaseController.java`
+- Modify (Java test): the existing `WorkerCaseController` test file
+- Create (TS): `ui/src/pages/DashboardPage.tsx`,
+  `ui/src/components/design-system/StatTile.tsx`
+- Modify (TS): `ui/src/api/types.ts`, `ui/src/api/client.ts`, `ui/src/App.tsx`,
+  `ui/src/components/design-system/NavRail.tsx`
+
+**Interfaces:**
+- Produces (Java): `GET /api/cases/dashboard` → `CaseloadStatsResponse`
+  on `WorkerCaseController`, scoped to the signed-in worker's own
+  caseload via the same `CaseAssignmentRepository`-backed authorization
+  `getCase`/`listCases` already apply (Phase 1b row-level scoping — this
+  task adds no new authorization concept, it reuses the existing one).
+  Fields: `activeCases` (count of this worker's assigned
+  `ProgramRequest`s not in a terminal status), `pendingDetermination`
+  (count of those with no `EligibilityDetermination` row yet — a
+  `LEFT JOIN ... WHERE determination.id IS NULL`-shaped query, or the
+  JPA equivalent), `recentEvents: AuditEventResponse[]` (the most recent
+  N events across this worker's caseload, reusing Task 7's
+  `AuditService.findBySubject`-adjacent read path — confirm during
+  implementation whether that needs a small
+  `findRecentAcrossSubjects(subjectIds, limit)` variant added to
+  `AuditService`, since Task 7's method takes one subject at a time).
+  **What "active"/"terminal" status values actually are**: read the real
+  `status` values `ProgramRequest` rows take in this codebase (grep
+  usages and any status-transition logic) before writing the query —
+  don't assume a set of values; the field is a free-text `String`
+  column, not a Java enum, so there's no compiler-enforced list to read
+  off.
+- Produces (TS): `getCaseloadStats(): Promise<CaseloadStatsResponse>`
+  (`api/client.ts`), `CaseloadStatsResponse` type (`api/types.ts`)
+  mirroring the Java DTO.
+- Produces (TS): `StatTile({ label: string, value: string | number, caption?: string })`
+  (`design-system/StatTile.tsx`) — design doc §11: adopted from the
+  Stitch Rules Engine screen's Impact Analysis pattern, but its first
+  and only real use in this plan is here, backed by real case counts —
+  not the mockup's fabricated dry-run projection, which this codebase
+  has no simulation capability to compute.
+- `DashboardPage` becomes `WORKER`'s home route (`HOME_FOR.WORKER`),
+  replacing `/cases`'s current role as landing page; `WorkerCasesPage`
+  stays reachable via `NavRail`, gaining its own link (`NavRail`'s
+  `LINKS_FOR.WORKER` grows from one entry to two: `Dashboard` then
+  `Cases`).
+
+- [ ] **Step 1: Confirm `ProgramRequest.status`'s real values** by
+      reading existing usages (`WorkerCasesPage.tsx` already checks
+      `c.status === 'DECIDED'`; grep the Java side for every literal
+      status string assigned or compared) before writing Step 2's query
+      — this task does not introduce a new status taxonomy, only reads
+      the one that already exists.
+
+- [ ] **Step 2: Write the failing Java test first.** Add a case to the
+      existing `WorkerCaseController` test asserting `GET
+      /api/cases/dashboard`, called as a worker with N assigned cases (M
+      of them decided), returns `activeCases` and `pendingDetermination`
+      matching the fixture, scoped only to that worker's own caseload
+      (a second worker's cases must not be counted — reuses whatever
+      fixture pattern the existing caseload-scoping tests in this file
+      already use). Run it — expect FAIL.
+
+- [ ] **Step 3: Implement the query and `CaseloadStatsResponse`.**
+      Whatever repository method(s) Step 1's real status values require
+      — extend `ProgramRequestRepository`/`EligibilityDeterminationRepository`
+      with the minimum new query methods needed, following their
+      existing `@Query`-annotated JPQL style (see
+      `ProgramRequestRepository.findByHouseholdId` for the pattern).
+      Wire the endpoint on `WorkerCaseController`. Run the Step 2 test —
+      expect PASS.
+
+- [ ] **Step 4: Add the TS client function and type**, mirroring the
+      existing `listCases`/`CaseSummaryResponse` pattern.
+
+- [ ] **Step 5: Build `StatTile.tsx`.**
+
+  ```tsx
+  export function StatTile({ label, value, caption }: { label: string; value: string | number; caption?: string }) {
+    return (
+      <div className="border-t-[3px] border-t-foreground bg-card px-4 py-3">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="mt-1 font-display text-3xl tabular-nums text-foreground">{value}</p>
+        {caption && <p className="mt-1 text-xs text-muted-foreground">{caption}</p>}
+      </div>
+    );
+  }
+  ```
+
+- [ ] **Step 6: Build `DashboardPage.tsx`.** Fetches
+      `getCaseloadStats()` in a `useEffect` (same loading/error pattern
+      as every other page); renders two `StatTile`s (`Active cases`,
+      `Pending determination`) in a `grid grid-cols-2 gap-4`, and an
+      `AuditTrail` (Task 7, reused unmodified) below them for
+      `recentEvents`, headed `<h3 className="font-display text-lg">Recent
+      activity</h3>`.
+
+- [ ] **Step 7: Wire routing and navigation.** In `App.tsx`: import
+      `DashboardPage`, add `<Route path="/dashboard" element={<DashboardPage />} />`,
+      change `HOME_FOR.WORKER` from `'/cases'` to `'/dashboard'`. In
+      `NavRail.tsx`: `LINKS_FOR.WORKER` becomes
+      `[{ to: '/dashboard', label: 'Dashboard' }, { to: '/cases', label: 'Cases' }]`.
+      Update `NavRail.test.tsx`'s `WORKER` test to assert both links
+      exist (it currently only checks for `Cases`).
+
+- [ ] **Step 8: Manual browser check.** `npm run dev`, sign in as a
+      worker, confirm landing on `/dashboard` shows real case counts
+      matching what `/cases` actually lists, and the recent-activity
+      section shows real audit events.
+
+- [ ] **Step 9: Full suite + commit.**
+
+  ```bash
+  make test && make lint
+  git add api/src/main/java/canopica/api/api/WorkerCaseController.java \
+    api/src/main/java/canopica/api/api/dto/CaseloadStatsResponse.java \
+    api/src/main/java/canopica/api/repo/*.java \
+    api/src/test/java/canopica/api/api/*.java \
+    ui/src/api/types.ts ui/src/api/client.ts ui/src/App.tsx \
+    ui/src/pages/DashboardPage.tsx ui/src/components/design-system/StatTile.tsx \
+    ui/src/components/design-system/NavRail.tsx ui/src/components/design-system/NavRail.test.tsx \
+    docs/STATUS.md
+  git commit -m "Add the Caseworker Dashboard page"
   ```
