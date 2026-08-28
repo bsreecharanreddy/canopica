@@ -205,6 +205,10 @@ services:
       # the browser and application.yml's plain localhost default is already
       # right -- api is in a container, so localhost would be itself.
       CANOPICA_AI_RULE_AUTHORING_URL: http://host.docker.internal:8000
+      # Phase 3 Task 2: container-network address for the `minio` service
+      # below -- application.yml's own localhost default is for local,
+      # non-Docker dev only, same split as every other service address here.
+      CANOPICA_MINIO_ENDPOINT: http://minio:9000
     ports:
       - "8080:8080"
     depends_on:
@@ -214,6 +218,8 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_started
+      minio:
+        condition: service_healthy
     # Healthcheck itself lives in api/Dockerfile (needs curl, installed
     # there) -- nothing to repeat here.
 

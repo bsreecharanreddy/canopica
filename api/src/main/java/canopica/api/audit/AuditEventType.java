@@ -11,5 +11,8 @@ public enum AuditEventType {
      * {@code policy_parameter_proposal} row records the same fact, but that table is mutable by design, so
      * the tamper-evident answer to "who published this figure" has to live in the chain (roadmap §3.6).
      */
-    POLICY_PARAMETER_PUBLISHED
+    POLICY_PARAMETER_PUBLISHED,
+    /** A document was uploaded against a program request (Phase 3 design doc §2.6). Keyed on {@code
+     * "program_request"}, same as {@link #APPLICATION_SUBMITTED}. */
+    DOCUMENT_UPLOADED
 }

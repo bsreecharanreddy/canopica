@@ -103,6 +103,27 @@
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
     </dependency>
+    <dependency>
+      <!-- Phase 3 Task 2: document storage (design doc §2.1). MinIO is
+           S3-compatible, so the standard AWS SDK v2 S3 client works
+           against it unmodified with an endpoint override plus path-style
+           access; no MinIO-specific client needed. Not managed by the
+           Spring Boot BOM: version pinned explicitly, same treatment as
+           datasource-micrometer-spring-boot above. Verified current
+           against Maven Central's own search API directly (2026-08-28),
+           not a web search summary a second time, after that exact
+           second-hand-summary mistake cost a wrong Docker tag earlier
+           this same task. Note for future edits to this file: XML
+           comments forbid a literal double-hyphen anywhere inside them
+           (not just next to the closing marker), unlike every other
+           comment style this project otherwise uses that same pair of
+           characters in freely: a real, build-breaking mistake made once
+           already in this exact comment, flagged here rather than only
+           fixed silently. -->
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>2.46.7</version>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -117,6 +138,21 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- Phase 3 Task 2: MinIO-backed DocumentService/DocumentController
+           tests (design doc's own test list). Version managed by the
+           testcontainers-bom import above, same as postgresql and
+           junit-jupiter siblings; confirmed resolved version is 1.21.2
+           (org.testcontainers:minio:1.21.2 exists in lockstep on Maven
+           Central), not 2.x; see the comment on testcontainers-keycloak
+           below for why this project resolves to Testcontainers 1.x
+           despite the root pom.xml's own testcontainers.version=2.0.5
+           property (Spring Boot's spring-boot-dependencies BOM is
+           imported first in that pom's dependencyManagement and wins). -->
+      <groupId>org.testcontainers</groupId>
+      <artifactId>minio</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
