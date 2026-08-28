@@ -8,12 +8,25 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    # Task 3's document_intake_consumer calls
+    # canopica_ai.document_intake.service.classify_and_extract directly
+    # (Task 3 plan's own Interfaces note: "the sole interface the worker
+    # consumer calls") -- the first time any package in this monorepo
+    # imports another's Python code in-process rather than via subprocess/
+    # file/network (ai/ <-> data-platform is a sibling-artifact path
+    # dependency, never a Python import). A path dependency rather than a
+    # published package, matching this being one monorepo with no package
+    # registry of its own.
+    "canopica-ai",
     "psycopg[binary]>=3.3.4",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
     "opentelemetry-exporter-otlp>=1.39.0",
     "opentelemetry-sdk>=1.39.0",
 ]
+
+[tool.uv.sources]
+canopica-ai = { path = "../ai", editable = true }
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]

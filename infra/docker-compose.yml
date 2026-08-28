@@ -220,6 +220,24 @@ services:
         condition: service_started
       minio:
         condition: service_healthy
+      # Not just minio itself: a real upload needs the canopica-documents
+      # bucket minio-init creates, or PutObject fails outright. `up -d`
+      # with no service arguments (make up) starts every defined service
+      # regardless, which is why this gap was invisible locally -- but a
+      # narrowed `docker compose up --wait <services>` (ci.yml's e2e-ai
+      # job only ever names opensearch/ollama/api) only starts what's
+      # reachable from the named services' own depends_on graphs, and
+      # minio-init had no dependents at all until this line. Found by
+      # Phase 3 Task 3's own new e2e Python tests, which are the first
+      # thing to actually exercise a real upload through this compose
+      # stack -- DocumentControllerTest's Java coverage uses its own
+      # self-contained Testcontainers MinIO, never this service.
+      # service_completed_successfully (not service_started) is also what
+      # sidesteps the docker/compose#10596 exit-code-1-on-a-clean-exit bug
+      # ollama-init's own comment (below) describes -- that workaround was
+      # needed only because nothing depended on ollama-init the normal way.
+      minio-init:
+        condition: service_completed_successfully
     # Healthcheck itself lives in api/Dockerfile (needs curl, installed
     # there) -- nothing to repeat here.
 

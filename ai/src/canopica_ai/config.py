@@ -119,6 +119,15 @@ class Settings(BaseSettings):
     # rather than standing up a second database, per design doc §2.2.
     operational_dsn: str = "postgresql://canopica_app:canopica_app@localhost:5432/canopica_operational"
 
+    # Document Intake (Phase 3 Task 3): same MinIO instance and credentials
+    # api/src/main/resources/application.yml's own canopica.minio.* block
+    # defaults to -- one bucket, one set of dev credentials, read by both
+    # languages rather than each defining its own.
+    minio_endpoint: str = "http://localhost:9000"
+    minio_access_key: str = "canopica"
+    minio_secret_key: str = "canopica-minio-dev"
+    minio_bucket: str = "canopica-documents"
+
     # API's own base URL -- answer_denial() forwards the citizen's
     # bearer token here to read their own determination trace server-side.
     api_url: str = "http://localhost:8080"

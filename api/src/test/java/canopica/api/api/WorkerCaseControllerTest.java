@@ -226,6 +226,34 @@ class WorkerCaseControllerTest extends AbstractApiTest {
     }
 
     @Test
+    void auditTrailCanReadBackADocumentClassifiedEventTheWorkerServiceWrites() throws Exception {
+        // AuditEventType.DOCUMENT_CLASSIFIED is written by the Python worker's document_intake_consumer.py
+        // via a raw insert, never by this module's own AuditService -- simulated here the same way, so this
+        // test exercises the real risk: JdbcAuditService#findBySubject calls AuditEventType.valueOf(event_
+        // type) on every row it reads, and would throw IllegalArgumentException on a row this enum doesn't
+        // recognize. Confirms the wire response too: actorType derives from a literal "SYSTEM" string match
+        // (AuditEventResponse.java), the same convention DETERMINATION_MADE's own "SYSTEM" actor already
+        // established -- not a free-text worker-process identifier.
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        UUID documentId = UUID.randomUUID();
+        jdbc.update(
+                "insert into audit_event (event_type, actor_id, subject_type, subject_id, payload) "
+                        + "values ('DOCUMENT_CLASSIFIED', 'SYSTEM', 'program_request', ?, "
+                        + "('{\"document_id\":\"' || ? || '\",\"document_type\":\"INCOME_REPORT\"}')::jsonb)",
+                ids.programRequestId(), documentId.toString());
+
+        String response = mvc.perform(get("/api/cases/" + ids.programRequestId() + "/audit")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode classified = findByEventType(objectMapper.readTree(response), "DOCUMENT_CLASSIFIED");
+        assertThat(classified).as("the audit trail must be able to read back a worker-written event").isNotNull();
+        assertThat(classified.get("actorType").asText()).isEqualTo("SYSTEM");
+        assertThat(classified.get("payload").get("document_id").asText()).isEqualTo(documentId.toString());
+    }
+
+    @Test
     void dashboardStatsCountActiveAndPendingCasesScopedToThisWorkersOwnCaseload() throws Exception {
         // Triggers KeycloakWorkerSyncFilter's lazy provisioning of worker.sam's row before this test needs
         // its id -- same idiom workerViewingAnUnassignedHouseholdAutoClaimsItAndIsMarkedInAssignment uses.

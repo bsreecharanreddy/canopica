@@ -1,8 +1,8 @@
 """The worker's entrypoint: a generic poll/dispatch loop over pgmq queues,
 plus the two queues this phase actually needs (design doc §2.2). Task 1
-wires each queue to a placeholder handler that only logs and acknowledges
-a message -- Task 3 replaces `document_intake`'s handler with real
-classification, Task 5 replaces `correspondence_dispatch`'s with real
+wired each queue to a placeholder handler that only logged and
+acknowledged a message; Task 3 replaces `document_intake`'s handler with
+real classification, Task 5 replaces `correspondence_dispatch`'s with real
 drafting. The loop mechanics (read, dispatch, delete-on-success,
 archive-after-`max_delivery_attempts`) are Task 1's real deliverable and
 don't change when those handlers do.
@@ -14,6 +14,7 @@ import logging
 import time
 from collections.abc import Callable
 
+from canopica_worker import document_intake_consumer
 from canopica_worker.config import Settings
 from canopica_worker.queue import Message, archive, delete, read
 
@@ -83,7 +84,9 @@ def main() -> None:
     settings = Settings()
     run_forever(
         {
-            settings.document_intake_queue: _log_and_ack,
+            settings.document_intake_queue: document_intake_consumer.build_handler(
+                settings=settings
+            ),
             settings.correspondence_dispatch_queue: _log_and_ack,
         },
         settings=settings,

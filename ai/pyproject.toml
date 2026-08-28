@@ -8,6 +8,9 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    # Document Intake (Phase 3 Task 3): the same S3-compatible client the
+    # API's own MinioConfig.java uses AWS SDK v2 for, Python's equivalent.
+    "boto3>=1.42.0",
     "deepeval>=3.0.0",
     "defusedxml>=0.7.1",
     # Pinned to the same version data-platform's own dbt-duckdb pulls in
@@ -25,6 +28,15 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.10.1",
+    # Document Intake's PDF text-extraction path (classify.py's own doc
+    # comment on why this isn't OCR).
+    "pypdf>=6.4.0",
+    # Document Intake's OCR fallback for image-only uploads -- the Python
+    # wrapper for the Tesseract OCR engine; needs the `tesseract-ocr`
+    # system package installed separately (Homebrew/apt), same as
+    # `data-platform`'s own dbt needing a real Postgres client library.
+    "pytesseract>=0.3.13",
+    "pillow>=12.0.0",
     "pyyaml>=6.0.2",
     # Only ever undeclared-transitive before Task 9 Step 4/5 -- uv.lock
     # already resolved it (some other dependency needs it), but the
@@ -40,6 +52,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "boto3-stubs[s3]>=1.42.0",
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     # Already present as deepeval's own transitive dependency; declared
@@ -70,6 +83,14 @@ python_version = "3.12"
 strict = true
 warn_unreachable = true
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+# No type stubs published for pytesseract (checked live: no
+# types-pytesseract package on PyPI) -- its own surface used here is one
+# function with a plain str/Image argument and str return, low enough risk
+# to accept untyped rather than hand-write and maintain a local stub for.
+module = "pytesseract"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

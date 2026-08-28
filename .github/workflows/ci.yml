@@ -305,6 +305,14 @@ jobs:
         working-directory: ai
     steps:
       - uses: actions/checkout@v7
+      # Document Intake's (Phase 3 Task 3) OCR fallback needs the real
+      # Tesseract binary, not just pytesseract's Python wrapper -- neither
+      # GitHub-hosted ubuntu-latest nor this repo's own minimal self-hosted
+      # Azure image (infra/azure/ci-runner/cloud-init.yaml's own packages
+      # list, itself added because that image turned out to lack tools
+      # ubuntu-latest bundles) ship it, so it's installed explicitly here
+      # rather than assumed present on whichever runner flavor is active.
+      - run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true

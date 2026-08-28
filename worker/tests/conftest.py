@@ -8,8 +8,10 @@ stack's own `postgres` service already being on the right image."""
 
 from __future__ import annotations
 
+import subprocess
 import uuid
 from collections.abc import Iterator
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -21,6 +23,10 @@ from canopica_worker.config import Settings
 # version, one place each is decided, this file reads the compose file's
 # own comment for why rather than re-deriving it.
 _PGMQ_IMAGE = "ghcr.io/pgmq/pg18-pgmq:v1.10.0"
+
+MIGRATIONS_DIR = (
+    Path(__file__).resolve().parents[2] / "api" / "src" / "main" / "resources" / "db" / "migration"
+)
 
 
 @pytest.fixture(scope="session")
@@ -42,6 +48,44 @@ def settings(_postgres_container: PostgresContainer) -> Settings:
     with psycopg.connect(dsn) as conn:
         conn.execute("create extension if not exists pgmq cascade")
     return Settings(operational_dsn=dsn)
+
+
+@pytest.fixture(scope="session")
+def migrated_settings(settings: Settings, _postgres_container: PostgresContainer) -> Settings:
+    """`settings` plus the real API Flyway migrations and the real
+    `document_intake` queue -- for the one test file
+    (test_document_intake_consumer.py) that needs `document`/
+    `program_request`/`verification`/`audit_event` to actually exist, not
+    just pgmq's own tables. Same `flyway/flyway` Docker-CLI pattern
+    data-platform/tests/conftest.py's own `migrated_dsn` fixture already
+    established for the identical reason -- reused here, run against the
+    same Testcontainers instance `settings` already provisioned pgmq onto,
+    rather than a second container."""
+    host_port = _postgres_container.get_exposed_port(5432)
+    jdbc_url = f"jdbc:postgresql://host.docker.internal:{host_port}/canopica_operational"
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--add-host=host.docker.internal:host-gateway",
+            "-v",
+            f"{MIGRATIONS_DIR}:/flyway/sql:ro",
+            "flyway/flyway:11-alpine",
+            f"-url={jdbc_url}",
+            "-user=canopica_app",
+            "-password=canopica_app",
+            "-connectRetries=30",
+            "-placeholders.app_role=canopica_app",
+            "migrate",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    with psycopg.connect(settings.operational_dsn) as conn, conn.cursor() as cur:
+        cur.execute("select pgmq.create(%s)", (settings.document_intake_queue,))
+    return settings
 
 
 @pytest.fixture
