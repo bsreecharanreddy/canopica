@@ -232,6 +232,56 @@ class DocumentControllerTest extends AbstractApiTest {
                 .isEqualTo(1);
     }
 
+    @Test
+    void confirmRejectsASatisfiedVerificationIdBelongingToADifferentCase() throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        var otherCase = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        UUID foreignVerificationId = CaseFixtures.insertVerification(jdbc, otherCase.programRequestId(), "INCOME");
+        UUID documentId = CaseFixtures.insertClassifiedDocument(
+                jdbc, ids.programRequestId(), minimalIncomeExtraction(), new BigDecimal("0.900"));
+
+        String requestBody = "{\"satisfiedVerificationIds\":[\"" + foreignVerificationId + "\"],\"incomeRecords\":[]}";
+
+        mvc.perform(post("/api/cases/documents/" + documentId + "/confirm")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden());
+
+        assertThat(jdbc.queryForObject(
+                        "select status from verification where id = ?", String.class, foreignVerificationId))
+                .as("a verification outside this document's own case must never be mutated by confirming an unrelated document")
+                .isEqualTo("OUTSTANDING");
+    }
+
+    @Test
+    void confirmRejectsAnIncomeRecordPersonIdThatIsNotThisDocumentsOwnHouseholdHead() throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        var otherCase = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        UUID documentId = CaseFixtures.insertClassifiedDocument(
+                jdbc, ids.programRequestId(), minimalIncomeExtraction(), new BigDecimal("0.900"));
+        Integer incomeCountBefore = jdbc.queryForObject(
+                "select count(*) from income_record where person_id = ?", Integer.class, otherCase.headPersonId());
+
+        String requestBody = "{"
+                + "\"satisfiedVerificationIds\":[],"
+                + "\"incomeRecords\":[{"
+                + "\"personId\":\"" + otherCase.headPersonId() + "\","
+                + "\"incomeType\":\"WAGES\",\"earned\":true,\"monthlyAmount\":1600.00,"
+                + "\"effectiveFrom\":\"2025-02-01\",\"effectiveTo\":null}]}";
+
+        mvc.perform(post("/api/cases/documents/" + documentId + "/confirm")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden());
+
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from income_record where person_id = ?", Integer.class, otherCase.headPersonId()))
+                .as("an income record must never be posted onto a person outside this document's own household")
+                .isEqualTo(incomeCountBefore);
+    }
+
     private String minimalIncomeExtraction() {
         return "{\"document_type\":\"INCOME_REPORT\",\"fields\":"
                 + "[{\"name\":\"monthly_amount\",\"value\":\"1600.00\",\"confidence\":0.9}],"

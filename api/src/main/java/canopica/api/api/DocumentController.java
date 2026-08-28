@@ -149,7 +149,8 @@ class DocumentController {
                 .toList();
 
         Document confirmed = documentService.confirm(
-                documentId, request.satisfiedVerificationIds(), incomeRecords, authentication.getName());
+                documentId, request.satisfiedVerificationIds(), incomeRecords, household.getHeadPersonId(),
+                authentication.getName());
         return DocumentResponse.from(confirmed);
     }
 

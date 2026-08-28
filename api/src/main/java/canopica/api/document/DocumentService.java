@@ -3,6 +3,7 @@ package canopica.api.document;
 import canopica.api.audit.AuditEventType;
 import canopica.api.audit.AuditService;
 import canopica.api.domain.IncomeRecord;
+import canopica.api.domain.Verification;
 import canopica.api.pgmq.PgmqService;
 import canopica.api.repo.DocumentRepository;
 import canopica.api.repo.IncomeRecordRepository;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -105,20 +107,38 @@ public class DocumentService {
      * establishes for appending a REQUESTED/RECEIVED pair of the same event type -- here, a CLASSIFIED/
      * CONFIRMED pair of {@link AuditEventType#DOCUMENT_CLASSIFIED}, distinguished by the payload's own
      * {@code stage}, not a new enum value.
+     *
+     * <p>{@code householdHeadPersonId} and every {@code satisfiedVerificationIds} entry are re-checked
+     * against this document's own case here, not just trusted from the request body: the controller's own
+     * {@link canopica.api.caseload.CaseAssignmentService#checkCaseloadAccess} only proves the caller may act
+     * on <em>this document's</em> case, not that any UUID named inside the request body belongs to it too.
+     * Without this check a worker legitimately confirming a document on their own caseload could name a
+     * {@code satisfiedVerificationIds} entry or income {@code personId} from a case outside their caseload
+     * entirely, and this method would silently mutate it -- a cross-case IDOR, not just a validation gap.
      */
     @Transactional
     public Document confirm(UUID documentId, List<UUID> satisfiedVerificationIds,
-            List<ConfirmedIncome> incomeRecordsToPost, String actorId) {
+            List<ConfirmedIncome> incomeRecordsToPost, UUID householdHeadPersonId, String actorId) {
         Document document = documents.findById(documentId)
                 .orElseThrow(() -> new NoSuchElementException("no document with id " + documentId));
 
         for (ConfirmedIncome income : incomeRecordsToPost) {
+            if (!income.personId().equals(householdHeadPersonId)) {
+                throw new AccessDeniedException(
+                        "person " + income.personId() + " is not the head of this document's own household");
+            }
             incomeRecords.save(new IncomeRecord(UUID.randomUUID(), income.personId(), income.incomeType(),
                     income.earned(), income.monthlyAmount(), income.effectiveFrom(), income.effectiveTo()));
         }
 
         LocalDate today = LocalDate.now(clock);
         for (UUID verificationId : satisfiedVerificationIds) {
+            Verification verification = verifications.findById(verificationId)
+                    .orElseThrow(() -> new NoSuchElementException("no verification with id " + verificationId));
+            if (!verification.getProgramRequestId().equals(document.getProgramRequestId())) {
+                throw new AccessDeniedException(
+                        "verification " + verificationId + " does not belong to this document's own case");
+            }
             verifications.updateStatus(verificationId, "RECEIVED", today);
             Map<String, Object> verificationPayload = new LinkedHashMap<>();
             verificationPayload.put("stage", "RECEIVED");
