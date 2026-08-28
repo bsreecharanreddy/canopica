@@ -132,6 +132,60 @@ class TestTransientUpstreamOverloadIsRetried:
         assert calls == 1
 
 
+class TestATransportLevelFailureIsRetried:
+    """A fourth, structurally different failure shape from the three
+    above: `httpx.post()` itself raising, never returning a `response` at
+    all. Every branch above this point in `generate()` only ever runs
+    once a response exists, so a connection dropped mid-request skipped
+    `_RETRYABLE_ERROR_CODES` entirely.
+
+    Found live (2026-08-27) during local verification of the eval-gate
+    baseline fix: all 12 questions had already answered and 8 had already
+    judged cleanly, then `httpx.RemoteProtocolError: peer closed
+    connection without sending complete message body (incomplete chunked
+    read)` crashed the run outright on the next judge call."""
+
+    def test_a_transport_error_is_retried_and_a_later_success_is_returned(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = 0
+
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            if calls < 3:
+                raise httpx.RemoteProtocolError("peer closed connection without complete body")
+            return _response(url, {"choices": [{"message": {"content": "grounded verdict"}}]})
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        result = OpenRouterJudgeModel(_SETTINGS).generate("grade this")
+
+        assert result == "grounded verdict"
+        assert calls == 3
+
+    def test_a_persistent_transport_error_exhausts_retries_and_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = 0
+
+        def fake_post(
+            url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: float
+        ) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            raise httpx.ConnectTimeout("connection timed out")
+
+        monkeypatch.setattr(httpx, "post", fake_post)
+
+        with pytest.raises(RuntimeError, match="connection timed out"):
+            OpenRouterJudgeModel(_SETTINGS).generate("grade this")
+
+        assert calls == judge_model._MAX_ATTEMPTS
+
+
 class TestRealHttpStatusErrorsAreRetriedToo:
     """A real, live gap found 2026-08-25: OpenRouter doesn't always wrap a
     provider error in a 200 response -- a request its own edge rejects can

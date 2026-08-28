@@ -105,7 +105,12 @@ class TestCheckAgainstBaseline:
         baseline_path.write_text(self._BASELINE_JSON)
         monkeypatch.setattr(run_eval, "_BASELINE_PATH", baseline_path)
 
-        results = {"faithfulness": 0.80, "contextual_precision": 0.9, "contextual_recall": 0.9}
+        # 0.80 -> 0.70: with _REGRESSION_MARGIN widened 0.05 -> 0.10
+        # (2026-08-27, real multi-run evidence -- see run_eval.py's own
+        # comment), 0.80 against a 0.9 baseline sits exactly on the new
+        # margin's floor and no longer counts as a regression. 0.70 is
+        # unambiguously past it either way.
+        results = {"faithfulness": 0.70, "contextual_precision": 0.9, "contextual_recall": 0.9}
 
         assert run_eval.check_against_baseline(results) is False
 

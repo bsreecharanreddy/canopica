@@ -185,13 +185,35 @@ class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
                 },
             }
         for attempt in range(_MAX_ATTEMPTS):
-            response = httpx.post(
-                _OPENROUTER_CHAT_COMPLETIONS_URL,
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json=body,
-                timeout=self._timeout_seconds,
-            )
             is_last_attempt = attempt == _MAX_ATTEMPTS - 1
+            # Hit for real (2026-08-27), the retry logic below this point
+            # had never been exercised for: `httpx.post()` itself raising
+            # (`httpx.RemoteProtocolError: peer closed connection without
+            # sending complete message body`), not a response this adapter
+            # ever got to inspect. Every branch below this line only ever
+            # runs once `response` exists -- a status code, or a 200 with
+            # an error body -- so a connection dropped mid-request skipped
+            # `_RETRYABLE_ERROR_CODES` entirely and crashed the run outright
+            # after all 12 questions had already answered and 8 had already
+            # judged cleanly. Same "try again shortly" class as the 502/
+            # 503/504 status codes already handled -- `httpx.TransportError`
+            # is the base class for exactly this family (connection resets,
+            # timeouts, incomplete reads), so it gets the same bounded
+            # retry, not a special case.
+            try:
+                response = httpx.post(
+                    _OPENROUTER_CHAT_COMPLETIONS_URL,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json=body,
+                    timeout=self._timeout_seconds,
+                )
+            except httpx.TransportError as exc:
+                if is_last_attempt:
+                    raise RuntimeError(
+                        f"OpenRouter judge call failed after {_MAX_ATTEMPTS} attempts: {exc!r}"
+                    ) from exc
+                time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
+                continue
             # OpenRouter represents an upstream provider error two different
             # ways, confirmed live on two separate occasions -- a 200 with an
             # `error` key in the body (2026-08-24's 502 "Service temporarily
