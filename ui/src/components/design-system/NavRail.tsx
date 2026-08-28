@@ -7,6 +7,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  Mail,
   MessageCircleQuestion,
   type LucideIcon,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ const LINKS_FOR: Record<Role, { to: string; label: string; icon: LucideIcon }[]>
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/cases', label: 'Cases', icon: Briefcase },
     { to: '/documents/review', label: 'Document review', icon: FileSearch },
+    { to: '/notices/review', label: 'Notice review', icon: Mail },
   ],
   ADMIN: [{ to: '/rule-authoring', label: 'Rule authoring', icon: FileCog }],
 };

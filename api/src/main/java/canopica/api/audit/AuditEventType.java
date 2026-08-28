@@ -31,5 +31,18 @@ public enum AuditEventType {
      * AuditService} -- same reasoning as {@link #DOCUMENT_CLASSIFIED}'s own doc comment: {@link
      * JdbcAuditService#findBySubject} deserializes {@code event_type} back into this enum on every read.
      */
-    NOTICE_DRAFTED
+    NOTICE_DRAFTED,
+    /**
+     * A worker approved an AI-drafted notice and its content was rendered to PDF (Phase 3 Task 6). Appended
+     * by {@link canopica.api.notice.NoticeService#approve} in the same transaction as {@link #NOTICE_SENT},
+     * immediately before it -- a notice never sits in an APPROVED-but-not-yet-SENT state here (design doc
+     * §2.4's "dispatch" is generated, never actually delivered, per the tradeoffs doc's unrevisited §4.4), so
+     * the two events always appear together, in this order.
+     */
+    NOTICE_APPROVED,
+    /**
+     * The same approval action recorded as "sent" (Phase 3 Task 6) -- see {@link #NOTICE_APPROVED}'s own doc
+     * comment for why these two always appear as a pair.
+     */
+    NOTICE_SENT
 }

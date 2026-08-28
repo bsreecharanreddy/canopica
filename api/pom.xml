@@ -125,6 +125,24 @@
       <version>2.46.7</version>
     </dependency>
 
+    <!-- PDF rendering for approved notices (Phase 3 Task 6, design doc
+         section 2.4): the exact package the Task 1 dependency table
+         deferred to "pin at implementation time," same convention
+         Task 3 already followed for OCR. Apache PDFBox, not an HTML/CSS
+         renderer (Flying Saucer/OpenHTMLtoPDF): a notice's content is
+         already plain, fully substituted text (fill_template's own
+         output), so a direct content-stream write is simpler and has
+         fewer moving parts than a layout engine this content shape does
+         not need. Apache-2.0, actively maintained by the Apache
+         Software Foundation. Version verified live against Maven
+         Central's own search API (2026-08-28), the latest published
+         3.x release, not assumed from memory. -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.7</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

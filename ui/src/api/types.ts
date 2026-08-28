@@ -237,3 +237,34 @@ export type ConfirmDocumentRequest = {
   satisfiedVerificationIds: string[];
   incomeRecords: ConfirmedIncomeEntry[];
 };
+
+// Mirrors canopica_ai.correspondence.schema.ValidationResult (Task 5's own deterministic pre-check output),
+// passed through as-is inside NoticeReviewItem -- snake_case-free already, since it's Pydantic's own
+// camelCase-compatible field names, not a nested JSON blob like DocumentExtraction.
+export type ValidationResult = {
+  passed: boolean;
+  errors: string[];
+};
+
+// Mirrors canopica.api.api.dto.NoticeReviewItemResponse -- one review-queue row (Task 6).
+export type NoticeReviewItem = {
+  noticeId: string;
+  programRequestId: string;
+  noticeType: 'APPROVAL' | 'DENIAL' | 'PENDING_VERIFICATION';
+  status: string;
+  content: string;
+  validationResult: ValidationResult;
+  generationModel: string;
+  promptVersion: string;
+  createdAt: string;
+};
+
+// Mirrors canopica.api.api.dto.NoticeResponse.
+export type NoticeResponse = {
+  id: string;
+  programRequestId: string;
+  noticeType: string;
+  status: string;
+  approvedAt: string | null;
+  sentAt: string | null;
+};

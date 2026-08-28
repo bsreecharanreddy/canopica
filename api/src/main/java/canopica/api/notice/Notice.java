@@ -10,10 +10,12 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * An AI-drafted eligibility notice awaiting review (Phase 3 design doc §2.4/§2.6). Every row here is written
+ * An AI-drafted eligibility notice awaiting review (Phase 3 design doc §2.4/§2.6). The row itself is written
  * by the Python worker's {@code correspondence_consumer.py} via a raw insert, the same split {@link
- * canopica.api.document.Document}'s own {@code extraction} fields already establish -- this entity exists so
- * Java can read a notice back (the case-facing review UI, Task 6), not because Java ever drafts one itself.
+ * canopica.api.document.Document}'s own {@code extraction} fields already establish -- Java never drafts a
+ * notice. Task 6 adds the one thing Java does own: the human review decision, exposed as two intent-named
+ * transitions rather than setters, the same reasoning {@code PolicyParameterProposal}'s own doc comment
+ * gives -- no code path can mark a notice reviewed twice or set a status with no reviewer attribution.
  */
 @Entity
 @Table(name = "notice")
@@ -62,11 +64,46 @@ public class Notice {
     @Column(name = "sent_at")
     private Instant sentAt;
 
+    @Column(name = "rejected_by")
+    private String rejectedBy;
+
+    @Column(name = "rejected_at")
+    private Instant rejectedAt;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
     protected Notice() {
         // JPA
+    }
+
+    /**
+     * Approving a draft dispatches it in the same step -- design doc §2.4's "dispatch" is generated, never
+     * actually delivered (tradeoffs doc §4.4's unrevisited limitation: no records management for the sent
+     * artifact), so this project has no separate later "send" action for a row to wait in APPROVED for.
+     * {@code status} goes straight to {@code SENT}, satisfying V20's own {@code notice_approved_together}
+     * check the same way a two-step flow would.
+     */
+    public void approveAndSend(String approvedBy, Instant now) {
+        requireDraft();
+        this.status = "SENT";
+        this.approvedBy = approvedBy;
+        this.approvedAt = now;
+        this.sentAt = now;
+    }
+
+    public void reject(String rejectedBy, Instant now) {
+        requireDraft();
+        this.status = "REJECTED";
+        this.rejectedBy = rejectedBy;
+        this.rejectedAt = now;
+    }
+
+    /** A second reviewer must not be able to re-decide an already-reviewed notice. */
+    private void requireDraft() {
+        if (!"DRAFT".equals(status)) {
+            throw new IllegalStateException("notice " + id + " was already reviewed (" + status + ")");
+        }
     }
 
     public UUID getId() {
@@ -123,6 +160,14 @@ public class Notice {
 
     public Instant getSentAt() {
         return sentAt;
+    }
+
+    public String getRejectedBy() {
+        return rejectedBy;
+    }
+
+    public Instant getRejectedAt() {
+        return rejectedAt;
     }
 
     public Instant getCreatedAt() {

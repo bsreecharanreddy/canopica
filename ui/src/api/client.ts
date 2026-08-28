@@ -10,6 +10,8 @@ import type {
   DocumentReviewItem,
   IntakeRequest,
   IntakeResponse,
+  NoticeResponse,
+  NoticeReviewItem,
   ParameterProposal,
   ProposalStatus,
   PublicationDetails,
@@ -120,6 +122,18 @@ export function confirmDocument(
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export function getNoticeReviewQueue(): Promise<NoticeReviewItem[]> {
+  return request<NoticeReviewItem[]>('/api/cases/notices/review-queue');
+}
+
+export function approveNotice(noticeId: string): Promise<NoticeResponse> {
+  return request<NoticeResponse>(`/api/cases/notices/${noticeId}/approve`, { method: 'POST' });
+}
+
+export function rejectNotice(noticeId: string): Promise<NoticeResponse> {
+  return request<NoticeResponse>(`/api/cases/notices/${noticeId}/reject`, { method: 'POST' });
 }
 
 export function askPolicyQuestion(question: string): Promise<QaAnswer> {
