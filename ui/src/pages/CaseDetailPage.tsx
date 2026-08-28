@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
-import { getCase, runDetermination } from '../api/client';
-import type { CaseDetailResponse } from '../api/types';
+import { getAuditTrail, getCase, runDetermination } from '../api/client';
+import type { AuditEventResponse, CaseDetailResponse } from '../api/types';
 import DeterminationPanel from '../components/DeterminationPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AuditTrail } from '@/components/design-system/AuditTrail';
 import { FormField } from '@/components/design-system/FormField';
 import { RecordSheet } from '@/components/design-system/RecordSheet';
 import { useBreadcrumb } from '@/components/design-system/PageChrome';
@@ -28,6 +29,9 @@ export default function CaseDetailPage() {
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
+  const [auditEvents, setAuditEvents] = useState<AuditEventResponse[]>([]);
+  const [auditError, setAuditError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!programRequestId) {
       return;
@@ -46,6 +50,27 @@ export default function CaseDetailPage() {
       .catch(() => {
         if (!cancelled) {
           setLoadError('Could not load this case.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [programRequestId]);
+
+  useEffect(() => {
+    if (!programRequestId) {
+      return;
+    }
+    let cancelled = false;
+    getAuditTrail(programRequestId)
+      .then((result) => {
+        if (!cancelled) {
+          setAuditEvents(result);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAuditError('Could not load the audit trail for this case.');
         }
       });
     return () => {
@@ -77,6 +102,11 @@ export default function CaseDetailPage() {
       setCaseDetail((current) =>
         current ? { ...current, determinations: [determination, ...current.determinations] } : current,
       );
+      // A new determination writes its own DETERMINATION_MADE audit event -- refetch rather than
+      // fabricate one client-side, since occurredAt/actorId are server-assigned facts.
+      getAuditTrail(programRequestId)
+        .then(setAuditEvents)
+        .catch(() => setAuditError('Could not load the audit trail for this case.'));
     } catch {
       setRunError('Could not run a determination for this case.');
     } finally {
@@ -149,6 +179,18 @@ export default function CaseDetailPage() {
             ))}
           </div>
         )}
+      </div>
+
+      <div>
+        <h3 className="font-display text-lg">Audit trail</h3>
+        {auditError && (
+          <p role="alert" className="mt-2 text-sm text-destructive">
+            {auditError}
+          </p>
+        )}
+        <div className="mt-3">
+          <AuditTrail events={auditEvents} />
+        </div>
       </div>
     </div>
   );

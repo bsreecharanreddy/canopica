@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import * as client from '../api/client';
-import type { CaseDetailResponse, DeterminationResponse } from '../api/types';
+import type { AuditEventResponse, CaseDetailResponse, DeterminationResponse } from '../api/types';
 import CaseDetailPage from './CaseDetailPage';
 
 const firstDetermination: DeterminationResponse = {
@@ -41,6 +41,7 @@ function renderAtCase() {
 
 test('shows the determination outcome, benefit amount, reason code, and policy parameter version', async () => {
   vi.spyOn(client, 'getCase').mockResolvedValue(caseDetail);
+  vi.spyOn(client, 'getAuditTrail').mockResolvedValue([]);
 
   const { container } = renderAtCase();
 
@@ -53,6 +54,7 @@ test('shows the determination outcome, benefit amount, reason code, and policy p
 
 test('running a determination calls the API and re-renders with the new result', async () => {
   vi.spyOn(client, 'getCase').mockResolvedValue(caseDetail);
+  vi.spyOn(client, 'getAuditTrail').mockResolvedValue([]);
   const run = vi.spyOn(client, 'runDetermination').mockResolvedValue({
     ...firstDetermination,
     determinationId: 'det-2',
@@ -85,6 +87,7 @@ test('running a determination for a benefit month that already has one shows a v
     determinations: [{ ...firstDetermination, benefitMonth: defaultBenefitMonth }],
   };
   vi.spyOn(client, 'getCase').mockResolvedValue(caseWithCurrentMonthDetermination);
+  vi.spyOn(client, 'getAuditTrail').mockResolvedValue([]);
   // Nothing in this file resets mocks between tests, so a fresh spy on an
   // already-spied method inherits the previous test's call history -- clear it so
   // this test's own assertion isn't polluted by the prior test's real call.
@@ -102,6 +105,7 @@ test('running a determination for a benefit month that already has one shows a v
 
 test('the trace panel lists each DMN decision name and value in evaluation order once expanded', async () => {
   vi.spyOn(client, 'getCase').mockResolvedValue(caseDetail);
+  vi.spyOn(client, 'getAuditTrail').mockResolvedValue([]);
   vi.spyOn(client, 'getTrace').mockResolvedValue({
     inputSnapshot: {},
     decisionResults: { 'Gross Income Test': 'PASS', 'Net Income': '1200' },
@@ -119,5 +123,35 @@ test('the trace panel lists each DMN decision name and value in evaluation order
   expect(list).toHaveTextContent('PASS');
   expect(list).toHaveTextContent('Net Income');
   expect(list).toHaveTextContent('1200');
+  expect(await axe(container)).toHaveNoViolations();
+});
+
+test('fetches and renders the audit trail below the determination history', async () => {
+  vi.spyOn(client, 'getCase').mockResolvedValue(caseDetail);
+  const events: AuditEventResponse[] = [
+    {
+      eventType: 'APPLICATION_SUBMITTED',
+      occurredAt: '2025-06-01T09:00:00Z',
+      actorId: 'citizen-123',
+      actorType: 'HUMAN',
+      payload: {},
+    },
+    {
+      eventType: 'DETERMINATION_MADE',
+      occurredAt: '2025-06-15T12:00:00Z',
+      actorId: 'SYSTEM',
+      actorType: 'SYSTEM',
+      payload: { benefitAmount: '649.00' },
+    },
+  ];
+  vi.spyOn(client, 'getAuditTrail').mockResolvedValue(events);
+
+  const { container } = renderAtCase();
+  await screen.findByText('Eligible');
+
+  expect(await screen.findByText('APPLICATION_SUBMITTED')).toBeInTheDocument();
+  expect(screen.getByText('DETERMINATION_MADE')).toBeInTheDocument();
+  expect(screen.getByText('HUMAN')).toBeInTheDocument();
+  expect(screen.getByText('SYSTEM')).toBeInTheDocument();
   expect(await axe(container)).toHaveNoViolations();
 });

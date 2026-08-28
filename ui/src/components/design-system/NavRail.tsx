@@ -1,6 +1,14 @@
 import { NavLink, useMatch } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Briefcase, FileCog, FileText, LogOut, MessageCircleQuestion, type LucideIcon } from 'lucide-react';
+import {
+  Briefcase,
+  FileCog,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  MessageCircleQuestion,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import type { Role } from '@/auth/AuthContext';
@@ -10,7 +18,10 @@ const LINKS_FOR: Record<Role, { to: string; label: string; icon: LucideIcon }[]>
     { to: '/apply', label: 'Apply', icon: FileText },
     { to: '/ask', label: 'Ask about policy', icon: MessageCircleQuestion },
   ],
-  WORKER: [{ to: '/cases', label: 'Cases', icon: Briefcase }],
+  WORKER: [
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/cases', label: 'Cases', icon: Briefcase },
+  ],
   ADMIN: [{ to: '/rule-authoring', label: 'Rule authoring', icon: FileCog }],
 };
 

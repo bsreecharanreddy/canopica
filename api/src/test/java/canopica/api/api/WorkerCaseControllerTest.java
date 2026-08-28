@@ -2,6 +2,7 @@ package canopica.api.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +17,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -160,6 +162,133 @@ class WorkerCaseControllerTest extends AbstractApiTest {
                 "select payload->>'in_assignment' from audit_event "
                         + "where event_type = 'CASE_VIEWED' and subject_id = ?",
                 String.class, ids.programRequestId())).isEqualTo("false");
+    }
+
+    @Test
+    void auditTrailReturnsBothApplicationAndDeterminationEventsOrderedByOccurredAt() throws Exception {
+        // CaseFixtures.threePersonWorkingHousehold bypasses IntakeService entirely (raw JDBC inserts), so it
+        // never produces an APPLICATION_SUBMITTED audit event -- going through the real /api/applications
+        // endpoint here instead, the same way IntakeControllerTest does, so this test exercises the real
+        // path that actually writes that event, with a real HUMAN actor id.
+        String submitResponse = mvc.perform(post("/api/applications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + citizenToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(TestPayloads.threePersonWorkingHouseholdIntake()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID programRequestId = UUID.fromString(objectMapper.readTree(submitResponse).get("programRequestId").asText());
+
+        // Unlike CaseFixtures.threePersonWorkingHousehold, the real /api/applications flow effective-dates
+        // household composition from today (IntakeService uses the injected clock, not a fixed past date),
+        // so determining "as of" a historical date like the other tests in this file use would see a
+        // household of size 0 -- determine against today instead.
+        LocalDate today = LocalDate.now();
+        UUID determinationId = determinationService.determine(
+                programRequestId, today, today.withDayOfMonth(1), "SYSTEM");
+
+        String response = mvc.perform(get("/api/cases/" + programRequestId + "/audit")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode events = objectMapper.readTree(response);
+        assertThat(events.isArray()).isTrue();
+
+        JsonNode submitted = findByEventType(events, "APPLICATION_SUBMITTED");
+        assertThat(submitted).as("audit trail should include the application-submitted event").isNotNull();
+        assertThat(submitted.get("actorType").asText()).isEqualTo("HUMAN");
+
+        JsonNode determined = findByEventType(events, "DETERMINATION_MADE");
+        assertThat(determined).as("audit trail should include the determination-made event, keyed by its own subject id, not the program request's")
+                .isNotNull();
+        assertThat(determined.get("actorType").asText()).isEqualTo("SYSTEM");
+        assertThat(determined.get("payload").get("benefitAmount").isTextual())
+                .as("money inside the audit payload must still cross the wire as a string")
+                .isTrue();
+
+        // occurred_at is ordered ascending: submission happens before the determination it produces.
+        long submittedIndex = indexOf(events, submitted);
+        long determinedIndex = indexOf(events, determined);
+        assertThat(submittedIndex).isLessThan(determinedIndex);
+
+        // Sanity check the determination id really is the one just created, not a stray match.
+        assertThat(determinationId).isNotNull();
+    }
+
+    @Test
+    void auditTrailIsForbiddenForAWorkerNotHoldingTheActiveAssignment() throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        UUID otherWorkerId = CaseFixtures.insertWorker(jdbc, "Someone Else Too", "WORKER");
+        CaseFixtures.insertCaseAssignment(jdbc, ids.householdId(), otherWorkerId);
+
+        mvc.perform(get("/api/cases/" + ids.programRequestId() + "/audit")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void dashboardStatsCountActiveAndPendingCasesScopedToThisWorkersOwnCaseload() throws Exception {
+        // Triggers KeycloakWorkerSyncFilter's lazy provisioning of worker.sam's row before this test needs
+        // its id -- same idiom workerViewingAnUnassignedHouseholdAutoClaimsItAndIsMarkedInAssignment uses.
+        mvc.perform(get("/api/worker/cases").header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk());
+        UUID samWorkerId = provisionedWorkerId("worker.sam@canopica.local");
+
+        // The Postgres singleton this class's own doc comment describes means worker.sam may already hold
+        // other assignments from earlier tests elsewhere in the full suite (any test that opens a case as
+        // worker.sam auto-claims it) -- asserting an absolute count here would be exactly the "assumes list
+        // length" anti-pattern that same doc comment warns against. Capture a baseline first and assert the
+        // delta this test itself produces, the same way findByProgramRequestId finds its own fixture by id
+        // rather than assuming position elsewhere in this file.
+        JsonNode baseline = objectMapper.readTree(
+                mvc.perform(get("/api/cases/dashboard").header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                        .andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString());
+        int baselineActive = baseline.get("activeCases").asInt();
+        int baselinePending = baseline.get("pendingDetermination").asInt();
+
+        var mine1 = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        var mine2 = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        var notMine = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        CaseFixtures.insertCaseAssignment(jdbc, mine1.householdId(), samWorkerId);
+        CaseFixtures.insertCaseAssignment(jdbc, mine2.householdId(), samWorkerId);
+        UUID otherWorkerId = CaseFixtures.insertWorker(jdbc, "Not Sam", "WORKER");
+        CaseFixtures.insertCaseAssignment(jdbc, notMine.householdId(), otherWorkerId);
+
+        // mine1 gets a determination (no longer pending); mine2 and notMine do not.
+        determinationService.determine(
+                mine1.programRequestId(), LocalDate.of(2025, 6, 15), LocalDate.of(2025, 6, 1), "SYSTEM");
+
+        String response = mvc.perform(get("/api/cases/dashboard").header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode json = objectMapper.readTree(response);
+        assertThat(json.get("activeCases").asInt() - baselineActive)
+                .as("only mine1 and mine2 are assigned to worker.sam -- notMine belongs to a different worker")
+                .isEqualTo(2);
+        assertThat(json.get("pendingDetermination").asInt() - baselinePending)
+                .as("only mine2 has no determination yet")
+                .isEqualTo(1);
+    }
+
+    private JsonNode findByEventType(JsonNode events, String eventType) {
+        for (JsonNode node : events) {
+            if (node.get("eventType").asText().equals(eventType)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private long indexOf(JsonNode events, JsonNode target) {
+        long i = 0;
+        for (JsonNode node : events) {
+            if (node == target) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
     }
 
     private JsonNode findByProgramRequestId(String listResponse, UUID programRequestId) throws Exception {

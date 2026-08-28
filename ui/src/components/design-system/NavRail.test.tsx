@@ -14,13 +14,14 @@ test('CUSTOMER sees Apply and Ask about policy links only', () => {
   expect(screen.queryByRole('link', { name: 'Cases' })).not.toBeInTheDocument();
 });
 
-test('WORKER sees only the Cases link', () => {
+test('WORKER sees the Dashboard and Cases links', () => {
   render(
     <MemoryRouter>
       {/* oxlint-disable-next-line jsx-a11y/aria-role -- see the CUSTOMER test above */}
       <NavRail role="WORKER" onSignOut={() => {}} />
     </MemoryRouter>,
   );
+  expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Cases' })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'Apply' })).not.toBeInTheDocument();
 });

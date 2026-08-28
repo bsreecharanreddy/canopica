@@ -1,5 +1,7 @@
 import type {
+  AuditEventResponse,
   CaseDetailResponse,
+  CaseloadStatsResponse,
   CaseSummaryResponse,
   DetermineRequest,
   DeterminationResponse,
@@ -93,6 +95,14 @@ export function runDetermination(
 
 export function getTrace(determinationId: string): Promise<TraceResponse> {
   return request<TraceResponse>(`/api/determinations/${determinationId}/trace`);
+}
+
+export function getAuditTrail(programRequestId: string): Promise<AuditEventResponse[]> {
+  return request<AuditEventResponse[]>(`/api/cases/${programRequestId}/audit`);
+}
+
+export function getCaseloadStats(): Promise<CaseloadStatsResponse> {
+  return request<CaseloadStatsResponse>('/api/cases/dashboard');
 }
 
 export function askPolicyQuestion(question: string): Promise<QaAnswer> {

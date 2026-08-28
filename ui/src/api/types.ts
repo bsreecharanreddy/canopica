@@ -114,6 +114,22 @@ export type TraceResponse = {
   policyParameterVersion: string;
 };
 
+// Mirrors canopica.api.api.dto.AuditEventResponse -- a case's audit-trail events, oldest first.
+export type AuditEventResponse = {
+  eventType: string;
+  occurredAt: string;
+  actorId: string;
+  actorType: 'SYSTEM' | 'HUMAN';
+  payload: Record<string, unknown>;
+};
+
+// Mirrors canopica.api.api.dto.CaseloadStatsResponse -- the Caseworker Dashboard's real caseload counts.
+export type CaseloadStatsResponse = {
+  activeCases: number;
+  pendingDetermination: number;
+  recentEvents: AuditEventResponse[]; // newest-first
+};
+
 export type ApiFieldError = {
   field?: string;
   message: string;
