@@ -24,5 +24,12 @@ public enum AuditEventType {
      * the case audit-trail endpoint would throw on an unrecognized value the first time a document was
      * actually classified.
      */
-    DOCUMENT_CLASSIFIED
+    DOCUMENT_CLASSIFIED,
+    /**
+     * A determination's own correspondence was drafted (Phase 3 Task 5). Written by the Python worker's
+     * {@code correspondence_consumer.py} via a raw {@code insert}, never by this module's own {@link
+     * AuditService} -- same reasoning as {@link #DOCUMENT_CLASSIFIED}'s own doc comment: {@link
+     * JdbcAuditService#findBySubject} deserializes {@code event_type} back into this enum on every read.
+     */
+    NOTICE_DRAFTED
 }

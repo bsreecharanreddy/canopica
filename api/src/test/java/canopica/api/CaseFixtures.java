@@ -111,6 +111,24 @@ public final class CaseFixtures {
         return id;
     }
 
+    /**
+     * A {@code DRAFT} {@code notice} row -- the shape Task 5's real worker leaves behind, inserted
+     * directly the same reason {@link #insertClassifiedDocument} bypasses the real Ollama call.
+     * Requires a real {@code determinationId} (the table's own FK), unlike {@code document}'s
+     * fixture -- callers get one from a real {@code DeterminationService#determine} call.
+     */
+    public static UUID insertNotice(
+            JdbcTemplate jdbc, UUID programRequestId, UUID determinationId, String noticeType) {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "insert into notice (id, program_request_id, determination_id, notice_type, status, "
+                        + "content, template_version, validation_result, generation_model, prompt_version) "
+                        + "values (?, ?, ?, ?, 'DRAFT', 'test notice content', 'v1', '{\"passed\":true,\"errors\":[]}', "
+                        + "'llama3.2:3b', 'v1')",
+                id, programRequestId, determinationId, noticeType);
+        return id;
+    }
+
     private static UUID insertPerson(JdbcTemplate jdbc, String firstName, String lastName, LocalDate dob) {
         UUID id = UUID.randomUUID();
         jdbc.update(

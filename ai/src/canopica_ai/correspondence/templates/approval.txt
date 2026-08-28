@@ -1,0 +1,11 @@
+Dear {household_head_name},
+
+Your SNAP application has been reviewed. Based on the information in your case, your household has been found ELIGIBLE for SNAP benefits.
+
+Benefit month: {benefit_month}
+Monthly benefit amount: {benefit_amount}
+Decision date: {decided_at}
+
+{explanation}
+
+If you have questions about this notice, contact your caseworker.

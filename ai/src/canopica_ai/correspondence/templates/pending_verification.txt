@@ -1,0 +1,9 @@
+Dear {household_head_name},
+
+Your SNAP application has been reviewed. Based on the information available so far, your household's preliminary benefit amount for {benefit_month} is {benefit_amount}. This amount is not final -- your case still has outstanding verification items that must be submitted before it can be confirmed.
+
+Decision date: {decided_at}
+
+{explanation}
+
+Please submit the outstanding documentation to your caseworker as soon as possible.

@@ -52,12 +52,12 @@ def settings(_postgres_container: PostgresContainer) -> Settings:
 
 @pytest.fixture(scope="session")
 def migrated_settings(settings: Settings, _postgres_container: PostgresContainer) -> Settings:
-    """`settings` plus the real API Flyway migrations and the real
-    `document_intake` queue -- for the one test file
-    (test_document_intake_consumer.py) that needs `document`/
-    `program_request`/`verification`/`audit_event` to actually exist, not
-    just pgmq's own tables. Same `flyway/flyway` Docker-CLI pattern
-    data-platform/tests/conftest.py's own `migrated_dsn` fixture already
+    """`settings` plus the real API Flyway migrations and both real pgmq
+    queues -- for test files (test_document_intake_consumer.py, test_
+    correspondence_consumer.py) that need `document`/`program_request`/
+    `verification`/`audit_event`/`notice` to actually exist, not just
+    pgmq's own tables. Same `flyway/flyway` Docker-CLI pattern data-
+    platform/tests/conftest.py's own `migrated_dsn` fixture already
     established for the identical reason -- reused here, run against the
     same Testcontainers instance `settings` already provisioned pgmq onto,
     rather than a second container."""
@@ -85,6 +85,7 @@ def migrated_settings(settings: Settings, _postgres_container: PostgresContainer
     )
     with psycopg.connect(settings.operational_dsn) as conn, conn.cursor() as cur:
         cur.execute("select pgmq.create(%s)", (settings.document_intake_queue,))
+        cur.execute("select pgmq.create(%s)", (settings.correspondence_dispatch_queue,))
     return settings
 
 

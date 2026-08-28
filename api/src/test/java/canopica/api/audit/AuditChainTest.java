@@ -59,8 +59,14 @@ class AuditChainTest extends AbstractPostgresTest {
         UUID determinationId = determinationService.determine(
                 ids.programRequestId(), LocalDate.of(2025, 6, 15), LocalDate.of(2025, 6, 1), "SYSTEM");
 
+        // Scoped to this determination's own subject_id, not a bare event_type count -- POSTGRES
+        // (AbstractPostgresTest) is a JVM-static singleton shared and never truncated across every
+        // test method/class in this fork, so an unscoped count is really "how many determinations
+        // has the whole suite made before this test happened to run," not this test's own claim.
         List<Map<String, Object>> events = jdbc.queryForList(
-                "select event_type, subject_id, payload from audit_event where event_type = 'DETERMINATION_MADE'");
+                "select event_type, subject_id, payload from audit_event "
+                        + "where event_type = 'DETERMINATION_MADE' and subject_id = ?",
+                determinationId);
         assertThat(events).hasSize(1);
         assertThat(events.get(0).get("subject_id")).isEqualTo(determinationId);
         assertThat(events.get(0).get("payload").toString()).contains("policyParameterVersion");

@@ -67,4 +67,21 @@ class DeterminationServiceTest extends AbstractPostgresTest {
         assertThat((BigDecimal) row.get("benefit_amount")).isEqualByComparingTo("0");
         assertThat(row.get("reason_code")).isEqualTo("GROSS_INCOME_EXCEEDS_LIMIT");
     }
+
+    @Test
+    void enqueuesCorrespondenceDispatchInTheSameTransactionAsTheCommit() {
+        // Design doc §2.2's outbox guarantee (Phase 3 Task 5): the enqueue shares this method's own
+        // @Transactional connection, so it can only ever be present because the determination itself
+        // committed -- proven here by checking the real pgmq queue table, not a mocked PgmqService.
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+
+        UUID determinationId = service.determine(
+                ids.programRequestId(), LocalDate.of(2025, 6, 15), LocalDate.of(2025, 6, 1), "SYSTEM");
+
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from pgmq.q_correspondence_dispatch "
+                                + "where message->>'determination_id' = ?",
+                        Integer.class, determinationId.toString()))
+                .isEqualTo(1);
+    }
 }

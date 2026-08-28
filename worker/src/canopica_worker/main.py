@@ -14,7 +14,7 @@ import logging
 import time
 from collections.abc import Callable
 
-from canopica_worker import document_intake_consumer
+from canopica_worker import correspondence_consumer, document_intake_consumer
 from canopica_worker.config import Settings
 from canopica_worker.queue import Message, archive, delete, read
 
@@ -75,10 +75,6 @@ def run_forever(handlers: dict[str, Handler], *, settings: Settings | None = Non
             time.sleep(settings.poll_interval_seconds)
 
 
-def _log_and_ack(message: Message) -> None:
-    logger.info("received message %s: %s", message.msg_id, message.message)
-
-
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = Settings()
@@ -87,7 +83,9 @@ def main() -> None:
             settings.document_intake_queue: document_intake_consumer.build_handler(
                 settings=settings
             ),
-            settings.correspondence_dispatch_queue: _log_and_ack,
+            settings.correspondence_dispatch_queue: correspondence_consumer.build_handler(
+                settings=settings
+            ),
         },
         settings=settings,
     )

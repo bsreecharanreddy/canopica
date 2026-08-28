@@ -1,0 +1,10 @@
+Dear {household_head_name},
+
+Your SNAP application has been reviewed. Based on the information in your case, your household has been found NOT ELIGIBLE for SNAP benefits at this time.
+
+Benefit month: {benefit_month}
+Decision date: {decided_at}
+
+{explanation}
+
+If you disagree with this decision, contact your caseworker to discuss your options.

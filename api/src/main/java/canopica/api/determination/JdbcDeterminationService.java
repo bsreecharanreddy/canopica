@@ -6,6 +6,7 @@ import canopica.api.audit.AuditEventType;
 import canopica.api.audit.AuditService;
 import canopica.api.domain.DeterminationTrace;
 import canopica.api.domain.EligibilityDetermination;
+import canopica.api.pgmq.PgmqService;
 import canopica.api.policy.PolicyParameterResolver;
 import canopica.api.repo.DeterminationTraceRepository;
 import canopica.api.repo.EligibilityDeterminationRepository;
@@ -40,12 +41,13 @@ class JdbcDeterminationService implements DeterminationService {
     private final DeterminationTraceRepository traces;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final PgmqService pgmq;
 
     JdbcDeterminationService(JdbcTemplate jdbc, FactAssembler factAssembler,
                               PolicyParameterResolver policyParameterResolver, SnapDmnEvaluator evaluator,
                               EligibilityDeterminationRepository determinations,
                               DeterminationTraceRepository traces, ObjectMapper objectMapper,
-                              AuditService auditService) {
+                              AuditService auditService, PgmqService pgmq) {
         this.jdbc = jdbc;
         this.factAssembler = factAssembler;
         this.policyParameterResolver = policyParameterResolver;
@@ -54,6 +56,7 @@ class JdbcDeterminationService implements DeterminationService {
         this.traces = traces;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
+        this.pgmq = pgmq;
     }
 
     @Override
@@ -84,6 +87,14 @@ class JdbcDeterminationService implements DeterminationService {
         auditPayload.put("asOfDate", asOf.toString());
         auditService.append(AuditEventType.DETERMINATION_MADE, decidedBy,
                 "eligibility_determination", determinationId, auditPayload);
+
+        // Design doc §2.2's outbox guarantee, same pattern PgmqService's own doc comment already
+        // establishes for DocumentService's document_intake enqueue: sharing this method's own
+        // @Transactional connection means drafting correspondence can never fire for a determination
+        // that ends up rolled back, and never silently fails to fire for one that commits. Drafting
+        // itself never holds up this binding decision (constraint 17) -- it's a fire-and-forget
+        // enqueue, not a call into ai/ from here.
+        pgmq.send("correspondence_dispatch", Map.of("determination_id", determinationId.toString()));
 
         return determinationId;
     }
