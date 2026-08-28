@@ -93,7 +93,17 @@ _OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completion
 # window (3+6+9+12s between attempts) before giving up -- still bounded,
 # not a retry-forever loop, but sized to the sustained-overload duration
 # actually observed rather than a guess.
-_RETRYABLE_ERROR_CODES = frozenset({404, 429, 502, 503})
+#
+# 504 added 2026-08-27, hit for real during a local repro of the
+# `faithfulness`/`contextual_precision` regression below: all 12
+# questions answered and judged past the retrieval/generation stage, then
+# `{'message': 'Provider timed out after 5395ms', 'code': 504}` on a
+# `FaithfulnessMetric` judge call crashed the run outright. Same "try
+# again shortly" class as 502/503 -- a gateway timeout waiting on an
+# upstream provider, not a request this project sent wrong -- and was
+# excluded only because it hadn't been observed yet, not because it's a
+# different kind of failure.
+_RETRYABLE_ERROR_CODES = frozenset({404, 429, 502, 503, 504})
 _MAX_ATTEMPTS = 5
 _RETRY_BACKOFF_SECONDS = 3.0
 _HTTP_OK = 200
