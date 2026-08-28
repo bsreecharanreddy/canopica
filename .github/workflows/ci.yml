@@ -320,6 +320,24 @@ jobs:
       - run: uv run mypy src tests
       - run: uv run pytest -m "not e2e"
 
+  worker:
+    name: Python (async worker)
+    runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 10
+    needs: [start-runner]
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run mypy src tests
+      - run: uv run pytest
+
   audit-chain:
     name: Audit chain verifier (integration)
     runs-on: ${{ fromJSON(vars.CI_LIGHT_RUNNER || '"ubuntu-latest"') }}

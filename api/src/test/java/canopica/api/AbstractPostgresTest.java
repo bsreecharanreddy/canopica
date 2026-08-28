@@ -21,8 +21,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 public abstract class AbstractPostgresTest {
 
+    // 16-alpine -> 18-alpine (Phase 3 Task 1): infra/docker-compose.yml's own
+    // postgres service moved to a pgmq-bundled Postgres 18 image so the
+    // worker's pgmq queues can exist -- this repo's API never calls pgmq
+    // itself, so this container doesn't need that extension, but staying on
+    // 18 keeps every Postgres surface in the stack on the same major
+    // version rather than silently diverging from what local dev/CI's own
+    // compose-based Postgres now runs.
     static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:16-alpine")
+            new PostgreSQLContainer<>("postgres:18-alpine")
                     .withDatabaseName("canopica_operational")
                     .withUsername("canopica_app")
                     .withPassword("canopica_app");

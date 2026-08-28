@@ -53,6 +53,27 @@ by this system (matches the tradeoffs doc's already-stated "documents are
 stored, not *managed* — no retention schedule, no legal hold, no records
 disposition" limitation; not revisited here).
 
+**Addendum, found at Task 1 implementation time, not the original
+brainstorm**: MinIO's community edition was archived by its own
+maintainers in 2026 (maintenance mode Dec 2025 → "no longer maintained"
+Feb 2026 → GitHub repo archived; the company moved to a paid product,
+AIStor, instead). The server code was never relicensed — still AGPLv3,
+still free to run — so this doesn't change the "$0, self-hosted" cost
+posture the tradeoffs doc's Object storage row already commits to, only
+its maintenance status. Weighed against a maintained community fork
+(e.g. `pgsty/minio`) and a different product entirely (SeaweedFS, Garage):
+kept MinIO, pinned to its last *actually published* Docker Hub release
+(`RELEASE.2025-09-07T16-13-09Z`, verified live against Docker Hub's own
+tag API 2026-08-28 -- the next release, `RELEASE.2025-10-15T17-29-55Z`,
+was announced but never pushed as a container image at all; a core
+maintainer stated post-announcement that MinIO now ships source only),
+because this is local/CI-only infrastructure never exposed to the internet — the same risk posture this
+project already accepts for local Postgres/Keycloak (no TLS, dev-mode
+credentials) — and it avoids taking on either a newer, less-proven fork
+or a larger design revision this late. Stated explicitly rather than
+silently pinning a dead project's last tag; revisit if this project ever
+needs object storage on a surface that's actually internet-facing.
+
 ### 2.2 Async worker & pgmq
 
 **pgmq** was already decided as the queue mechanism (roadmap §3.3,

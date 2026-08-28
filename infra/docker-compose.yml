@@ -48,14 +48,33 @@ x-airflow-common: &airflow-common
       condition: service_healthy
 
 services:
+  # postgres:16-alpine -> the pgmq org's own pg18-pgmq image (Phase 3
+  # design doc §2.2): pgmq needs its extension compiled in, and this is
+  # the extension's own maintained image rather than a hand-rolled
+  # Dockerfile layer -- same "use the maintained thing" posture this repo
+  # already took with postgres:16-alpine itself. Real side effect worth
+  # stating plainly: this also bumps Postgres 16 -> 18. Accepted because
+  # every schema/migration/driver this repo uses (Flyway, JDBC, psycopg)
+  # targets standard SQL features already compatible with 18, and this
+  # database has no persistent production data to migrate -- local dev
+  # volumes and CI both start fresh.
   postgres:
-    image: postgres:16-alpine
+    image: ghcr.io/pgmq/pg18-pgmq:v1.10.0
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
-      - postgres-data:/var/lib/postgresql/data
+      # /var/lib/postgresql/data -> /var/lib/postgresql (2026-08-28, hit
+      # for real): the 18+ docker-library images changed their expected
+      # mount point -- data now lives in a major-version-specific
+      # subdirectory the image manages itself (pg_ctlcluster-style
+      # layout), and the container refuses to start if something is
+      # mounted at the old .../data path instead (see
+      # github.com/docker-library/postgres/pull/1259, cited verbatim in
+      # this image's own startup error). Mounting the parent is the
+      # documented fix, not a workaround.
+      - postgres-data:/var/lib/postgresql
     ports:
       - "5432:5432"
     healthcheck:
@@ -63,6 +82,47 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Phase 3's object storage (design doc §2.1) -- pinned to MinIO's last
+  # official release rather than `:latest`. Real reason, not just this
+  # repo's usual pin-everything convention: MinIO's community edition was
+  # archived by its own maintainers in 2026 (no new releases; the company
+  # moved to a paid product, AIStor). The server code was never
+  # relicensed -- still AGPLv3, still free to run -- so this changes
+  # maintenance status, not cost. Accepted for this local/CI-only,
+  # never-internet-facing use the same way this stack already accepts
+  # no-TLS/dev-mode credentials on postgres/keycloak; see the tradeoffs
+  # doc's Object storage row.
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: canopica
+      MINIO_ROOT_PASSWORD: canopica-minio-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  # One-shot: creates the `canopica-documents` bucket (design doc §2.1).
+  # Same shape as `ollama-init` below -- idempotent (`mc mb --ignore-
+  # existing`), safe to re-run on every `make up`.
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - "mc alias set local http://minio:9000 canopica canopica-minio-dev && mc mb --ignore-existing local/canopica-documents"
+    depends_on:
+      minio:
+        condition: service_healthy
 
   metabase:
     image: metabase/metabase:latest
@@ -438,3 +498,4 @@ services:
 volumes:
   postgres-data:
   opensearch-data:
+  minio-data:

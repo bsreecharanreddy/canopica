@@ -22,10 +22,12 @@ test: ## Run every unit/integration suite that does not need the Compose stack
 	# Testcontainers, unaffected by this.
 	cd data-platform && TESTCONTAINERS_RYUK_DISABLED=true uv run pytest -m "not e2e"
 	cd ai && uv run pytest -m "not e2e"
+	cd worker && TESTCONTAINERS_RYUK_DISABLED=true uv run pytest -m "not e2e"
 
 lint: ## Type-check and lint every language
 	cd data-platform && uv run ruff check . && uv run mypy src tests
 	cd ai && uv run ruff check . && uv run mypy src tests
+	cd worker && uv run ruff check . && uv run mypy src tests
 	cd ui && npm run typecheck && npm run lint
 
 up: ## Bring up the full local stack

@@ -44,7 +44,12 @@ MIGRATIONS_DIR = (
 @pytest.fixture(scope="session")
 def _postgres_container() -> Iterator[PostgresContainer]:
     with PostgresContainer(
-        "postgres:16-alpine",
+        # 16-alpine -> 18-alpine (Phase 3 Task 1): kept in step with
+        # infra/docker-compose.yml's own postgres service, which moved to a
+        # pgmq-bundled Postgres 18 image so the worker's queues can exist.
+        # Neither container here needs pgmq itself -- staying on the same
+        # major version as the rest of the stack is the only reason.
+        "postgres:18-alpine",
         username="canopica_app",
         password="canopica_app",
         dbname="canopica_operational",
@@ -59,7 +64,12 @@ def _serving_postgres_container() -> Iterator[PostgresContainer]:
     so no Flyway migrations belong here, unlike migrated_dsn's operational
     container."""
     with PostgresContainer(
-        "postgres:16-alpine",
+        # 16-alpine -> 18-alpine (Phase 3 Task 1): kept in step with
+        # infra/docker-compose.yml's own postgres service, which moved to a
+        # pgmq-bundled Postgres 18 image so the worker's queues can exist.
+        # Neither container here needs pgmq itself -- staying on the same
+        # major version as the rest of the stack is the only reason.
+        "postgres:18-alpine",
         username="canopica_app",
         password="canopica_app",
         dbname="canopica_serving",
