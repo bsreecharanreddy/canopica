@@ -3,8 +3,11 @@ import type {
   CaseDetailResponse,
   CaseloadStatsResponse,
   CaseSummaryResponse,
+  ConfirmDocumentRequest,
   DetermineRequest,
   DeterminationResponse,
+  DocumentResponse,
+  DocumentReviewItem,
   IntakeRequest,
   IntakeResponse,
   ParameterProposal,
@@ -103,6 +106,20 @@ export function getAuditTrail(programRequestId: string): Promise<AuditEventRespo
 
 export function getCaseloadStats(): Promise<CaseloadStatsResponse> {
   return request<CaseloadStatsResponse>('/api/cases/dashboard');
+}
+
+export function getDocumentReviewQueue(): Promise<DocumentReviewItem[]> {
+  return request<DocumentReviewItem[]>('/api/cases/documents/review-queue');
+}
+
+export function confirmDocument(
+  documentId: string,
+  payload: ConfirmDocumentRequest,
+): Promise<DocumentResponse> {
+  return request<DocumentResponse>(`/api/cases/documents/${documentId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function askPolicyQuestion(question: string): Promise<QaAnswer> {

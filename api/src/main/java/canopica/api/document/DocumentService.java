@@ -2,11 +2,20 @@ package canopica.api.document;
 
 import canopica.api.audit.AuditEventType;
 import canopica.api.audit.AuditService;
+import canopica.api.domain.IncomeRecord;
 import canopica.api.pgmq.PgmqService;
 import canopica.api.repo.DocumentRepository;
+import canopica.api.repo.IncomeRecordRepository;
+import canopica.api.repo.VerificationRepository;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,20 +40,29 @@ public class DocumentService {
     private final S3Client s3;
     private final String bucket;
     private final DocumentRepository documents;
+    private final VerificationRepository verifications;
+    private final IncomeRecordRepository incomeRecords;
     private final AuditService auditService;
     private final PgmqService pgmq;
+    private final Clock clock;
 
     DocumentService(
             S3Client s3,
             @Value("${canopica.minio.bucket}") String bucket,
             DocumentRepository documents,
+            VerificationRepository verifications,
+            IncomeRecordRepository incomeRecords,
             AuditService auditService,
-            PgmqService pgmq) {
+            PgmqService pgmq,
+            Clock clock) {
         this.s3 = s3;
         this.bucket = bucket;
         this.documents = documents;
+        this.verifications = verifications;
+        this.incomeRecords = incomeRecords;
         this.auditService = auditService;
         this.pgmq = pgmq;
+        this.clock = clock;
     }
 
     @Transactional
@@ -75,5 +93,54 @@ public class DocumentService {
         } catch (IOException e) {
             throw new UncheckedIOException("failed to read uploaded document", e);
         }
+    }
+
+    /**
+     * The mandatory human-confirmation gate design doc §2.3 requires with no confidence-based bypass:
+     * {@code satisfiedVerificationIds} and {@code incomeRecordsToPost} are the worker's own final,
+     * edited-or-accepted values, never the raw extraction -- this method never reads {@code document.
+     * extraction} itself. Applies them through the exact same repository calls a caseworker's manual entry
+     * already uses ({@link IncomeRecordRepository#save}, {@link VerificationRepository#updateStatus}), the
+     * same pattern {@link canopica.api.verification.MockVerificationService#requestVerification} already
+     * establishes for appending a REQUESTED/RECEIVED pair of the same event type -- here, a CLASSIFIED/
+     * CONFIRMED pair of {@link AuditEventType#DOCUMENT_CLASSIFIED}, distinguished by the payload's own
+     * {@code stage}, not a new enum value.
+     */
+    @Transactional
+    public Document confirm(UUID documentId, List<UUID> satisfiedVerificationIds,
+            List<ConfirmedIncome> incomeRecordsToPost, String actorId) {
+        Document document = documents.findById(documentId)
+                .orElseThrow(() -> new NoSuchElementException("no document with id " + documentId));
+
+        for (ConfirmedIncome income : incomeRecordsToPost) {
+            incomeRecords.save(new IncomeRecord(UUID.randomUUID(), income.personId(), income.incomeType(),
+                    income.earned(), income.monthlyAmount(), income.effectiveFrom(), income.effectiveTo()));
+        }
+
+        LocalDate today = LocalDate.now(clock);
+        for (UUID verificationId : satisfiedVerificationIds) {
+            verifications.updateStatus(verificationId, "RECEIVED", today);
+            Map<String, Object> verificationPayload = new LinkedHashMap<>();
+            verificationPayload.put("stage", "RECEIVED");
+            verificationPayload.put("source", "DOCUMENT_CONFIRMATION");
+            verificationPayload.put("document_id", documentId.toString());
+            auditService.append(
+                    AuditEventType.VERIFICATION_UPDATED, actorId, "verification", verificationId, verificationPayload);
+        }
+
+        documents.updateClassificationStatus(documentId, "CONFIRMED");
+        Map<String, Object> confirmedPayload = new LinkedHashMap<>();
+        confirmedPayload.put("stage", "CONFIRMED");
+        confirmedPayload.put("document_id", documentId.toString());
+        confirmedPayload.put("satisfied_verification_ids", satisfiedVerificationIds.stream().map(UUID::toString).toList());
+        auditService.append(AuditEventType.DOCUMENT_CLASSIFIED, actorId, "program_request",
+                document.getProgramRequestId(), confirmedPayload);
+
+        return documents.findById(documentId).orElseThrow();
+    }
+
+    /** A worker-confirmed income figure to post via {@link IncomeRecordRepository#save} on confirm. */
+    public record ConfirmedIncome(UUID personId, String incomeType, boolean earned, BigDecimal monthlyAmount,
+            LocalDate effectiveFrom, LocalDate effectiveTo) {
     }
 }

@@ -2,7 +2,9 @@ package canopica.api.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,10 +13,13 @@ import canopica.api.CaseFixtures;
 import canopica.api.document.DocumentService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -121,6 +126,127 @@ class DocumentControllerTest extends AbstractApiTest {
                         .file(file)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void reviewQueueIncludesOnlyThisWorkersOwnCaseloadOrderedByConfidenceAscending() throws Exception {
+        // Triggers KeycloakWorkerSyncFilter's lazy provisioning of worker.sam's row, the same idiom
+        // WorkerCaseControllerTest's own dashboard test uses, before this test needs its id.
+        mvc.perform(get("/api/worker/cases").header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk());
+        UUID samWorkerId = jdbc.queryForObject(
+                "select id from worker where email = ?", UUID.class, "worker.sam@canopica.local");
+
+        var mineLowConfidence = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        var mineHighConfidence = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        var notMine = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        CaseFixtures.insertCaseAssignment(jdbc, mineLowConfidence.householdId(), samWorkerId);
+        CaseFixtures.insertCaseAssignment(jdbc, mineHighConfidence.householdId(), samWorkerId);
+        UUID otherWorkerId = CaseFixtures.insertWorker(jdbc, "Not Sam", "WORKER");
+        CaseFixtures.insertCaseAssignment(jdbc, notMine.householdId(), otherWorkerId);
+
+        UUID lowConfidenceDocId = CaseFixtures.insertClassifiedDocument(
+                jdbc, mineLowConfidence.programRequestId(), minimalIncomeExtraction(), new BigDecimal("0.300"));
+        UUID highConfidenceDocId = CaseFixtures.insertClassifiedDocument(
+                jdbc, mineHighConfidence.programRequestId(), minimalIncomeExtraction(), new BigDecimal("0.900"));
+        UUID notMineDocId = CaseFixtures.insertClassifiedDocument(
+                jdbc, notMine.programRequestId(), minimalIncomeExtraction(), new BigDecimal("0.100"));
+
+        String response = mvc.perform(get("/api/cases/documents/review-queue")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode items = objectMapper.readTree(response);
+
+        assertThat(indexOfDocument(items, notMineDocId))
+                .as("a document from a household outside this worker's caseload must not appear")
+                .isEqualTo(-1);
+        long lowIndex = indexOfDocument(items, lowConfidenceDocId);
+        long highIndex = indexOfDocument(items, highConfidenceDocId);
+        assertThat(lowIndex).as("this worker's own low-confidence document must be present").isNotEqualTo(-1);
+        assertThat(highIndex).as("this worker's own high-confidence document must be present").isNotEqualTo(-1);
+        assertThat(lowIndex).as("lowest confidence surfaces first").isLessThan(highIndex);
+    }
+
+    @Test
+    void confirmIsForbiddenForAWorkerNotHoldingTheActiveAssignment() throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        UUID otherWorkerId = CaseFixtures.insertWorker(jdbc, "Someone Else Confirming", "WORKER");
+        CaseFixtures.insertCaseAssignment(jdbc, ids.householdId(), otherWorkerId);
+        UUID documentId = CaseFixtures.insertClassifiedDocument(
+                jdbc, ids.programRequestId(), minimalIncomeExtraction(), new BigDecimal("0.500"));
+
+        mvc.perform(post("/api/cases/documents/" + documentId + "/confirm")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"satisfiedVerificationIds\":[],\"incomeRecords\":[]}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void confirmAppliesIncomeAndVerificationValuesThroughTheExistingWritePathsAndMarksTheDocumentConfirmed()
+            throws Exception {
+        var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
+        UUID verificationId = CaseFixtures.insertVerification(jdbc, ids.programRequestId(), "INCOME");
+        UUID documentId = CaseFixtures.insertClassifiedDocument(
+                jdbc, ids.programRequestId(), minimalIncomeExtraction(), new BigDecimal("0.900"));
+
+        String requestBody = "{"
+                + "\"satisfiedVerificationIds\":[\"" + verificationId + "\"],"
+                + "\"incomeRecords\":[{"
+                + "\"personId\":\"" + ids.headPersonId() + "\","
+                + "\"incomeType\":\"WAGES\",\"earned\":true,\"monthlyAmount\":1600.00,"
+                + "\"effectiveFrom\":\"2025-02-01\",\"effectiveTo\":null}]}";
+
+        mvc.perform(post("/api/cases/documents/" + documentId + "/confirm")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + workerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.classificationStatus").value("CONFIRMED"));
+
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from income_record where person_id = ? and monthly_amount = 1600.00 "
+                                + "and effective_from = ?",
+                        Integer.class, ids.headPersonId(), LocalDate.of(2025, 2, 1)))
+                .as("the confirmed income figure must be posted through IncomeRecordRepository, exactly like intake")
+                .isEqualTo(1);
+
+        assertThat(jdbc.queryForObject(
+                        "select status from verification where id = ?", String.class, verificationId))
+                .isEqualTo("RECEIVED");
+        assertThat(jdbc.queryForObject(
+                        "select satisfied_on from verification where id = ?", LocalDate.class, verificationId))
+                .isNotNull();
+
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from audit_event where event_type = 'VERIFICATION_UPDATED' "
+                                + "and subject_id = ? and payload->>'stage' = 'RECEIVED' "
+                                + "and payload->>'source' = 'DOCUMENT_CONFIRMATION'",
+                        Integer.class, verificationId))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from audit_event where event_type = 'DOCUMENT_CLASSIFIED' "
+                                + "and subject_id = ? and payload->>'stage' = 'CONFIRMED'",
+                        Integer.class, ids.programRequestId()))
+                .isEqualTo(1);
+    }
+
+    private String minimalIncomeExtraction() {
+        return "{\"document_type\":\"INCOME_REPORT\",\"fields\":"
+                + "[{\"name\":\"monthly_amount\",\"value\":\"1600.00\",\"confidence\":0.9}],"
+                + "\"matched_verification_ids\":[],\"generation_model\":\"llama3.2:3b\",\"prompt_version\":\"v1\"}";
+    }
+
+    private long indexOfDocument(JsonNode items, UUID documentId) {
+        long i = 0;
+        for (JsonNode item : items) {
+            if (item.get("documentId").asText().equals(documentId.toString())) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
     }
 
     @Test

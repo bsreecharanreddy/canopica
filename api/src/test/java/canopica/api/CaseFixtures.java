@@ -95,6 +95,22 @@ public final class CaseFixtures {
         return id;
     }
 
+    /**
+     * A {@code CLASSIFIED} {@code document} row -- the shape Task 3's real worker leaves behind, but
+     * inserted directly the same reason {@link #threePersonWorkingHousehold} bypasses {@code IntakeService}:
+     * tests here only care about Task 4's own review/confirm behavior, not re-running a real Ollama call.
+     */
+    public static UUID insertClassifiedDocument(
+            JdbcTemplate jdbc, UUID programRequestId, String extractionJson, BigDecimal confidence) {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "insert into document (id, program_request_id, object_key, content_type, uploaded_by, "
+                        + "classification_status, extraction, extraction_confidence) "
+                        + "values (?, ?, ?, 'application/pdf', 'worker.sam@canopica.local', 'CLASSIFIED', ?::jsonb, ?)",
+                id, programRequestId, programRequestId + "/" + id, extractionJson, confidence);
+        return id;
+    }
+
     private static UUID insertPerson(JdbcTemplate jdbc, String firstName, String lastName, LocalDate dob) {
         UUID id = UUID.randomUUID();
         jdbc.update(

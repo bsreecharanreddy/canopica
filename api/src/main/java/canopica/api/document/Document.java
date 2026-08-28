@@ -4,8 +4,11 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * A system-of-record pointer into MinIO (Phase 3 design doc §2.6) -- the object itself is stored exactly as
@@ -37,6 +40,16 @@ public class Document {
 
     @Column(name = "classification_status", nullable = false)
     private String classificationStatus;
+
+    // Written only by the Python worker's document_intake_consumer.py (Task 3), via a raw update -- never
+    // set through this entity's own constructor. Read-only from Java's point of view, the same relationship
+    // DeterminationTrace's JSON columns have to the Java code that reads them.
+    @Column(name = "extraction")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String extraction;
+
+    @Column(name = "extraction_confidence")
+    private BigDecimal extractionConfidence;
 
     protected Document() {
         // JPA
@@ -77,5 +90,13 @@ public class Document {
 
     public String getClassificationStatus() {
         return classificationStatus;
+    }
+
+    public String getExtraction() {
+        return extraction;
+    }
+
+    public BigDecimal getExtractionConfidence() {
+        return extractionConfidence;
     }
 }

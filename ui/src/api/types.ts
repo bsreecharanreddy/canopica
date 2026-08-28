@@ -181,3 +181,59 @@ export type PublicationDetails = {
   effectiveFrom: string; // ISO date (yyyy-MM-dd)
   sourceCitation: string;
 };
+
+// Mirrors canopica.api.document.Document -- the response shape POST /documents and POST
+// /documents/{id}/confirm both return.
+export type DocumentResponse = {
+  id: string;
+  programRequestId: string;
+  contentType: string;
+  classificationStatus: string;
+  uploadedAt: string;
+};
+
+export type ExtractedField = {
+  name: string;
+  value: string;
+  confidence: number;
+};
+
+// Mirrors canopica_ai.document_intake.schema.DocumentExtraction (the Python worker's own output, Phase 3
+// Task 3) -- passed through server-side as a raw JsonNode, so these keys stay snake_case rather than
+// following this file's own camelCase convention (same choice TraceResponse's fields already made).
+export type DocumentExtraction = {
+  document_type: string;
+  fields: ExtractedField[];
+  matched_verification_ids: string[];
+  generation_model: string;
+  prompt_version: string;
+};
+
+// Mirrors canopica.api.api.dto.DocumentReviewItemResponse -- one review-queue row (Task 4).
+export type DocumentReviewItem = {
+  documentId: string;
+  programRequestId: string;
+  contentType: string;
+  extractionConfidence: string | null; // money-precision convention: a BigDecimal, so a string, not a number
+  extraction: DocumentExtraction | null;
+  uploadedAt: string;
+  headPersonId: string;
+  householdHeadName: string;
+};
+
+export type ConfirmedIncomeEntry = {
+  personId: string;
+  incomeType: string;
+  earned: boolean;
+  monthlyAmount: string; // money as a string end to end -- never through a float
+  effectiveFrom: string;
+  effectiveTo?: string;
+};
+
+// Mirrors canopica.api.api.dto.ConfirmDocumentRequest -- the worker's final, edited-or-accepted values;
+// this, not the extraction itself, is what the confirm endpoint actually applies (design doc §2.3's
+// mandatory human-confirmation gate).
+export type ConfirmDocumentRequest = {
+  satisfiedVerificationIds: string[];
+  incomeRecords: ConfirmedIncomeEntry[];
+};

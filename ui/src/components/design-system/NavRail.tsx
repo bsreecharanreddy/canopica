@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import {
   Briefcase,
   FileCog,
+  FileSearch,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ const LINKS_FOR: Record<Role, { to: string; label: string; icon: LucideIcon }[]>
   WORKER: [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/cases', label: 'Cases', icon: Briefcase },
+    { to: '/documents/review', label: 'Document review', icon: FileSearch },
   ],
   ADMIN: [{ to: '/rule-authoring', label: 'Rule authoring', icon: FileCog }],
 };
