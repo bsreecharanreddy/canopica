@@ -286,12 +286,27 @@ def _seed_determination(settings: Settings, *, eligible: bool = True) -> UUID:
         )
         # effective_from unique per program_code -- derived from the fresh parameter_set_id, same
         # collision-avoidance worker/tests/test_correspondence_consumer.py's own fixture uses.
+        # effective_to closed one day later (never left null/open-ended): this row's whole
+        # purpose is satisfying eligibility_determination's foreign key, not resolving as
+        # "today's" active SNAP parameter set -- left open, it would still be in force in
+        # 2026 and collide with the real SNAP-FY2026 row the moment any other test in the
+        # same session (e.g. test_policy_qa.py's TestAnswerDenial) asks the real API to
+        # decide a determination as of today, via PolicyParameterSetRepository#findEffectiveOn's
+        # NonUniqueResultException -- the exact bug STATUS.md's Task 6 row already documented
+        # once, recurring here because this fixture's insert was never itself fixed.
         effective_from = date(2000, 1, 1) + timedelta(days=parameter_set_id.int % 3650)
         cur.execute(
             "insert into policy_parameter_set "
-            "(id, program_code, version_label, effective_from, source_citation, retrieved_on) "
-            "values (%s, 'SNAP', %s, %s, 'test fixture', %s)",
-            (parameter_set_id, f"SNAP-TEST-{parameter_set_id}", effective_from, date.today()),
+            "(id, program_code, version_label, effective_from, effective_to, source_citation, "
+            "retrieved_on) "
+            "values (%s, 'SNAP', %s, %s, %s, 'test fixture', %s)",
+            (
+                parameter_set_id,
+                f"SNAP-TEST-{parameter_set_id}",
+                effective_from,
+                effective_from + timedelta(days=1),
+                date.today(),
+            ),
         )
         benefit_amount = "170.00" if eligible else "0.00"
         reason_code = "ELIGIBLE" if eligible else "NET_INCOME_EXCEEDS_LIMIT"
