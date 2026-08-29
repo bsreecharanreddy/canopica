@@ -53,6 +53,13 @@ flowchart TB
         B["Rules Engine\n(DMN decision tables)"] --> F["Audit Log\n(hash-chained, append-only)"]
     end
 
+    M["Object Storage\n(MinIO)"]
+
+    subgraph async["Async Worker — pgmq-driven"]
+        direction LR
+        Q["pgmq queues\n(document_intake · correspondence_dispatch)"] --> W["Worker\n(classification · notice drafting)"]
+    end
+
     subgraph data["Data Platform — ELT, orchestrated by Airflow"]
         direction LR
         C1["Bronze\n(raw)"] --> C2["Silver\n(conformed)"] --> C3["Gold\n(marts)"]
@@ -63,15 +70,20 @@ flowchart TB
         G["Semantic Layer\n(MetricFlow · TMDL)"] --> D["Power BI · Metabase"]
     end
 
-    E["AI Layer\nPolicy Q&A · Rule-Authoring Copilot\nAnalytics Copilot · Dashboard-Authoring Copilot\nDocument Intake · Fraud Triage · SOP Copilot · ..."]
+    E["AI Layer\nPolicy Q&A · Rule-Authoring Copilot\nAnalytics Copilot · Dashboard-Authoring Copilot\nDocument Intake · Correspondence Drafting\nFraud Triage · SOP Copilot · ..."]
 
     A --> core
+    A --> M
+    core -- "same-transaction enqueue" --> Q
+    W --> M
+    W --> core
     core --> C1
     C3 --> G
 
     E -. assists, never decides .-> A
     E -. assists, never decides .-> core
     E -. assists, never decides .-> bi
+    W -. calls .-> E
 ```
 
 Full architecture, every component, and the reasoning behind each choice

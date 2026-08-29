@@ -13,9 +13,11 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 from canopica_worker import correspondence_consumer, document_intake_consumer
 from canopica_worker.config import Settings
+from canopica_worker.observability import traced_queue_cycle
 from canopica_worker.queue import Message, archive, delete, read
 
 logger = logging.getLogger("canopica_worker")
@@ -34,30 +36,36 @@ def poll_once(queue_name: str, handler: Handler, *, settings: Settings) -> bool:
     )
     if message is None:
         return False
-    try:
-        handler(message)
-    except Exception:
-        logger.exception(
-            "handler failed for %s msg_id=%s (attempt %s/%s)",
-            queue_name,
-            message.msg_id,
-            message.read_ct,
-            settings.max_delivery_attempts,
-        )
-        if message.read_ct >= settings.max_delivery_attempts:
-            archive(queue_name, message.msg_id, settings=settings)
-            logger.error(
-                "archived %s msg_id=%s after %s failed attempts",
+
+    # The span covers this message's own read-through-delete/archive cycle,
+    # not the read call itself -- message age (design doc §2.7, Task 8) is
+    # only knowable once a message has actually come back from `read()`.
+    message_age_seconds = (datetime.now(UTC) - message.enqueued_at).total_seconds()
+    with traced_queue_cycle(queue_name, message_age_seconds=message_age_seconds, settings=settings):
+        try:
+            handler(message)
+        except Exception:
+            logger.exception(
+                "handler failed for %s msg_id=%s (attempt %s/%s)",
                 queue_name,
                 message.msg_id,
                 message.read_ct,
+                settings.max_delivery_attempts,
             )
-        # Below the limit: leave it locked. It becomes visible again once
-        # the visibility timeout expires, and the next poll retries it --
-        # no explicit re-queue call needed, that's pgmq's own redelivery.
+            if message.read_ct >= settings.max_delivery_attempts:
+                archive(queue_name, message.msg_id, settings=settings)
+                logger.error(
+                    "archived %s msg_id=%s after %s failed attempts",
+                    queue_name,
+                    message.msg_id,
+                    message.read_ct,
+                )
+            # Below the limit: leave it locked. It becomes visible again once
+            # the visibility timeout expires, and the next poll retries it --
+            # no explicit re-queue call needed, that's pgmq's own redelivery.
+            return True
+        delete(queue_name, message.msg_id, settings=settings)
         return True
-    delete(queue_name, message.msg_id, settings=settings)
-    return True
 
 
 def run_forever(handlers: dict[str, Handler], *, settings: Settings | None = None) -> None:

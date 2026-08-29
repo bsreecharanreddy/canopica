@@ -469,7 +469,14 @@ services:
     ports:
       - "3002:3000"
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
+      # Task 8's pgmq queue-depth/archive-rate panel queries this database
+      # directly (datasources.yml's own "Postgres (operational)" datasource)
+      # -- healthy, not just started, so a narrowed `--wait grafana` bring-up
+      # doesn't race Postgres init the way api/minio-init's own gap once did.
+      postgres:
+        condition: service_healthy
 
   # One-shot: `airflow db migrate` (idempotent, safe to re-run on every
   # boot) then create the admin user. `airflow users create` is *not*

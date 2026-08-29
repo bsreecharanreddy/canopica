@@ -1,0 +1,46 @@
+{
+  "title": "Canopica Worker",
+  "uid": "canopica-worker",
+  "schemaVersion": 39,
+  "timezone": "browser",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "pgmq queue depth (live, unprocessed messages)",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "postgres-operational" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres-operational" },
+          "format": "table",
+          "rawSql": "select 'document_intake' as queue, count(*) as depth from pgmq.q_document_intake\nunion all\nselect 'correspondence_dispatch' as queue, count(*) as depth from pgmq.q_correspondence_dispatch",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "displayName": "${__field.labels.queue}" },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^depth$/" } },
+      "transformations": [{ "id": "labelsToFields", "options": { "mode": "columns" } }]
+    },
+    {
+      "id": 2,
+      "title": "pgmq archive rate (messages archived per minute)",
+      "type": "timeseries",
+      "datasource": { "type": "postgres", "uid": "postgres-operational" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres-operational" },
+          "format": "time_series",
+          "rawSql": "select $__timeGroup(archived_at, '1m') as time, 'document_intake' as metric, count(*) as archived\nfrom pgmq.a_document_intake\nwhere $__timeFilter(archived_at)\ngroup by 1\nunion all\nselect $__timeGroup(archived_at, '1m') as time, 'correspondence_dispatch' as metric, count(*) as archived\nfrom pgmq.a_correspondence_dispatch\nwhere $__timeFilter(archived_at)\ngroup by 1\norder by 1",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

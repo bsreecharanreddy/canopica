@@ -11,3 +11,22 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: false
+  # pgmq's own queue/archive tables (Task 8, design doc §2.7's Grafana panel)
+  # live in this same operational Postgres, not as a Prometheus metric --
+  # nothing in this stack exports queue depth or archive rate as a scraped
+  # metric, so this reads pgmq's own tables directly via Grafana's built-in
+  # postgres datasource (no plugin, no new tool). Same credentials/database
+  # `worker/`'s own `CANOPICA_OPERATIONAL_DSN` uses.
+  - name: Postgres (operational)
+    uid: postgres-operational
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: canopica_operational
+    user: canopica_app
+    secureJsonData:
+      password: canopica_app
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1800
+    editable: false

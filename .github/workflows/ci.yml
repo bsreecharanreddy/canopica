@@ -344,7 +344,15 @@ jobs:
       - run: uv sync --dev
       - run: uv run ruff check .
       - run: uv run mypy src tests
+      # CANOPICA_OTEL_ENABLED=false: this job never starts Jaeger, but Task
+      # 8's queue-cycle spans (canopica_worker.observability) now wrap every
+      # poll_once cycle test_main.py/test_queue.py exercise for real -- same
+      # fix, same reasoning, as ai-eval's own (see that job's own comment):
+      # a real no-op tracer avoids every span blocking several seconds on a
+      # doomed OTLP export retry.
       - run: uv run pytest
+        env:
+          CANOPICA_OTEL_ENABLED: "false"
 
   audit-chain:
     name: Audit chain verifier (integration)
