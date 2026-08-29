@@ -22,6 +22,13 @@ from pydantic import BaseModel
 # dead code here.
 NoticeType = Literal["APPROVAL", "DENIAL", "PENDING_VERIFICATION"]
 
+# Task 7 (design doc §2.5): the languages a notice can be drafted in.
+# `en` mirrors the `notice.language` column's own default, matching
+# `ui/src/i18n/config.ts`'s `SUPPORTED_LANGUAGES` one-for-one so a
+# citizen's chosen UI locale is always a language correspondence can
+# actually be drafted in.
+SUPPORTED_LANGUAGES: tuple[str, ...] = ("en", "es")
+
 
 class DeterminationRecord(BaseModel):
     """Everything `draft.py`'s explanation prompt and `validate.py`'s
@@ -73,6 +80,7 @@ class NoticeDraft(BaseModel):
     notice_type: NoticeType
     content: str
     template_version: str
+    language: str
     generation_model: str
     prompt_version: str
     validation_result: ValidationResult

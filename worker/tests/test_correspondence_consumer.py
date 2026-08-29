@@ -103,6 +103,7 @@ def _draft_notice(*, passed: bool = True) -> NoticeDraft:
         notice_type="APPROVAL",
         content="Dear Sam Applicant, your household is ELIGIBLE. Monthly benefit: $170.00.",
         template_version="v1",
+        language="en",
         generation_model="llama3.2:3b",
         prompt_version="v1",
         validation_result=ValidationResult(

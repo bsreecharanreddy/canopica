@@ -1,0 +1,34 @@
+{
+  "heading": "Document review",
+  "description": "Documents the intake pipeline classified, lowest confidence first. Nothing here has touched a case yet -- confirming is what applies it.",
+  "loadError": "Could not load the document review queue.",
+  "loading": "Loading the review queue…",
+  "empty": "No documents are waiting for review.",
+  "confidence": {
+    "low": "Low confidence",
+    "medium": "Medium confidence",
+    "high": "High confidence"
+  },
+  "table": {
+    "noFields": "No fields were extracted from this document.",
+    "field": "Field",
+    "extractedValue": "Extracted value",
+    "confidence": "Confidence"
+  },
+  "verification": {
+    "none": "This document did not match any outstanding verification.",
+    "satisfies": "Satisfies outstanding verification {{id}}"
+  },
+  "income": {
+    "type": "Income type",
+    "monthlyAmount": "Monthly amount",
+    "effectiveFrom": "Effective from",
+    "postIncome": "Post an income record from this document"
+  },
+  "reviewingFor": "Reviewing document for {{name}}",
+  "classifiedBy": "Classified as {{documentType}} by {{model}} (prompt {{promptVersion}}). Nothing reaches this case until you confirm.",
+  "outstandingVerifications": "Outstanding verifications",
+  "confirm": "Confirm",
+  "confirming": "Confirming…",
+  "confirmError": "Could not confirm this document. Nothing was applied; please try again."
+}

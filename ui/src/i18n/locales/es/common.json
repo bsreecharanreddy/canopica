@@ -1,0 +1,26 @@
+{
+  "app": {
+    "name": "Canopica",
+    "tagline": "Plataforma de Beneficios"
+  },
+  "nav": {
+    "apply": "Solicitar",
+    "askAboutPolicy": "Preguntar sobre la política",
+    "dashboard": "Panel",
+    "cases": "Casos",
+    "documentReview": "Revisión de documentos",
+    "noticeReview": "Revisión de avisos",
+    "ruleAuthoring": "Redacción de reglas",
+    "signOut": "Cerrar sesión"
+  },
+  "role": {
+    "CUSTOMER": "Solicitante",
+    "WORKER": "Trabajador social",
+    "ADMIN": "Administrador"
+  },
+  "language": {
+    "label": "Idioma",
+    "en": "English",
+    "es": "Español"
+  }
+}

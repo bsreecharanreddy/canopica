@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import 'vitest-axe/extend-expect';
+import '../i18n/config';
 
 // framer-motion's useReducedMotion() calls window.matchMedia, which
 // jsdom doesn't implement. Always reports "no preference" in tests --

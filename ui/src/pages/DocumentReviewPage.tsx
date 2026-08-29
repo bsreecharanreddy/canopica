@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { confirmDocument, getDocumentReviewQueue } from '../api/client';
 import type { ConfirmDocumentRequest, ConfirmedIncomeEntry, DocumentReviewItem, ExtractedField } from '../api/types';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,13 @@ function todayIso(): string {
 
 // Not color alone (this project's accessibility bar, Phase 1b onward): every tier carries its own text
 // label too, so a low-confidence field is still identifiable without relying on the pill's color.
-function confidenceTier(confidence: number): { tone: StatusPillTone; label: string } {
-  if (confidence < 0.5) return { tone: 'exception', label: 'Low confidence' };
-  if (confidence < 0.8) return { tone: 'pending', label: 'Medium confidence' };
-  return { tone: 'affirmed', label: 'High confidence' };
+function useConfidenceTier(): (confidence: number) => { tone: StatusPillTone; label: string } {
+  const { t } = useTranslation('documentReview');
+  return (confidence: number) => {
+    if (confidence < 0.5) return { tone: 'exception', label: t('confidence.low') };
+    if (confidence < 0.8) return { tone: 'pending', label: t('confidence.medium') };
+    return { tone: 'affirmed', label: t('confidence.high') };
+  };
 }
 
 // Best-effort pre-fill only -- the worker's own edited value in the form below, not this guess, is what
@@ -28,21 +32,23 @@ function guessMonthlyAmount(fields: ExtractedField[]): string {
 }
 
 function ExtractedFieldsTable({ fields }: { fields: ExtractedField[] }) {
+  const { t } = useTranslation('documentReview');
+  const confidenceTier = useConfidenceTier();
   if (fields.length === 0) {
-    return <p className="text-sm text-muted-foreground">No fields were extracted from this document.</p>;
+    return <p className="text-sm text-muted-foreground">{t('table.noFields')}</p>;
   }
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr>
           <th scope="col" className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            Field
+            {t('table.field')}
           </th>
           <th scope="col" className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            Extracted value
+            {t('table.extractedValue')}
           </th>
           <th scope="col" className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            Confidence
+            {t('table.confidence')}
           </th>
         </tr>
       </thead>
@@ -75,8 +81,9 @@ function VerificationChecklist({
   selected: Set<string>;
   onToggle: (id: string) => void;
 }) {
+  const { t } = useTranslation('documentReview');
   if (verificationIds.length === 0) {
-    return <p className="text-sm text-muted-foreground">This document did not match any outstanding verification.</p>;
+    return <p className="text-sm text-muted-foreground">{t('verification.none')}</p>;
   }
   return (
     <ul className="flex flex-col gap-2">
@@ -92,7 +99,7 @@ function VerificationChecklist({
               onChange={() => onToggle(id)}
             />
             <label htmlFor={checkboxId} className="text-sm text-foreground">
-              Satisfies outstanding verification {id.slice(0, 8)}
+              {t('verification.satisfies', { id: id.slice(0, 8) })}
             </label>
           </li>
         );
@@ -108,12 +115,13 @@ function IncomeRecordFields({
   income: ConfirmedIncomeEntry;
   onChange: (next: ConfirmedIncomeEntry) => void;
 }) {
+  const { t } = useTranslation('documentReview');
   return (
     <div className="mt-3 flex flex-col gap-4">
-      <FormField id="incomeType" label="Income type">
+      <FormField id="incomeType" label={t('income.type')}>
         <Input id="incomeType" value={income.incomeType} onChange={(e) => onChange({ ...income, incomeType: e.target.value })} />
       </FormField>
-      <FormField id="monthlyAmount" label="Monthly amount">
+      <FormField id="monthlyAmount" label={t('income.monthlyAmount')}>
         <Input
           id="monthlyAmount"
           inputMode="decimal"
@@ -121,7 +129,7 @@ function IncomeRecordFields({
           onChange={(e) => onChange({ ...income, monthlyAmount: e.target.value })}
         />
       </FormField>
-      <FormField id="effectiveFrom" label="Effective from">
+      <FormField id="effectiveFrom" label={t('income.effectiveFrom')}>
         <Input
           id="effectiveFrom"
           type="date"
@@ -134,6 +142,7 @@ function IncomeRecordFields({
 }
 
 function ReviewForm({ item, onConfirmed }: { item: DocumentReviewItem; onConfirmed: (documentId: string) => void }) {
+  const { t } = useTranslation('documentReview');
   const extraction = item.extraction;
   const isIncomeReport = extraction?.document_type === 'INCOME_REPORT';
 
@@ -174,7 +183,7 @@ function ReviewForm({ item, onConfirmed }: { item: DocumentReviewItem; onConfirm
       const confirmed = await confirmDocument(item.documentId, payload);
       onConfirmed(confirmed.id);
     } catch {
-      setError('Could not confirm this document. Nothing was applied; please try again.');
+      setError(t('confirmError'));
     } finally {
       setConfirming(false);
     }
@@ -183,11 +192,14 @@ function ReviewForm({ item, onConfirmed }: { item: DocumentReviewItem; onConfirm
   return (
     <RecordSheet>
       <AiAdvisoryBadge />
-      <h3 className="mt-2 font-display text-lg">Reviewing document for {item.householdHeadName}</h3>
+      <h3 className="mt-2 font-display text-lg">{t('reviewingFor', { name: item.householdHeadName })}</h3>
       {extraction && (
         <p className="mt-1 text-sm text-muted-foreground">
-          Classified as {extraction.document_type} by {extraction.generation_model} (prompt {extraction.prompt_version}).
-          Nothing reaches this case until you confirm.
+          {t('classifiedBy', {
+            documentType: extraction.document_type,
+            model: extraction.generation_model,
+            promptVersion: extraction.prompt_version,
+          })}
         </p>
       )}
 
@@ -202,7 +214,7 @@ function ReviewForm({ item, onConfirmed }: { item: DocumentReviewItem; onConfirm
       </div>
 
       <div className="mt-5">
-        <h4 className="font-display text-base">Outstanding verifications</h4>
+        <h4 className="font-display text-base">{t('outstandingVerifications')}</h4>
         <div className="mt-2">
           <VerificationChecklist
             verificationIds={extraction?.matched_verification_ids ?? []}
@@ -223,7 +235,7 @@ function ReviewForm({ item, onConfirmed }: { item: DocumentReviewItem; onConfirm
               onChange={(e) => setPostIncome(e.target.checked)}
             />
             <label htmlFor="postIncome" className="font-display text-base text-foreground">
-              Post an income record from this document
+              {t('income.postIncome')}
             </label>
           </div>
           {postIncome && <IncomeRecordFields income={income} onChange={setIncome} />}
@@ -231,7 +243,7 @@ function ReviewForm({ item, onConfirmed }: { item: DocumentReviewItem; onConfirm
       )}
 
       <Button type="button" disabled={confirming} onClick={handleConfirm} className="mt-5">
-        {confirming ? 'Confirming…' : 'Confirm'}
+        {confirming ? t('confirming') : t('confirm')}
       </Button>
     </RecordSheet>
   );
@@ -246,8 +258,10 @@ function ReviewQueueList({
   selectedId: string | null;
   onSelect: (documentId: string) => void;
 }) {
+  const { t } = useTranslation('documentReview');
+  const confidenceTier = useConfidenceTier();
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">No documents are waiting for review.</p>;
+    return <p className="text-sm text-muted-foreground">{t('empty')}</p>;
   }
   return (
     <ul className="flex flex-col gap-3">
@@ -273,6 +287,7 @@ function ReviewQueueList({
 }
 
 export default function DocumentReviewPage() {
+  const { t } = useTranslation('documentReview');
   const [items, setItems] = useState<DocumentReviewItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -287,13 +302,13 @@ export default function DocumentReviewPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setError('Could not load the document review queue.');
+          setError(t('loadError'));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   function handleConfirmed(documentId: string) {
     setItems((current) => current?.filter((item) => item.documentId !== documentId) ?? current);
@@ -309,7 +324,7 @@ export default function DocumentReviewPage() {
   }
 
   if (items === null) {
-    return <p className="text-sm text-muted-foreground">Loading the review queue…</p>;
+    return <p className="text-sm text-muted-foreground">{t('loading')}</p>;
   }
 
   const selected = items.find((item) => item.documentId === selectedId) ?? null;
@@ -317,11 +332,8 @@ export default function DocumentReviewPage() {
   return (
     <section className="flex flex-col gap-6">
       <div>
-        <h2 className="font-display text-xl">Document review</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Documents the intake pipeline classified, lowest confidence first. Nothing here has touched a case
-          yet -- confirming is what applies it.
-        </p>
+        <h2 className="font-display text-xl">{t('heading')}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t('description')}</p>
       </div>
 
       <ReviewQueueList items={items} selectedId={selectedId} onSelect={setSelectedId} />

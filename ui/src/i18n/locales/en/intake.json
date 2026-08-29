@@ -1,0 +1,21 @@
+{
+  "heading": "Apply for SNAP",
+  "submitted": {
+    "heading": "Application submitted",
+    "body": "Your reference number is {{referenceNumber}}. A caseworker will review your application."
+  },
+  "genericError": "Something went wrong submitting your application. Please try again.",
+  "household": {
+    "heading": "Household",
+    "county": "County",
+    "streetAddress": "Street address",
+    "city": "City",
+    "state": "State",
+    "zipCode": "ZIP code",
+    "livingArrangement": "Living arrangement",
+    "paysUtilitiesSeparately": "Pays utilities separately from rent",
+    "cashAndBankAccounts": "Cash and bank accounts on hand ($)"
+  },
+  "submit": "Submit application",
+  "submitting": "Submitting…"
+}

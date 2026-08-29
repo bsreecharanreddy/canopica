@@ -1,0 +1,10 @@
+Estimado/a {household_head_name}:
+
+Su solicitud de SNAP ha sido revisada. Según la información de su caso, se ha determinado que su hogar NO ES ELEGIBLE para los beneficios de SNAP en este momento.
+
+Mes de beneficio: {benefit_month}
+Fecha de la decisión: {decided_at}
+
+{explanation}
+
+Si no está de acuerdo con esta decisión, comuníquese con su trabajador social para hablar sobre sus opciones.

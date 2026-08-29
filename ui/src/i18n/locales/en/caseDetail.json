@@ -1,0 +1,22 @@
+{
+  "loadError": "Could not load this case.",
+  "loading": "Loading case…",
+  "auditLoadError": "Could not load the audit trail for this case.",
+  "program": "Program",
+  "status": "Status",
+  "requestedOn": "Requested on",
+  "runDetermination": {
+    "heading": "Run a determination",
+    "alreadyDecided": "Benefit month {{benefitMonth}} already has a determination. Review it below, or choose a different month.",
+    "asOfDate": "As-of date",
+    "benefitMonth": "Benefit month",
+    "submit": "Run determination",
+    "running": "Running…",
+    "error": "Could not run a determination for this case."
+  },
+  "determinationHistory": {
+    "heading": "Determination history",
+    "empty": "No determination has been made yet."
+  },
+  "auditTrail": "Audit trail"
+}

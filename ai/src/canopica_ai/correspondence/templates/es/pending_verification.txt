@@ -1,0 +1,9 @@
+Estimado/a {household_head_name}:
+
+Su solicitud de SNAP ha sido revisada. Según la información disponible hasta el momento, el monto preliminar del beneficio de su hogar para {benefit_month} es {benefit_amount}. Este monto no es definitivo -- su caso todavía tiene elementos de verificación pendientes que deben presentarse antes de que pueda confirmarse.
+
+Fecha de la decisión: {decided_at}
+
+{explanation}
+
+Envíe la documentación pendiente a su trabajador social lo antes posible.

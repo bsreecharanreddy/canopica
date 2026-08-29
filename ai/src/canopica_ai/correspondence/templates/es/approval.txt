@@ -1,0 +1,11 @@
+Estimado/a {household_head_name}:
+
+Su solicitud de SNAP ha sido revisada. Según la información de su caso, se ha determinado que su hogar es ELEGIBLE para los beneficios de SNAP.
+
+Mes de beneficio: {benefit_month}
+Monto mensual del beneficio: {benefit_amount}
+Fecha de la decisión: {decided_at}
+
+{explanation}
+
+Si tiene preguntas sobre este aviso, comuníquese con su trabajador social.

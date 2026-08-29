@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { getAuditTrail, getCase, runDetermination } from '../api/client';
 import type { AuditEventResponse, CaseDetailResponse } from '../api/types';
 import DeterminationPanel from '../components/DeterminationPanel';
@@ -20,6 +21,7 @@ function firstOfCurrentMonthIso(): string {
 }
 
 export default function CaseDetailPage() {
+  const { t } = useTranslation('caseDetail');
   const { programRequestId } = useParams<{ programRequestId: string }>();
   const [caseDetail, setCaseDetail] = useState<CaseDetailResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,13 +51,13 @@ export default function CaseDetailPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setLoadError('Could not load this case.');
+          setLoadError(t('loadError'));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [programRequestId]);
+  }, [programRequestId, t]);
 
   useEffect(() => {
     if (!programRequestId) {
@@ -70,13 +72,13 @@ export default function CaseDetailPage() {
       })
       .catch(() => {
         if (!cancelled) {
-          setAuditError('Could not load the audit trail for this case.');
+          setAuditError(t('auditLoadError'));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [programRequestId]);
+  }, [programRequestId, t]);
 
   useBreadcrumb(caseDetail ? `${caseDetail.programCode} · ${caseDetail.householdHeadName}` : null);
 
@@ -92,7 +94,7 @@ export default function CaseDetailPage() {
     // data-layer constraint: a genuine redetermination is still just an API call away.
     const alreadyDecided = caseDetail.determinations.some((d) => d.benefitMonth === benefitMonth);
     if (alreadyDecided) {
-      setRunError(`Benefit month ${benefitMonth} already has a determination. Review it below, or choose a different month.`);
+      setRunError(t('runDetermination.alreadyDecided', { benefitMonth }));
       return;
     }
     setRunning(true);
@@ -106,9 +108,9 @@ export default function CaseDetailPage() {
       // fabricate one client-side, since occurredAt/actorId are server-assigned facts.
       getAuditTrail(programRequestId)
         .then(setAuditEvents)
-        .catch(() => setAuditError('Could not load the audit trail for this case.'));
+        .catch(() => setAuditError(t('auditLoadError')));
     } catch {
-      setRunError('Could not run a determination for this case.');
+      setRunError(t('runDetermination.error'));
     } finally {
       setRunning(false);
     }
@@ -123,7 +125,7 @@ export default function CaseDetailPage() {
   }
 
   if (!caseDetail) {
-    return <p className="text-sm text-muted-foreground">Loading case…</p>;
+    return <p className="text-sm text-muted-foreground">{t('loading')}</p>;
   }
 
   return (
@@ -131,29 +133,29 @@ export default function CaseDetailPage() {
       <RecordSheet>
         <h2 className="font-display text-xl">{caseDetail.householdHeadName}</h2>
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1">
-          <dt className="text-sm text-muted-foreground">Program</dt>
+          <dt className="text-sm text-muted-foreground">{t('program')}</dt>
           <dd className="text-sm text-foreground">{caseDetail.programCode}</dd>
-          <dt className="text-sm text-muted-foreground">Status</dt>
+          <dt className="text-sm text-muted-foreground">{t('status')}</dt>
           <dd className="text-sm text-foreground">{caseDetail.status}</dd>
-          <dt className="text-sm text-muted-foreground">Requested on</dt>
+          <dt className="text-sm text-muted-foreground">{t('requestedOn')}</dt>
           <dd className="text-sm text-foreground">{caseDetail.requestedOn}</dd>
         </dl>
       </RecordSheet>
 
       <RecordSheet>
         <form onSubmit={handleRunDetermination} className="flex flex-col gap-4">
-          <h3 className="font-display text-lg">Run a determination</h3>
+          <h3 className="font-display text-lg">{t('runDetermination.heading')}</h3>
           {runError && (
             <p role="alert" className="text-sm text-destructive">
               {runError}
             </p>
           )}
 
-          <FormField id="asOfDate" label="As-of date">
+          <FormField id="asOfDate" label={t('runDetermination.asOfDate')}>
             <Input id="asOfDate" type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
           </FormField>
 
-          <FormField id="benefitMonth" label="Benefit month">
+          <FormField id="benefitMonth" label={t('runDetermination.benefitMonth')}>
             <Input
               id="benefitMonth"
               type="date"
@@ -163,15 +165,15 @@ export default function CaseDetailPage() {
           </FormField>
 
           <Button type="submit" disabled={running} className="self-start">
-            {running ? 'Running…' : 'Run determination'}
+            {running ? t('runDetermination.running') : t('runDetermination.submit')}
           </Button>
         </form>
       </RecordSheet>
 
       <div>
-        <h3 className="font-display text-lg">Determination history</h3>
+        <h3 className="font-display text-lg">{t('determinationHistory.heading')}</h3>
         {caseDetail.determinations.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">No determination has been made yet.</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t('determinationHistory.empty')}</p>
         ) : (
           <div className="mt-3 flex flex-col gap-3">
             {caseDetail.determinations.map((determination) => (
@@ -182,7 +184,7 @@ export default function CaseDetailPage() {
       </div>
 
       <div>
-        <h3 className="font-display text-lg">Audit trail</h3>
+        <h3 className="font-display text-lg">{t('auditTrail')}</h3>
         {auditError && (
           <p role="alert" className="mt-2 text-sm text-destructive">
             {auditError}

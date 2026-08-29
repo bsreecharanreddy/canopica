@@ -1,0 +1,8 @@
+{
+  "loadError": "No se pudieron cargar las estadísticas de su cartera de casos.",
+  "loading": "Cargando panel…",
+  "heading": "Panel",
+  "activeCases": "Casos activos",
+  "pendingDetermination": "Determinación pendiente",
+  "recentActivity": "Actividad reciente"
+}

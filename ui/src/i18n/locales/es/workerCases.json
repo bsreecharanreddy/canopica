@@ -1,0 +1,15 @@
+{
+  "loadError": "No se pudo cargar la cartera de casos.",
+  "loading": "Cargando casos…",
+  "tableLabel": "Casos",
+  "columns": {
+    "householdHead": "Jefe de hogar",
+    "status": "Estado",
+    "submitted": "Presentado",
+    "latestDetermination": "Última determinación"
+  },
+  "eligible": "Elegible",
+  "notEligible": "No elegible",
+  "determinationValue": "{{status}} — ${{amount}}",
+  "notYetDetermined": "Aún no determinado"
+}

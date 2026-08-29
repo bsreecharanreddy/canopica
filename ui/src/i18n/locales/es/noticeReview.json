@@ -1,0 +1,23 @@
+{
+  "heading": "Revisión de avisos",
+  "description": "Avisos de elegibilidad redactados por IA en espera de revisión, del más antiguo al más reciente. Aprobar los genera y los envía; rechazar descarta el borrador.",
+  "loadError": "No se pudo cargar la cola de revisión de avisos.",
+  "loading": "Cargando la cola de revisión…",
+  "empty": "No hay avisos esperando revisión.",
+  "type": {
+    "APPROVAL": "Aprobación",
+    "DENIAL": "Denegación",
+    "PENDING_VERIFICATION": "Verificación pendiente"
+  },
+  "noticeHeading": "Aviso de {{type}}",
+  "draftedBy": "Redactado por {{model}} (prompt {{promptVersion}}). No se envía nada hasta que usted lo apruebe.",
+  "precheck": {
+    "passed": "Verificación superada",
+    "failed": "Verificación fallida"
+  },
+  "approveAndSend": "Aprobar y enviar",
+  "working": "Procesando…",
+  "reject": "Rechazar",
+  "approveError": "No se pudo aprobar este aviso. No se envió nada; por favor, inténtelo de nuevo.",
+  "rejectError": "No se pudo rechazar este aviso. Por favor, inténtelo de nuevo."
+}

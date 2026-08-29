@@ -1,0 +1,34 @@
+{
+  "heading": "Revisión de documentos",
+  "description": "Documentos clasificados por el proceso de admisión, con la menor confianza primero. Nada aquí ha afectado un caso todavía -- confirmar es lo que lo aplica.",
+  "loadError": "No se pudo cargar la cola de revisión de documentos.",
+  "loading": "Cargando la cola de revisión…",
+  "empty": "No hay documentos esperando revisión.",
+  "confidence": {
+    "low": "Confianza baja",
+    "medium": "Confianza media",
+    "high": "Confianza alta"
+  },
+  "table": {
+    "noFields": "No se extrajo ningún campo de este documento.",
+    "field": "Campo",
+    "extractedValue": "Valor extraído",
+    "confidence": "Confianza"
+  },
+  "verification": {
+    "none": "Este documento no coincidió con ninguna verificación pendiente.",
+    "satisfies": "Satisface la verificación pendiente {{id}}"
+  },
+  "income": {
+    "type": "Tipo de ingreso",
+    "monthlyAmount": "Monto mensual",
+    "effectiveFrom": "Vigente desde",
+    "postIncome": "Registrar un ingreso a partir de este documento"
+  },
+  "reviewingFor": "Revisando documento de {{name}}",
+  "classifiedBy": "Clasificado como {{documentType}} por {{model}} (prompt {{promptVersion}}). Nada llega a este caso hasta que usted confirme.",
+  "outstandingVerifications": "Verificaciones pendientes",
+  "confirm": "Confirmar",
+  "confirming": "Confirmando…",
+  "confirmError": "No se pudo confirmar este documento. No se aplicó nada; por favor, inténtelo de nuevo."
+}

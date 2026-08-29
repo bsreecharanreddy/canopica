@@ -27,7 +27,12 @@ from canopica_ai.common.llm_client import LlmResponse
 from canopica_ai.config import Settings
 from canopica_ai.correspondence.draft import ExplanationDraftError, draft_explanation
 from canopica_ai.correspondence.schema import DeterminationRecord
-from canopica_ai.correspondence.service import _select_notice_type, draft, fill_template
+from canopica_ai.correspondence.service import (
+    UnsupportedLanguageError,
+    _select_notice_type,
+    draft,
+    fill_template,
+)
 from canopica_ai.correspondence.validate import validate
 
 
@@ -144,6 +149,63 @@ class TestValidate:
 
         assert not result.passed
         assert any("unfilled" in error for error in result.errors)
+
+
+class TestTranslation:
+    """Task 7 (design doc §2.5): a translated draft is checked by the
+    *exact same* `validate()` gate as an English one -- these exercise
+    that gate against Spanish-language content, no LLM involved (the
+    templates and `validate()`'s own regexes are both language-agnostic
+    by design: only `explanation` is ever natural-language prose)."""
+
+    def test_a_spanish_notice_using_only_known_good_figures_passes(self) -> None:
+        determination = _determination()
+        content = fill_template(
+            "APPROVAL",
+            determination,
+            "Su ingreso neto fue de $1,200.00, dentro del límite.",
+            language="es",
+        )
+
+        result = validate(content, determination)
+
+        assert result.passed
+        assert result.errors == []
+        assert "Estimado/a Sam Applicant" in content
+
+    def test_a_mistranslated_dollar_amount_is_caught_the_same_way_an_english_one_would_be(
+        self,
+    ) -> None:
+        determination = _determination()
+        # $999.00 appears nowhere in trace_facts/trace_decisions/benefit_amount --
+        # the same "deliberately wrong LLM output" scenario TestValidate's own
+        # English test exercises above, here inside a Spanish-language explanation.
+        content = fill_template(
+            "APPROVAL",
+            determination,
+            "Su beneficio refleja una deducción de $999.00.",
+            language="es",
+        )
+
+        result = validate(content, determination)
+
+        assert not result.passed
+        assert any("$999.00" in error for error in result.errors)
+
+    def test_draft_explanation_is_parameterized_by_language_not_a_separate_code_path(self) -> None:
+        explanation = draft_explanation(
+            "APPROVAL",
+            _determination(),
+            language="es",
+            llm_client=_StubExplanationClient(
+                [_explanation_json("Su ingreso estaba dentro del límite.")]
+            ),
+        )
+        assert explanation == "Su ingreso estaba dentro del límite."
+
+    def test_an_unsupported_language_is_rejected_before_touching_the_database(self) -> None:
+        with pytest.raises(UnsupportedLanguageError):
+            draft(UUID("11111111-1111-1111-1111-111111111111"), language="fr")
 
 
 class _StubExplanationClient:
@@ -282,6 +344,30 @@ class TestDraftAgainstARealStack:
             llm_client=_StubExplanationClient([_explanation_json(explanation)]),
         )
 
+        assert notice.notice_type == "APPROVAL"
+        assert "Sam Applicant" in notice.content
+        assert "$170.00" in notice.content
+        assert explanation in notice.content
+        assert notice.validation_result.passed
+        assert notice.validation_result.errors == []
+
+    def test_a_real_determination_drafts_a_spanish_notice_that_passes_the_same_precheck(
+        self, settings: Settings
+    ) -> None:
+        # Task 7: the translated path is the same `draft()` function, parameterized
+        # by language -- this mirrors the English test above almost exactly, which
+        # is the point.
+        determination_id = _seed_determination(settings, eligible=True)
+
+        explanation = "Su ingreso neto estuvo dentro del límite."
+        notice = draft(
+            determination_id,
+            language="es",
+            settings=settings,
+            llm_client=_StubExplanationClient([_explanation_json(explanation)]),
+        )
+
+        assert notice.language == "es"
         assert notice.notice_type == "APPROVAL"
         assert "Sam Applicant" in notice.content
         assert "$170.00" in notice.content

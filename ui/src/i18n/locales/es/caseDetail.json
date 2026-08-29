@@ -1,0 +1,22 @@
+{
+  "loadError": "No se pudo cargar este caso.",
+  "loading": "Cargando caso…",
+  "auditLoadError": "No se pudo cargar el registro de auditoría de este caso.",
+  "program": "Programa",
+  "status": "Estado",
+  "requestedOn": "Solicitado el",
+  "runDetermination": {
+    "heading": "Ejecutar una determinación",
+    "alreadyDecided": "El mes de beneficio {{benefitMonth}} ya tiene una determinación. Revísela a continuación, o elija un mes distinto.",
+    "asOfDate": "Fecha de referencia",
+    "benefitMonth": "Mes de beneficio",
+    "submit": "Ejecutar determinación",
+    "running": "Ejecutando…",
+    "error": "No se pudo ejecutar una determinación para este caso."
+  },
+  "determinationHistory": {
+    "heading": "Historial de determinaciones",
+    "empty": "Aún no se ha realizado ninguna determinación."
+  },
+  "auditTrail": "Registro de auditoría"
+}

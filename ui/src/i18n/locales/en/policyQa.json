@@ -1,0 +1,17 @@
+{
+  "heading": "Ask about SNAP policy",
+  "question": {
+    "label": "Your question",
+    "submit": "Ask",
+    "asking": "Asking…",
+    "error": "Could not get an answer right now. Please try again."
+  },
+  "citations": "Citations",
+  "denial": {
+    "heading": "Why was I denied?",
+    "label": "Determination ID",
+    "submit": "Explain this determination",
+    "explaining": "Explaining…",
+    "error": "Could not explain this determination right now. Please try again."
+  }
+}

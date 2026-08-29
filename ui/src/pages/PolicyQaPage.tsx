@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { askPolicyQuestion, askWhyWasIDenied } from '../api/client';
 import type { QaAnswer } from '../api/types';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { FormField } from '@/components/design-system/FormField';
 import { AiAdvisoryBadge } from '@/components/design-system/AiAdvisoryBadge';
 
 function AnswerPanel({ answer }: { answer: QaAnswer }) {
+  const { t } = useTranslation('policyQa');
   if (answer.abstained) {
     // Rendered distinctly from a real answer (design doc §2.2) -- a
     // low-confidence guess and a grounded answer must never look the same
@@ -23,7 +25,7 @@ function AnswerPanel({ answer }: { answer: QaAnswer }) {
       <p className="mt-2 text-foreground">{answer.answer}</p>
       {answer.citations.length > 0 && (
         <>
-          <h3 className="mt-3 font-display text-sm">Citations</h3>
+          <h3 className="mt-3 font-display text-sm">{t('citations')}</h3>
           <ul className="mt-1 list-inside list-disc text-sm text-muted-foreground">
             {answer.citations.map((citation) => (
               <li key={citation}>{citation}</li>
@@ -36,6 +38,7 @@ function AnswerPanel({ answer }: { answer: QaAnswer }) {
 }
 
 export default function PolicyQaPage() {
+  const { t } = useTranslation('policyQa');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<QaAnswer | null>(null);
   const [asking, setAsking] = useState(false);
@@ -53,7 +56,7 @@ export default function PolicyQaPage() {
     try {
       setAnswer(await askPolicyQuestion(question));
     } catch {
-      setAskError('Could not get an answer right now. Please try again.');
+      setAskError(t('question.error'));
     } finally {
       setAsking(false);
     }
@@ -66,7 +69,7 @@ export default function PolicyQaPage() {
     try {
       setDenialAnswer(await askWhyWasIDenied(determinationId));
     } catch {
-      setDenialError('Could not explain this determination right now. Please try again.');
+      setDenialError(t('denial.error'));
     } finally {
       setExplaining(false);
     }
@@ -74,7 +77,7 @@ export default function PolicyQaPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <h2 className="font-display text-xl">Ask about SNAP policy</h2>
+      <h2 className="font-display text-xl">{t('heading')}</h2>
 
       <form onSubmit={handleAsk} className="flex flex-col gap-4">
         {askError && (
@@ -82,23 +85,23 @@ export default function PolicyQaPage() {
             {askError}
           </p>
         )}
-        <FormField id="question" label="Your question">
+        <FormField id="question" label={t('question.label')}>
           <Input id="question" value={question} onChange={(e) => setQuestion(e.target.value)} />
         </FormField>
         <Button type="submit" disabled={asking || !question} className="self-start">
-          {asking ? 'Asking…' : 'Ask'}
+          {asking ? t('question.asking') : t('question.submit')}
         </Button>
       </form>
       {answer && <AnswerPanel answer={answer} />}
 
-      <h3 className="font-display text-lg">Why was I denied?</h3>
+      <h3 className="font-display text-lg">{t('denial.heading')}</h3>
       <form onSubmit={handleExplainDenial} className="flex flex-col gap-4">
         {denialError && (
           <p role="alert" className="text-sm text-destructive">
             {denialError}
           </p>
         )}
-        <FormField id="determinationId" label="Determination ID">
+        <FormField id="determinationId" label={t('denial.label')}>
           <Input
             id="determinationId"
             value={determinationId}
@@ -106,7 +109,7 @@ export default function PolicyQaPage() {
           />
         </FormField>
         <Button type="submit" disabled={explaining || !determinationId} className="self-start">
-          {explaining ? 'Explaining…' : 'Explain this determination'}
+          {explaining ? t('denial.explaining') : t('denial.submit')}
         </Button>
       </form>
       {denialAnswer && <AnswerPanel answer={denialAnswer} />}

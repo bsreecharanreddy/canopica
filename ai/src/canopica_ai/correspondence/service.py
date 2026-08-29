@@ -21,7 +21,12 @@ from canopica_ai.common.llm_client import StructuredLlmClient
 from canopica_ai.common.observability import traced_ai_operation
 from canopica_ai.config import Settings
 from canopica_ai.correspondence.draft import PROMPT_VERSION, draft_explanation
-from canopica_ai.correspondence.schema import DeterminationRecord, NoticeDraft, NoticeType
+from canopica_ai.correspondence.schema import (
+    SUPPORTED_LANGUAGES,
+    DeterminationRecord,
+    NoticeDraft,
+    NoticeType,
+)
 from canopica_ai.correspondence.validate import validate
 
 TEMPLATE_VERSION = "v1"
@@ -42,6 +47,14 @@ class DeterminationNotFoundError(RuntimeError):
     doc §2.2's outbox guarantee), so a miss here is a real bug worth
     surfacing through the normal retry/archive path, the same reasoning
     document_intake_consumer's own DocumentNotFoundError already gives."""
+
+
+class UnsupportedLanguageError(ValueError):
+    """`language` named something outside `schema.SUPPORTED_LANGUAGES` --
+    raised rather than silently falling back to English, since a caller
+    that asked for a specific language and silently got a different one
+    is exactly the kind of mismatch this phase's validation-gate posture
+    exists to surface loudly, not paper over."""
 
 
 class _TolerantFormatter(Formatter):
@@ -122,20 +135,33 @@ def _select_notice_type(determination: DeterminationRecord) -> NoticeType:
     return "APPROVAL" if determination.eligible else "DENIAL"
 
 
-def _load_template(notice_type: NoticeType) -> str:
+def _load_template(notice_type: NoticeType, language: str) -> str:
     filename = f"{notice_type.lower()}.txt"
-    return (_TEMPLATES_DIR / filename).read_text()
+    # English templates live flat in `templates/` (Task 5's own original layout,
+    # kept as-is rather than moved under `templates/en/` for this); every other
+    # supported language gets its own maintained subdirectory, same "translation
+    # file per locale" shape ui/src/i18n/locales uses.
+    directory = _TEMPLATES_DIR if language == "en" else _TEMPLATES_DIR / language
+    return (directory / filename).read_text()
 
 
 def fill_template(
-    notice_type: NoticeType, determination: DeterminationRecord, explanation: str
+    notice_type: NoticeType,
+    determination: DeterminationRecord,
+    explanation: str,
+    *,
+    language: str = "en",
 ) -> str:
     """Every slot but `explanation` is substituted programmatically from
     `determination` itself (design doc §2.4's central mechanism decision)
     -- public, and taking a plain `DeterminationRecord` rather than
     reading anything itself, so a synthetic fixture can exercise each
-    `notice_type`'s own template without a real database or LLM."""
-    template = _load_template(notice_type)
+    `notice_type`'s own template without a real database or LLM. The
+    boilerplate text itself is a maintained translation file per
+    `language` (Task 7, design doc §2.5) -- never LLM-translated, same
+    "only the explanation slot is model-drafted" boundary this module's
+    own docstring states."""
+    template = _load_template(notice_type, language)
     return _TolerantFormatter().format(
         template,
         household_head_name=determination.household_head_name,
@@ -149,28 +175,41 @@ def fill_template(
 def draft(
     determination_id: UUID,
     *,
+    language: str = "en",
     settings: Settings | None = None,
     llm_client: StructuredLlmClient | None = None,
 ) -> NoticeDraft:
     """Fetches the determination's own record, drafts the explanation,
     fills the chosen template, and runs the deterministic pre-check.
     Never writes to `notice` or the audit log -- that's the worker
-    consumer's own job (Step 6)."""
+    consumer's own job (Step 6).
+
+    `language` (Task 7, design doc §2.5) routes through this exact same
+    path -- `draft_explanation` and `fill_template`, both parameterized by
+    it -- rather than a separate translation step bolted on afterward, so
+    a translated draft is checked by the identical `validate()` call an
+    English draft is: a mistranslated dollar amount is exactly the
+    failure mode that check already exists to catch."""
+    if language not in SUPPORTED_LANGUAGES:
+        raise UnsupportedLanguageError(
+            f"language {language!r} is not one of {SUPPORTED_LANGUAGES}"
+        )
     settings = settings or Settings()
     determination = _fetch_determination(determination_id, settings=settings)
     notice_type = _select_notice_type(determination)
 
     with traced_ai_operation("correspondence.draft"):
         explanation = draft_explanation(
-            notice_type, determination, settings=settings, llm_client=llm_client
+            notice_type, determination, language=language, settings=settings, llm_client=llm_client
         )
-        content = fill_template(notice_type, determination, explanation)
+        content = fill_template(notice_type, determination, explanation, language=language)
         validation_result = validate(content, determination)
 
     return NoticeDraft(
         notice_type=notice_type,
         content=content,
         template_version=TEMPLATE_VERSION,
+        language=language,
         generation_model=settings.ollama_generation_model,
         prompt_version=PROMPT_VERSION,
         validation_result=validation_result,

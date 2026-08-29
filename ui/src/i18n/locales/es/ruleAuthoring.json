@@ -1,0 +1,39 @@
+{
+  "heading": "Redacción de reglas",
+  "description": "Pegue un extracto de un documento de política publicado. El copiloto redacta los cambios de parámetros que declara, y usted revisa cada uno de ellos antes de decidir.",
+  "excerptLabel": "Extracto del documento de política",
+  "draft": "Redactar cambios propuestos",
+  "drafting": "Redactando…",
+  "draftError": "No se pudo redactar una propuesta a partir de este extracto. Inténtelo de nuevo, o pegue un extracto más claro.",
+  "waitingForReview": "Esperando revisión",
+  "reviewDraftAgainst": "Revisar el borrador frente a {{versionLabel}}, propuesto por {{proposedBy}}",
+  "draftAgainst": "Borrador frente a {{versionLabel}}",
+  "draftedBy": "Redactado por {{model}} (prompt {{promptVersion}}). Un borrador, no una decisión — nada se publica hasta que usted lo acepte.",
+  "noChanges": "No se encontraron cambios de parámetros en este extracto.",
+  "reviewedByStatus": "por {{reviewedBy}}.",
+  "accepted": "Aceptado",
+  "rejected": "Rechazado",
+  "published": " Publicado como conjunto de parámetros {{id}}.",
+  "publicationDetails": {
+    "heading": "Detalles de publicación",
+    "versionLabel": "Etiqueta de versión",
+    "effectiveFrom": "Vigente desde",
+    "sourceCitation": "Cita de la fuente"
+  },
+  "acceptAndPublish": "Aceptar y publicar",
+  "reviewing": "Revisando…",
+  "reject": "Rechazar",
+  "acceptError": "No se pudieron publicar estos cambios. No se publicó nada; verifique la etiqueta de versión e inténtelo de nuevo.",
+  "rejectError": "No se pudo registrar el rechazo. Por favor, inténtelo de nuevo.",
+  "diffTable": {
+    "caption": "Cambios de parámetros propuestos",
+    "parameter": "Parámetro",
+    "household": "Hogar",
+    "current": "Actual",
+    "proposed": "Propuesto",
+    "unit": "Unidad",
+    "why": "Motivo",
+    "allSizes": "Todos los tamaños",
+    "size": "Tamaño {{size}}"
+  }
+}

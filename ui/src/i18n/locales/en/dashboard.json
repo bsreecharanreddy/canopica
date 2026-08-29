@@ -1,0 +1,8 @@
+{
+  "loadError": "Could not load your caseload stats.",
+  "loading": "Loading dashboard…",
+  "heading": "Dashboard",
+  "activeCases": "Active cases",
+  "pendingDetermination": "Pending determination",
+  "recentActivity": "Recent activity"
+}

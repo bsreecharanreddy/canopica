@@ -1,0 +1,23 @@
+{
+  "heading": "Notice review",
+  "description": "AI-drafted eligibility notices awaiting review, oldest first. Approving renders and sends; rejecting discards the draft.",
+  "loadError": "Could not load the notice review queue.",
+  "loading": "Loading the review queue…",
+  "empty": "No notices are waiting for review.",
+  "type": {
+    "APPROVAL": "Approval",
+    "DENIAL": "Denial",
+    "PENDING_VERIFICATION": "Pending verification"
+  },
+  "noticeHeading": "{{type}} notice",
+  "draftedBy": "Drafted by {{model}} (prompt {{promptVersion}}). Nothing is sent until you approve.",
+  "precheck": {
+    "passed": "Pre-check passed",
+    "failed": "Pre-check failed"
+  },
+  "approveAndSend": "Approve & send",
+  "working": "Working…",
+  "reject": "Reject",
+  "approveError": "Could not approve this notice. Nothing was sent; please try again.",
+  "rejectError": "Could not reject this notice. Please try again."
+}

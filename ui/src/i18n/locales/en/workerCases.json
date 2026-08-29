@@ -1,0 +1,15 @@
+{
+  "loadError": "Could not load the caseload.",
+  "loading": "Loading cases…",
+  "tableLabel": "Cases",
+  "columns": {
+    "householdHead": "Household head",
+    "status": "Status",
+    "submitted": "Submitted",
+    "latestDetermination": "Latest determination"
+  },
+  "eligible": "Eligible",
+  "notEligible": "Not eligible",
+  "determinationValue": "{{status}} — ${{amount}}",
+  "notYetDetermined": "Not yet determined"
+}

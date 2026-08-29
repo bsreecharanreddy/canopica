@@ -1,0 +1,26 @@
+{
+  "app": {
+    "name": "Canopica",
+    "tagline": "Benefits Platform"
+  },
+  "nav": {
+    "apply": "Apply",
+    "askAboutPolicy": "Ask about policy",
+    "dashboard": "Dashboard",
+    "cases": "Cases",
+    "documentReview": "Document review",
+    "noticeReview": "Notice review",
+    "ruleAuthoring": "Rule authoring",
+    "signOut": "Sign out"
+  },
+  "role": {
+    "CUSTOMER": "Applicant",
+    "WORKER": "Caseworker",
+    "ADMIN": "Administrator"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "es": "Español"
+  }
+}

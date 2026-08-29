@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ApiValidationError, submitApplication } from '../api/client';
 import type { IntakePerson, IntakeRequest } from '../api/types';
 import HouseholdMemberFields, { emptyMember } from '../components/HouseholdMemberFields';
@@ -21,6 +22,7 @@ function initialMembers(): IntakePerson[] {
 }
 
 export default function IntakePage() {
+  const { t } = useTranslation('intake');
   const [county, setCounty] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [city, setCity] = useState('');
@@ -61,7 +63,7 @@ export default function IntakePage() {
       if (err instanceof ApiValidationError) {
         setErrors(err.errors.map((e) => (e.field ? `${e.field}: ${e.message}` : e.message)));
       } else {
-        setErrors(['Something went wrong submitting your application. Please try again.']);
+        setErrors([t('genericError')]);
       }
     } finally {
       setSubmitting(false);
@@ -71,10 +73,9 @@ export default function IntakePage() {
   if (confirmation) {
     return (
       <RecordSheet>
-        <h2 className="font-display text-xl">Application submitted</h2>
+        <h2 className="font-display text-xl">{t('submitted.heading')}</h2>
         <p className="mt-2 text-sm text-foreground">
-          Your reference number is <strong>{confirmation.programRequestId}</strong>. A caseworker will
-          review your application.
+          {t('submitted.body', { referenceNumber: confirmation.programRequestId })}
         </p>
       </RecordSheet>
     );
@@ -82,7 +83,7 @@ export default function IntakePage() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <h2 className="font-display text-xl">Apply for SNAP</h2>
+      <h2 className="font-display text-xl">{t('heading')}</h2>
 
       {errors.length > 0 && (
         <div role="alert" className="text-sm text-destructive">
@@ -95,29 +96,29 @@ export default function IntakePage() {
       )}
 
       <RecordSheet>
-        <h3 className="font-display text-lg">Household</h3>
+        <h3 className="font-display text-lg">{t('household.heading')}</h3>
         <div className="mt-4 flex flex-col gap-4">
-          <FormField id="county" label="County">
+          <FormField id="county" label={t('household.county')}>
             <Input id="county" value={county} onChange={(e) => setCounty(e.target.value)} />
           </FormField>
 
-          <FormField id="addressLine1" label="Street address">
+          <FormField id="addressLine1" label={t('household.streetAddress')}>
             <Input id="addressLine1" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
           </FormField>
 
-          <FormField id="city" label="City">
+          <FormField id="city" label={t('household.city')}>
             <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
           </FormField>
 
-          <FormField id="state" label="State">
+          <FormField id="state" label={t('household.state')}>
             <Input id="state" value={state} onChange={(e) => setState(e.target.value)} />
           </FormField>
 
-          <FormField id="zipCode" label="ZIP code">
+          <FormField id="zipCode" label={t('household.zipCode')}>
             <Input id="zipCode" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
           </FormField>
 
-          <FormField id="arrangementType" label="Living arrangement">
+          <FormField id="arrangementType" label={t('household.livingArrangement')}>
             <select
               id="arrangementType"
               value={arrangementType}
@@ -140,10 +141,10 @@ export default function IntakePage() {
               onChange={(e) => setPaysUtilitiesSeparately(e.target.checked)}
               className="h-4 w-4 rounded border-input accent-primary"
             />
-            Pays utilities separately from rent
+            {t('household.paysUtilitiesSeparately')}
           </label>
 
-          <FormField id="liquidResources" label="Cash and bank accounts on hand ($)">
+          <FormField id="liquidResources" label={t('household.cashAndBankAccounts')}>
             <Input
               id="liquidResources"
               inputMode="decimal"
@@ -157,7 +158,7 @@ export default function IntakePage() {
       <HouseholdMemberFields members={members} onChange={setMembers} />
 
       <Button type="submit" disabled={submitting} className="self-start">
-        {submitting ? 'Submitting…' : 'Submit application'}
+        {submitting ? t('submitting') : t('submit')}
       </Button>
     </form>
   );

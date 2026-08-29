@@ -1,0 +1,39 @@
+{
+  "heading": "Rule authoring",
+  "description": "Paste an excerpt from a published policy document. The copilot drafts the parameter changes it states, and you review every one of them before deciding.",
+  "excerptLabel": "Policy document excerpt",
+  "draft": "Draft proposed changes",
+  "drafting": "Drafting…",
+  "draftError": "Could not draft a proposal from this excerpt. Please try again, or paste a clearer excerpt.",
+  "waitingForReview": "Waiting for review",
+  "reviewDraftAgainst": "Review the draft against {{versionLabel}}, proposed by {{proposedBy}}",
+  "draftAgainst": "Draft against {{versionLabel}}",
+  "draftedBy": "Drafted by {{model}} (prompt {{promptVersion}}). A draft, not a decision — nothing is published until you accept it.",
+  "noChanges": "No parameter changes were found in this excerpt.",
+  "reviewedByStatus": "by {{reviewedBy}}.",
+  "accepted": "Accepted",
+  "rejected": "Rejected",
+  "published": " Published as parameter set {{id}}.",
+  "publicationDetails": {
+    "heading": "Publication details",
+    "versionLabel": "Version label",
+    "effectiveFrom": "Effective from",
+    "sourceCitation": "Source citation"
+  },
+  "acceptAndPublish": "Accept and publish",
+  "reviewing": "Reviewing…",
+  "reject": "Reject",
+  "acceptError": "Could not publish these changes. Nothing was published; please check the version label and try again.",
+  "rejectError": "Could not record the rejection. Please try again.",
+  "diffTable": {
+    "caption": "Proposed parameter changes",
+    "parameter": "Parameter",
+    "household": "Household",
+    "current": "Current",
+    "proposed": "Proposed",
+    "unit": "Unit",
+    "why": "Why",
+    "allSizes": "All sizes",
+    "size": "Size {{size}}"
+  }
+}

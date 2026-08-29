@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { listProposals, proposeParameterChanges, reviewProposal } from '../api/client';
 import type { ParameterProposal, ProposedParameterValue, PublicationDetails } from '../api/types';
 import { Button } from '@/components/ui/button';
@@ -9,51 +11,52 @@ import { RecordSheet } from '@/components/design-system/RecordSheet';
 import { StatusPill } from '@/components/design-system/StatusPill';
 import { AiAdvisoryBadge } from '@/components/design-system/AiAdvisoryBadge';
 
-function scopeLabel(householdSize: number | null): string {
-  return householdSize === null ? 'All sizes' : `Size ${householdSize}`;
+function scopeLabel(t: TFunction<'ruleAuthoring'>, householdSize: number | null): string {
+  return householdSize === null ? t('diffTable.allSizes') : t('diffTable.size', { size: householdSize });
 }
 
 function DiffTable({ changes }: { changes: ProposedParameterValue[] }) {
+  const { t } = useTranslation('ruleAuthoring');
   return (
     <table className="w-full border-collapse text-sm">
-      <caption className="mb-2 text-left text-sm text-muted-foreground">Proposed parameter changes</caption>
+      <caption className="mb-2 text-left text-sm text-muted-foreground">{t('diffTable.caption')}</caption>
       <thead>
         <tr>
           <th
             scope="col"
             className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
           >
-            Parameter
+            {t('diffTable.parameter')}
           </th>
           <th
             scope="col"
             className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
           >
-            Household
+            {t('diffTable.household')}
           </th>
           <th
             scope="col"
             className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
           >
-            Current
+            {t('diffTable.current')}
           </th>
           <th
             scope="col"
             className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
           >
-            Proposed
+            {t('diffTable.proposed')}
           </th>
           <th
             scope="col"
             className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
           >
-            Unit
+            {t('diffTable.unit')}
           </th>
           <th
             scope="col"
             className="border-b border-border px-3 py-2 text-left text-xs uppercase tracking-wide text-muted-foreground"
           >
-            Why
+            {t('diffTable.why')}
           </th>
         </tr>
       </thead>
@@ -63,7 +66,7 @@ function DiffTable({ changes }: { changes: ProposedParameterValue[] }) {
             <th scope="row" className="px-3 py-2 text-left font-normal text-foreground">
               {change.name}
             </th>
-            <td className="px-3 py-2 text-muted-foreground">{scopeLabel(change.householdSize)}</td>
+            <td className="px-3 py-2 text-muted-foreground">{scopeLabel(t, change.householdSize)}</td>
             <td className="px-3 py-2 text-muted-foreground">{change.oldValue}</td>
             <td className="px-3 py-2 font-medium text-foreground">{change.newValue}</td>
             <td className="px-3 py-2 text-muted-foreground">{change.unit}</td>
@@ -88,17 +91,18 @@ function PublicationFields({
   details: PublicationDetails;
   onChange: (next: PublicationDetails) => void;
 }) {
+  const { t } = useTranslation('ruleAuthoring');
   return (
     <RecordSheet className="mt-4 flex flex-col gap-4">
-      <h4 className="font-display text-base">Publication details</h4>
-      <FormField id="versionLabel" label="Version label">
+      <h4 className="font-display text-base">{t('publicationDetails.heading')}</h4>
+      <FormField id="versionLabel" label={t('publicationDetails.versionLabel')}>
         <Input
           id="versionLabel"
           value={details.versionLabel}
           onChange={(e) => onChange({ ...details, versionLabel: e.target.value })}
         />
       </FormField>
-      <FormField id="effectiveFrom" label="Effective from">
+      <FormField id="effectiveFrom" label={t('publicationDetails.effectiveFrom')}>
         <Input
           id="effectiveFrom"
           type="date"
@@ -106,7 +110,7 @@ function PublicationFields({
           onChange={(e) => onChange({ ...details, effectiveFrom: e.target.value })}
         />
       </FormField>
-      <FormField id="sourceCitation" label="Source citation">
+      <FormField id="sourceCitation" label={t('publicationDetails.sourceCitation')}>
         <Input
           id="sourceCitation"
           value={details.sourceCitation}
@@ -126,16 +130,17 @@ function PendingProposalsList({
   waiting: ParameterProposal[];
   onReview: (proposal: ParameterProposal) => void;
 }) {
+  const { t } = useTranslation('ruleAuthoring');
   if (waiting.length === 0) return null;
   return (
     <>
-      <h3 className="font-display text-lg">Waiting for review</h3>
+      <h3 className="font-display text-lg">{t('waitingForReview')}</h3>
       <ul className="mt-2 flex flex-col gap-3">
         {waiting.map((each) => (
           <li key={each.id}>
             <RecordSheet>
               <Button variant="outline" type="button" onClick={() => onReview(each)}>
-                Review the draft against {each.currentVersionLabel}, proposed by {each.proposedBy}
+                {t('reviewDraftAgainst', { versionLabel: each.currentVersionLabel, proposedBy: each.proposedBy })}
               </Button>
             </RecordSheet>
           </li>
@@ -146,15 +151,15 @@ function PendingProposalsList({
 }
 
 function ReviewedStatusBanner({ proposal }: { proposal: ParameterProposal }) {
+  const { t } = useTranslation('ruleAuthoring');
   if (proposal.status === 'PENDING') return null;
   return (
     <p className="mt-2 text-sm text-muted-foreground">
       <StatusPill tone={proposal.status === 'ACCEPTED' ? 'affirmed' : 'exception'}>
-        {proposal.status === 'ACCEPTED' ? 'Accepted' : 'Rejected'}
+        {proposal.status === 'ACCEPTED' ? t('accepted') : t('rejected')}
       </StatusPill>{' '}
-      by {proposal.reviewedBy}.
-      {proposal.publishedParameterSetId &&
-        ` Published as parameter set ${proposal.publishedParameterSetId}.`}
+      {t('reviewedByStatus', { reviewedBy: proposal.reviewedBy })}
+      {proposal.publishedParameterSetId && t('published', { id: proposal.publishedParameterSetId })}
     </p>
   );
 }
@@ -174,6 +179,7 @@ function ProposalReview({
   onAccept: () => void;
   onReject: () => void;
 }) {
+  const { t } = useTranslation('ruleAuthoring');
   const hasChanges = proposal.proposedValues.length > 0;
   const pending = proposal.status === 'PENDING';
   const complete = Boolean(details.versionLabel && details.effectiveFrom && details.sourceCitation);
@@ -181,10 +187,11 @@ function ProposalReview({
   return (
     <RecordSheet>
       <AiAdvisoryBadge />
-      <h3 className="mt-2 font-display text-lg">Draft against {proposal.currentVersionLabel}</h3>
+      <h3 className="mt-2 font-display text-lg">
+        {t('draftAgainst', { versionLabel: proposal.currentVersionLabel })}
+      </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Drafted by {proposal.generationModel} (prompt {proposal.promptVersion}). A draft, not a decision
-        — nothing is published until you accept it.
+        {t('draftedBy', { model: proposal.generationModel, promptVersion: proposal.promptVersion })}
       </p>
 
       {hasChanges ? (
@@ -192,7 +199,7 @@ function ProposalReview({
           <DiffTable changes={proposal.proposedValues} />
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted-foreground">No parameter changes were found in this excerpt.</p>
+        <p className="mt-4 text-sm text-muted-foreground">{t('noChanges')}</p>
       )}
 
       <ReviewedStatusBanner proposal={proposal} />
@@ -202,10 +209,10 @@ function ProposalReview({
           <PublicationFields details={details} onChange={onDetailsChange} />
           <div className="mt-4 flex gap-3">
             <Button type="button" disabled={reviewing || !complete} onClick={onAccept}>
-              {reviewing ? 'Reviewing…' : 'Accept and publish'}
+              {reviewing ? t('reviewing') : t('acceptAndPublish')}
             </Button>
             <Button variant="outline" type="button" disabled={reviewing} onClick={onReject}>
-              {reviewing ? 'Reviewing…' : 'Reject'}
+              {reviewing ? t('reviewing') : t('reject')}
             </Button>
           </div>
         </>
@@ -215,6 +222,7 @@ function ProposalReview({
 }
 
 export default function RuleAuthoringPage() {
+  const { t } = useTranslation('ruleAuthoring');
   const [excerpt, setExcerpt] = useState('');
   const [proposal, setProposal] = useState<ParameterProposal | null>(null);
   const [details, setDetails] = useState<PublicationDetails>(EMPTY_DETAILS);
@@ -246,7 +254,7 @@ export default function RuleAuthoringPage() {
       setProposal(await proposeParameterChanges(excerpt));
       setDetails(EMPTY_DETAILS);
     } catch {
-      setError('Could not draft a proposal from this excerpt. Please try again, or paste a clearer excerpt.');
+      setError(t('draftError'));
     } finally {
       setDrafting(false);
     }
@@ -259,11 +267,7 @@ export default function RuleAuthoringPage() {
     try {
       setProposal(await reviewProposal(proposal.id, accept, accept ? details : undefined));
     } catch {
-      setError(
-        accept
-          ? 'Could not publish these changes. Nothing was published; please check the version label and try again.'
-          : 'Could not record the rejection. Please try again.',
-      );
+      setError(accept ? t('acceptError') : t('rejectError'));
     } finally {
       setReviewing(false);
     }
@@ -272,11 +276,8 @@ export default function RuleAuthoringPage() {
   return (
     <section className="flex flex-col gap-6">
       <div>
-        <h2 className="font-display text-xl">Rule authoring</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Paste an excerpt from a published policy document. The copilot drafts the parameter changes it
-          states, and you review every one of them before deciding.
-        </p>
+        <h2 className="font-display text-xl">{t('heading')}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t('description')}</p>
       </div>
 
       <form onSubmit={handleDraft} className="flex flex-col gap-4">
@@ -285,11 +286,11 @@ export default function RuleAuthoringPage() {
             {error}
           </p>
         )}
-        <FormField id="excerpt" label="Policy document excerpt">
+        <FormField id="excerpt" label={t('excerptLabel')}>
           <Textarea id="excerpt" rows={6} value={excerpt} onChange={(e) => setExcerpt(e.target.value)} />
         </FormField>
         <Button type="submit" disabled={drafting || !excerpt.trim()} className="self-start">
-          {drafting ? 'Drafting…' : 'Draft proposed changes'}
+          {drafting ? t('drafting') : t('draft')}
         </Button>
       </form>
 

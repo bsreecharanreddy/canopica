@@ -1,0 +1,21 @@
+{
+  "heading": "Solicitar SNAP",
+  "submitted": {
+    "heading": "Solicitud enviada",
+    "body": "Su número de referencia es {{referenceNumber}}. Un trabajador social revisará su solicitud."
+  },
+  "genericError": "Algo salió mal al enviar su solicitud. Por favor, inténtelo de nuevo.",
+  "household": {
+    "heading": "Hogar",
+    "county": "Condado",
+    "streetAddress": "Dirección",
+    "city": "Ciudad",
+    "state": "Estado",
+    "zipCode": "Código postal",
+    "livingArrangement": "Tipo de vivienda",
+    "paysUtilitiesSeparately": "Paga los servicios públicos por separado del alquiler",
+    "cashAndBankAccounts": "Efectivo y cuentas bancarias disponibles ($)"
+  },
+  "submit": "Enviar solicitud",
+  "submitting": "Enviando…"
+}

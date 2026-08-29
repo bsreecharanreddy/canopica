@@ -1,0 +1,17 @@
+{
+  "heading": "Preguntas sobre la política de SNAP",
+  "question": {
+    "label": "Su pregunta",
+    "submit": "Preguntar",
+    "asking": "Preguntando…",
+    "error": "No se pudo obtener una respuesta en este momento. Por favor, inténtelo de nuevo."
+  },
+  "citations": "Citas",
+  "denial": {
+    "heading": "¿Por qué me denegaron?",
+    "label": "ID de determinación",
+    "submit": "Explicar esta determinación",
+    "explaining": "Explicando…",
+    "error": "No se pudo explicar esta determinación en este momento. Por favor, inténtelo de nuevo."
+  }
+}
