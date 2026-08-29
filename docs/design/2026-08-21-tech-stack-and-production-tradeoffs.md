@@ -48,6 +48,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 | Operational store | Postgres | Oracle (still dominant in legacy state systems), SQL Server, or Postgres | **≈** | Dialect differences in DDL only. |
 | PII protection (silver tokenization) | `pii_token` vault table, `pgcrypto`-encrypted, narrow-RLS'd; detokenization is a separate audited call (Phase 1b) | A dedicated tokenization product or HSM-backed envelope encryption, running as an out-of-band service with its own credential | **~** | See §4.15 — the vault lives in the same database and failure domain as the data it protects, unlike a real out-of-band vault. |
 | Transformation | dbt, medallion (bronze/silver/gold) | dbt on Databricks/Snowflake/Fabric — or, in older systems, Informatica / DataStage / Ab Initio | **=** | The dbt project is portable as-is. |
+| Data quality observability (Phase 4, decided — not yet built) | Elementary, dbt-native, self-hosted, $0 | Monte Carlo, or Elementary itself run in production | **=** | Same product either way — this closes what §6.5 names as a genuine, previously-unbuilt gap (tests catch a known failure mode; observability catches an unknown one) rather than substituting something narrower. See Phase 4 design doc §2.7. |
 | Compute engine | DuckDB (local, in-process) | Spark on Databricks, Fabric, or Synapse | **≈** | A dbt profile swap (`dbt-duckdb` → `dbt-databricks`). Model SQL is unchanged. |
 | Table format | Delta Lake, via the open-source `deltalake` library (no Spark) | Delta Lake on Databricks/Fabric, or Iceberg | **=** | Same on-disk format, byte for byte. |
 | Object storage | MinIO (S3-compatible), pinned to its last actually-published Docker Hub release (`RELEASE.2025-09-07T16-13-09Z` -- the next one, `2025-10-15`, was announced but never pushed as an image) — the community edition was archived by its own maintainers in 2026 (moved to a paid product, AIStor); the server code itself was never relicensed, still free/AGPLv3, so this is a maintenance-status change, not a cost one. Kept over a community fork or a different product since this runs local/CI-only, never internet-facing — see Phase 3 design doc §2.1 addendum. | ADLS Gen2 / S3, with lifecycle policies, immutability holds, and CMK encryption | **≈** | Endpoint + credential change; lifecycle/retention policies added. A real production system would also need an actively-maintained object-store product, which this substitution's pinned-last-release posture is not. |
@@ -73,6 +74,7 @@ Fidelity column: **=** identical · **≈** same-shape · **~** substituted.
 | Semantic layer | MetricFlow (open source), querying DuckDB directly | Same, or a vendor semantic layer (Power BI's own model, AtScale), typically fronting a real warehouse/server with its own role-based access control | **~** | A real warehouse's RBAC has no DuckDB equivalent — an embedded, file-based engine's security model is session settings and file permissions, not server-enforced roles. See §4.17. |
 | Document intake | LLM-native structured extraction (Pydantic-validated JSON), a lightweight OCR/text-extraction pass feeding scanned uploads, MinIO object storage for the originals | Azure AI Document Intelligence, plus an enterprise content management system (OpenText, FileNet) as the system of record for the document itself | **~** | No ECM here — documents are stored, not *managed* (no retention schedule, no legal hold, no records disposition). No managed confidence-calibration/human-review tooling either — the review queue and per-field confidence display are built here from scratch, not a vendor feature. See Phase 3 design doc §2.3. |
 | Correspondence | Fixed per-notice-type template with LLM-filled slots; every dollar amount/date substituted programmatically from the determination record, never LLM-generated; rendered to PDF | A customer-communications-management product (Exstream, Quadient, Smart Communications) wired to a print-and-mail vendor, with certified-mail tracking and undeliverable-address handling | **~** | Notices are generated but never *sent* — see §4.4. Template authoring/versioning also lives in this repo's own code, not a dedicated CCM authoring UI — a real gap for a system meant to support many notice types over time. See Phase 3 design doc §2.4. |
+| Fraud risk triage (Phase 4, decided — not yet built) | Unsupervised anomaly scoring (`scikit-learn` `IsolationForest` over a small engineered feature set), self-hosted, $0 | A supervised fraud classifier trained on real investigated-case outcomes, or a managed anomaly-detection service (Azure AI Anomaly Detector, a SAS/FICO fraud platform) | **~** | No real fraud-labeled data exists in this project — every applicant is synthetic, so supervised classification is off the table on a data-availability basis, not a preference. A real deployment with investigated-case history would very likely move to a supervised or hybrid model. See Phase 4 design doc §2.2. |
 | Evaluation | Golden-question suite scored for groundedness and citation accuracy, gating CI | Same, plus human review panels and periodic model revalidation | **≈** | Scale of the eval set, and who reviews it. |
 
 ### Messaging tier
@@ -360,6 +362,15 @@ with agency-held keys as a hard requirement rather than a hardening step
 — because under IRC 6103(l)(7) it is the thing that makes the deployment
 lawful, not merely more secure.
 
+**4.20 QC re-derivation is sampled, not exhaustive — a statistical
+estimate, not a full audit.** Modeled directly on the real federal SNAP
+Quality Control process, which re-reviews a statistically valid sample of
+cases each cycle rather than every case ever decided (Phase 4 design doc
+§2.3). The payment-error-rate figure this produces carries the same
+limitation the real process it's modeled on already carries: it is an
+estimate with a confidence interval, not a claim that every dollar this
+system ever paid has been individually re-verified.
+
 ## 5. Cost
 
 Running the full stack locally is **$0** and requires no cloud account, no
@@ -375,8 +386,11 @@ locally (and a free-tier-first, capped-paid-fallback hosted API, not an
 uncapped one, for the one public surface that needs a hosted API at all),
 DuckDB over managed Spark, MinIO over cloud storage, Keycloak over a
 commercial IdP, pgmq over RabbitMQ/Kafka, batch extraction over
-Debezium/CDC, and a `pgcrypto`-backed token vault over a dedicated
-tokenization product. In every case the substitute was chosen specifically
+Debezium/CDC, a `pgcrypto`-backed token vault over a dedicated
+tokenization product, and, for Phase 4, `scikit-learn`'s `IsolationForest`
+over a managed anomaly-detection service and Elementary (self-hosted)
+over Monte Carlo for data-quality observability. In every case the
+substitute was chosen specifically
 because the *interface* it presents matches the production equivalent,
 so the migration path is real rather than aspirational.
 
@@ -518,7 +532,9 @@ lineage-aware incident view on top) are the named production equivalents
 CI gate and nothing watching for an anomaly no one thought to assert. That
 gap is worth stating plainly rather than implying the CI gate covers it: a
 test catches a known failure mode; an observability tool catches an
-unknown one.
+unknown one. **Decided for Phase 4, not yet built**: adopt Elementary
+directly rather than hand-roll statistical anomaly detection — see the
+Data tier table above and Phase 4 design doc §2.7.
 
 **One honest gap on the test side too, not papered over:** dbt has no
 native equivalent of Informatica's reject-file/error-row handling — a
