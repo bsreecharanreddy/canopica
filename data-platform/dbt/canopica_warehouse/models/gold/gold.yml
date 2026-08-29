@@ -115,6 +115,50 @@ models:
       - name: reviewed
         tests: [not_null]
 
+  - name: mart_fairness_audit
+    description: >
+      Disparate-impact ratio (EEOC four-fifths-rule shape) per (model,
+      demographic_axis, demographic_slice, outcome_axis). Aggregate only --
+      no determination_key or person_key alongside a demographic value, by
+      design (Phase 4 plan constraint 23), so no_pii_in_gold doesn't apply
+      here the way it does to a per-determination mart: this mart's safety
+      comes from being genuinely aggregate, not from the name-based column
+      check that test performs. Shared by a CI gate (fails a merge on a
+      regression below 0.8) and a Power BI/Metabase page (roadmap §3.3).
+      model = 'rules_engine' as of Phase 4 Task 1; 'fraud_triage' added
+      Task 3.
+    columns:
+      - name: audit_row_key
+        tests: [not_null, unique]
+      - name: as_of_date
+        tests: [not_null]
+      - name: model
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["rules_engine", "fraud_triage"] }
+      - name: demographic_axis
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["race", "hispanic_origin"] }
+      - name: demographic_slice
+        tests: [not_null]
+      - name: outcome_axis
+        tests: [not_null]
+      - name: total_count
+        tests: [not_null]
+      - name: favorable_count
+        tests: [not_null]
+      - name: selection_rate
+        tests: [not_null]
+      - name: disparate_impact_ratio
+        # Nullable: no reference rate exists when every slice in a model/axis/outcome group is
+        # too small to anchor one (mart_fairness_audit.sql's reference CTE) -- an honest "not
+        # enough data yet," not a bug.
+      - name: sample_size_adequate
+        tests: [not_null]
+
   - name: mart_processing_timeliness
     description: >
       One row per determination, against SNAP's real 30-day/7-day

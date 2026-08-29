@@ -90,6 +90,8 @@ def _generate_member(
     sex = weighted_choice(rng, marginals["sex"])
     first_name = str(rng.choice(_FIRST_NAMES[sex]))
     last_name = str(rng.choice(_LAST_NAMES))
+    race = weighted_choice(rng, marginals["race"])
+    hispanic_origin = bernoulli(rng, marginals["p_hispanic_origin"])
     return SyntheticPerson(
         person_id=_uuid_from_rng(rng),
         first_name=first_name,
@@ -98,6 +100,8 @@ def _generate_member(
         age=age,
         sex=sex,
         relationship=relationship,
+        race=race,
+        hispanic_origin=hispanic_origin,
     )
 
 

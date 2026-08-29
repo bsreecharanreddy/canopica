@@ -33,6 +33,15 @@ public class Person {
     @Column(name = "is_us_citizen", nullable = false)
     private boolean usCitizen;
 
+    // Voluntary civil-rights demographic data (7 CFR 272.6), not an eligibility input -- the DMN
+    // rules engine never reads either field. Nullable: a real applicant may decline to answer.
+    // See V22__person_demographics.sql; exists for Phase 4's fairness audit.
+    @Column(name = "race")
+    private String race;
+
+    @Column(name = "hispanic_origin")
+    private Boolean hispanicOrigin;
+
     // Set only on the household's head person, at the submission that created their row (IntakeService) --
     // the JWT `sub` of whichever citizen actually submitted. Null for every other member of that household;
     // not unique (see V12's own comment) since the same real citizen submitting again over time legitimately
@@ -49,11 +58,17 @@ public class Person {
 
     public Person(UUID id, String firstName, String lastName, LocalDate dateOfBirth,
                   String ssnToken, String sex, boolean usCitizen) {
-        this(id, firstName, lastName, dateOfBirth, ssnToken, sex, usCitizen, null);
+        this(id, firstName, lastName, dateOfBirth, ssnToken, sex, usCitizen, null, null, null);
     }
 
     public Person(UUID id, String firstName, String lastName, LocalDate dateOfBirth,
                   String ssnToken, String sex, boolean usCitizen, String keycloakSubject) {
+        this(id, firstName, lastName, dateOfBirth, ssnToken, sex, usCitizen, keycloakSubject, null, null);
+    }
+
+    public Person(UUID id, String firstName, String lastName, LocalDate dateOfBirth,
+                  String ssnToken, String sex, boolean usCitizen, String keycloakSubject,
+                  String race, Boolean hispanicOrigin) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -62,6 +77,8 @@ public class Person {
         this.sex = sex;
         this.usCitizen = usCitizen;
         this.keycloakSubject = keycloakSubject;
+        this.race = race;
+        this.hispanicOrigin = hispanicOrigin;
     }
 
     public UUID getId() {
@@ -94,6 +111,14 @@ public class Person {
 
     public String getKeycloakSubject() {
         return keycloakSubject;
+    }
+
+    public String getRace() {
+        return race;
+    }
+
+    public Boolean getHispanicOrigin() {
+        return hispanicOrigin;
     }
 
     public Instant getCreatedAt() {

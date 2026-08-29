@@ -153,7 +153,8 @@ public class IntakeService {
             // javadoc for why the other members' rows stay unlinked.
             String keycloakSubject = i == headIndex ? actorId : null;
             persons.save(new Person(personId, member.firstName(), member.lastName(), member.dateOfBirth(),
-                    "tok-" + personId, member.sex(), member.isUsCitizenOrDefault(), keycloakSubject));
+                    "tok-" + personId, member.sex(), member.isUsCitizenOrDefault(), keycloakSubject,
+                    member.race(), member.hispanicOrigin()));
             memberPersonIds.add(personId);
         }
         return memberPersonIds;

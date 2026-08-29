@@ -19,6 +19,11 @@ public record IntakePersonDto(
         Boolean usCitizen,
         @NotBlank String relationship,
         Boolean purchasesAndPreparesFoodTogether,
+        // Voluntary civil-rights demographic data (7 CFR 272.6) -- both null when the applicant
+        // declines to answer, same as a real form's own optional demographic section. See
+        // Person.java's own comment; the DMN rules engine never reads either field.
+        String race,
+        Boolean hispanicOrigin,
         @Valid List<IntakeIncomeDto> incomes,
         @Valid List<IntakeExpenseDto> expenses) {
 

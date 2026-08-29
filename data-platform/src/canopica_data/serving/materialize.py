@@ -23,6 +23,7 @@ GOLD_MARTS = (
     "mart_access_review",
     "mart_payment_accuracy",
     "mart_processing_timeliness",
+    "mart_fairness_audit",
 )
 
 

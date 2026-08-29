@@ -142,3 +142,39 @@ semantic_models:
       - name: active_case_count
         agg: sum
         expr: active_case_count
+
+  - name: sem_fairness_audit
+    description: >
+      Disparate-impact ratio per (model, demographic_axis, demographic_slice,
+      outcome_axis). Same "rebuilt wholesale each run, as_of_date stands in
+      for a real event timestamp" shape as sem_worker_caseload above.
+    model: ref('mart_fairness_audit')
+    defaults:
+      agg_time_dimension: as_of_date
+    entities:
+      - name: audit_row
+        type: primary
+        expr: audit_row_key
+    dimensions:
+      - name: model
+        type: categorical
+      - name: demographic_axis
+        type: categorical
+      - name: demographic_slice
+        type: categorical
+      - name: outcome_axis
+        type: categorical
+      - name: as_of_date
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: total_count
+        agg: sum
+        expr: total_count
+      - name: favorable_count
+        agg: sum
+        expr: favorable_count
+      - name: disparate_impact_ratio_avg
+        agg: average
+        expr: disparate_impact_ratio

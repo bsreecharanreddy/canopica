@@ -23,6 +23,16 @@ class SyntheticPerson(BaseModel):
     relationship: str  # SELF | SPOUSE | CHILD | PARENT | OTHER_RELATIVE | UNRELATED
     us_citizen: bool = True
     purchases_and_prepares_food_together: bool = True
+    # Voluntary civil-rights demographic data (7 CFR 272.6), not an eligibility input -- the DMN
+    # rules engine never reads either field. Sourced from real ACS PUMS RAC1P/HISP (see
+    # fetch_pums.py's _RACE_MAP), collected here purely so Phase 4's fairness audit has a real
+    # demographic axis to slice determinations by, per the roadmap's own no-proxy-features policy
+    # this data exists to check, not to feed into any model. Optional at the schema level, matching
+    # a real applicant's right to decline -- but ACS PUMS itself has no "declined" response to
+    # sample a decline rate from, so this generator always fills both fields rather than inventing
+    # one; a null case here would only ever come from a real applicant's own choice, not this data.
+    race: str | None = None
+    hispanic_origin: bool | None = None
 
 
 class SyntheticIncome(BaseModel):
@@ -94,6 +104,8 @@ class SyntheticHousehold(BaseModel):
                 "sex": member.sex,
                 "usCitizen": member.us_citizen,
                 "relationship": member.relationship,
+                "race": member.race,
+                "hispanicOrigin": member.hispanic_origin,
                 "purchasesAndPreparesFoodTogether": member.purchases_and_prepares_food_together,
                 "incomes": incomes_by_person[member.person_id],
                 "expenses": expenses_by_person[member.person_id],

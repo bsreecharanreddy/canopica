@@ -69,6 +69,33 @@ _RELATIONSHIP_MAP: dict[int, str] = {
 
 ROLES = ["SELF", "SPOUSE", "CHILD", "PARENT", "OTHER_RELATIVE", "UNRELATED"]
 
+# RAC1P -> OMB Statistical Policy Directive 15 race categories. 3 (American Indian alone), 4
+# (Alaska Native alone), and 5 (AIAN tribes specified, or AIAN not specified with no other race)
+# fold into one AMERICAN_INDIAN_OR_ALASKA_NATIVE bucket -- OMB's own standard treats these as one
+# category, and Canopica's schema has no reason to carry a finer split than the federal reporting
+# standard itself uses. Same folding posture as _RELATIONSHIP_MAP above.
+_RACE_MAP: dict[int, str] = {
+    1: "WHITE",
+    2: "BLACK_OR_AFRICAN_AMERICAN",
+    3: "AMERICAN_INDIAN_OR_ALASKA_NATIVE",
+    4: "AMERICAN_INDIAN_OR_ALASKA_NATIVE",
+    5: "AMERICAN_INDIAN_OR_ALASKA_NATIVE",
+    6: "ASIAN",
+    7: "NATIVE_HAWAIIAN_OR_PACIFIC_ISLANDER",
+    8: "SOME_OTHER_RACE",
+    9: "TWO_OR_MORE_RACES",
+}
+
+# HISP == 1 ("Not Spanish/Hispanic/Latino") is the only non-Hispanic code; 2-24 are each a
+# specific Hispanic/Latino national-origin subcategory (Mexican, Puerto Rican, Cuban, ...).
+# Canopica deliberately collapses this to a single Hispanic/Latino-or-not boolean rather than
+# keeping the subcategory: the specific national-origin breakdown is itself exactly the kind of
+# statistical proxy the fraud-triage feature-exclusion policy (roadmap §3.3's no-proxy-features
+# row) rules out, so this dataset never carries a national-origin-shaped column to exclude in the
+# first place -- the standard binary ethnicity axis real federal civil-rights reporting (7 CFR
+# 272.6) actually uses for this purpose is also all the fairness audit needs.
+_HISP_NOT_HISPANIC = 1
+
 # TEN (tenure): 1 = owned with mortgage, 2 = owned free and clear, 3 = rented,
 # 4 = occupied without payment of rent.
 _TEN_OWNED_MORTGAGE = 1
@@ -90,7 +117,7 @@ def _load_person(raw_csv: bytes) -> pl.DataFrame:
         raw_csv,
         columns=[
             "SERIALNO", "RELSHIPP", "AGEP", "SEX", "DIS", "ESR",
-            "WAGP", "SEMP", "RETP", "SSIP", "ADJINC", "PWGTP",
+            "WAGP", "SEMP", "RETP", "SSIP", "ADJINC", "PWGTP", "RAC1P", "HISP",
         ],
         schema_overrides={"SERIALNO": pl.Utf8},
         infer_schema_length=10_000,
@@ -213,10 +240,17 @@ def compute_marginals(person_csv: bytes, household_csv: bytes) -> dict[str, Any]
             "variables_used": [
                 "NP", "AGEP", "SEX", "DIS", "ESR", "RELSHIPP", "WAGP", "SEMP", "RETP", "SSIP",
                 "TEN", "GRNTP", "SMOCP", "ELEP", "ADJINC", "ADJHSG", "PWGTP", "WGTP", "TYPEHUGQ",
+                "RAC1P", "HISP",
             ],
         },
         "household_size": _household_size_marginal(household),
         "sex": {"M": _weighted_share(person, "SEX")["1"], "F": _weighted_share(person, "SEX")["2"]},
+        "race": _weighted_share(
+            person.with_columns(pl.col("RAC1P").replace_strict(_RACE_MAP).alias("race")), "race"
+        ),
+        "p_hispanic_origin": round(
+            person.filter(pl.col("HISP") != _HISP_NOT_HISPANIC).height / person.height, 5
+        ),
         "age_by_role": _age_by_role(person),
         "relationship_distribution_for_additional_members": _weighted_share(non_head, "role"),
         "disability_by_age_band": _rate_by_age_band(person, pl.col("DIS") == 1),

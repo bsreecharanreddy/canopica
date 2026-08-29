@@ -60,6 +60,10 @@ def test_gold_mart_materializes_into_the_serving_database(
     assert counts["mart_access_review"] == 1
     assert counts["mart_payment_accuracy"] == 1
     assert counts["mart_processing_timeliness"] == 1
+    # 0, not missing: seeded_operational_dsn's one person has no race/hispanic_origin set, so
+    # mart_fairness_audit correctly produces zero slices rather than a fabricated one (Phase 4
+    # Task 1) -- still has to materialize as a real, present, empty table.
+    assert counts["mart_fairness_audit"] == 0
 
     with psycopg.connect(serving_dsn) as conn:
         gold_total = conn.execute(
@@ -120,3 +124,7 @@ def test_materialize_is_rerunnable(
     assert counts["mart_access_review"] == 1
     assert counts["mart_payment_accuracy"] == 1
     assert counts["mart_processing_timeliness"] == 1
+    # 0, not missing: seeded_operational_dsn's one person has no race/hispanic_origin set, so
+    # mart_fairness_audit correctly produces zero slices rather than a fabricated one (Phase 4
+    # Task 1) -- still has to materialize as a real, present, empty table.
+    assert counts["mart_fairness_audit"] == 0

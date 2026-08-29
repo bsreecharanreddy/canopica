@@ -335,6 +335,89 @@ def seeded_timeliness_dsn(migrated_dsn: str) -> Iterator[str]:
 
 
 @pytest.fixture
+def seeded_fairness_dsn(migrated_dsn: str) -> Iterator[str]:
+    """migrated_dsn with 60 determination chains seeded directly via SQL: 30
+    applicants race='WHITE' with a 90% approval rate, 30 race='BLACK_OR_
+    AFRICAN_AMERICAN' with a 30% approval rate -- a deliberately induced
+    disparity (ratio 0.3/0.9 = 0.333, well under the four-fifths threshold)
+    at a sample size (30 per slice) mart_fairness_audit.sql's own
+    sample_size_adequate column marks adequate -- the gate has to actually
+    fire on this fixture, not just compute a low ratio it then withholds
+    judgment on, per the definition-of-done bullet that the gate "genuinely
+    fails," not merely "the mart computes a number." One extra ASIAN
+    applicant (n=1, eligible) is seeded alongside the two main slices so the
+    same fixture also proves the opposite property: a tiny slice's ratio
+    (guaranteed 1.0/1.0 here, i.e. never itself the failure) still gets
+    sample_size_adequate=false, so the gate would withhold judgment on it
+    regardless of what its ratio happened to be.
+    """
+    scenarios: list[tuple[str, bool]] = (
+        [("WHITE", i < 27) for i in range(30)]
+        + [("BLACK_OR_AFRICAN_AMERICAN", i < 9) for i in range(30)]
+        + [("ASIAN", True)]
+    )
+
+    with psycopg.connect(migrated_dsn, autocommit=True) as conn, conn.cursor() as cur:
+        # Same full-truncate reasoning as seeded_timeliness_dsn's own comment: migrated_dsn's
+        # container is a session-wide singleton, so a stale row from an earlier fixture in this
+        # same session can otherwise dangle.
+        cur.execute(
+            "truncate table determination_trace, eligibility_determination, "
+            "verification_response, verification, benefit_month, case_assignment, "
+            "program_request, application, household_member, household, person, "
+            "worker, audit_event "
+            "restart identity cascade"
+        )
+        for i, (race, eligible) in enumerate(scenarios):
+            person_id = str(uuid.uuid4())
+            household_id = str(uuid.uuid4())
+            application_id = str(uuid.uuid4())
+            program_request_id = str(uuid.uuid4())
+            cur.execute(
+                "insert into person "
+                "(id, first_name, last_name, date_of_birth, ssn_token, sex, race, hispanic_origin) "
+                "values (%s, %s, 'Fixture', date '1990-01-01', %s, 'X', %s, false)",
+                (person_id, f"Fairness{i}", f"tok-{person_id}", race),
+            )
+            cur.execute(
+                "insert into household "
+                "(id, head_person_id, county, address_line1, city, state, zip_code) "
+                "values (%s, %s, 'Test County', '1 Main St', 'Testville', 'WY', '82001')",
+                (household_id, person_id),
+            )
+            cur.execute(
+                "insert into household_member "
+                "(id, household_id, person_id, relationship, effective_from) "
+                "values (%s, %s, %s, 'SELF', date '2026-01-01')",
+                (str(uuid.uuid4()), household_id, person_id),
+            )
+            cur.execute(
+                "insert into application (id, household_id, submitted_at, channel) "
+                "values (%s, %s, now(), 'ONLINE')",
+                (application_id, household_id),
+            )
+            cur.execute(
+                "insert into program_request "
+                "(id, application_id, program_code, status, requested_on) "
+                "values (%s, %s, 'SNAP', 'DETERMINED', date '2026-01-01')",
+                (program_request_id, application_id),
+            )
+            benefit_amount = 292 if eligible else 0
+            reason_code = "ELIGIBLE" if eligible else "GROSS_INCOME_EXCEEDS_LIMIT"
+            cur.execute(
+                "insert into eligibility_determination "
+                "(id, program_request_id, benefit_month, as_of_date, eligible, benefit_amount, "
+                "reason_code, policy_parameter_set_id, policy_parameter_version, decided_by) "
+                "values (%s, %s, date '2026-01-01', date '2026-01-01', %s, %s, %s, "
+                "%s, 'SNAP-FY2025', 'test-fixture')",
+                (str(uuid.uuid4()), program_request_id, eligible, benefit_amount, reason_code,
+                 SNAP_FY2025_PARAMETER_SET_ID),
+            )
+
+    yield migrated_dsn
+
+
+@pytest.fixture
 def as_superuser(migrated_dsn: str) -> Callable[[str], None]:
     """Runs raw SQL as the container's bootstrap role, which the official
     Postgres image makes a superuser by default. Used only to prove

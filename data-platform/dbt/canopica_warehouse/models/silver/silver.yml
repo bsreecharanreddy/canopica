@@ -15,6 +15,20 @@ models:
         meta: { classification: SENSITIVE }
       - name: sex
         meta: { classification: SENSITIVE }
+      - name: race
+        # Nullable by design -- a real applicant may decline (7 CFR 272.6). See Phase 4 design
+        # doc §2.1/Task 1 plan; the accepted_values list mirrors V22__person_demographics.sql's
+        # own CHECK constraint.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['WHITE', 'BLACK_OR_AFRICAN_AMERICAN', 'AMERICAN_INDIAN_OR_ALASKA_NATIVE',
+                         'ASIAN', 'NATIVE_HAWAIIAN_OR_PACIFIC_ISLANDER', 'SOME_OTHER_RACE',
+                         'TWO_OR_MORE_RACES']
+              config: { where: "race is not null" }
+        meta: { classification: SENSITIVE }
+      - name: hispanic_origin
+        meta: { classification: SENSITIVE }
       - name: is_us_citizen
         tests: [not_null]
         meta: { classification: SENSITIVE }
@@ -228,6 +242,43 @@ models:
         tests: [not_null]
         meta: { classification: PUBLIC }
 
+  - name: fct_household_member
+    description: >
+      Bridges household_key <-> person_key. Built in Phase 4 Task 1 to resolve which person's
+      demographics a determination's household maps to for mart_fairness_audit -- bronze has
+      carried household_member since Phase 1b, but no silver model existed on top of it before.
+    columns:
+      - name: household_member_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: household_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('dim_household'), field: household_key }
+        meta: { classification: PUBLIC }
+      - name: person_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('dim_person'), field: person_key }
+        meta: { classification: PUBLIC }
+      - name: relationship
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['SELF', 'SPOUSE', 'CHILD', 'PARENT', 'OTHER_RELATIVE', 'UNRELATED']
+        meta: { classification: PUBLIC }
+      - name: effective_from
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: effective_to
+        meta: { classification: PUBLIC }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
   - name: fct_verification
     description: One row per verification checklist item, deduplicated to the latest bronze landing.
     columns:
@@ -295,11 +346,17 @@ models:
       - name: event_type
         tests:
           - not_null
-          # Mirrors audit_event's own CHECK constraint (V6, widened by V16).
-          # These three have to move together -- the migration,
+          # Mirrors audit_event's own CHECK constraint (V6, widened by V16,
+          # V18/V19). These three have to move together -- the migration,
           # canopica.api.audit.AuditEventType, and this list -- or the first
           # event of a new type turns this test red long after the change
-          # that introduced it.
+          # that introduced it. That's exactly what happened here: Phase 3
+          # (V18/V19) widened the other two but never this list, caught
+          # live running Phase 4 Task 1's dbt build against the shared
+          # local dev Postgres, which had already accumulated real
+          # DOCUMENT_*/NOTICE_* events from Phase 3's own manual checks --
+          # a fresh CI database hadn't hit this yet, but any real usage
+          # eventually would have.
           - accepted_values:
               arguments:
                 values:
@@ -309,6 +366,11 @@ models:
                     "CASE_VIEWED",
                     "VERIFICATION_UPDATED",
                     "POLICY_PARAMETER_PUBLISHED",
+                    "DOCUMENT_UPLOADED",
+                    "DOCUMENT_CLASSIFIED",
+                    "NOTICE_DRAFTED",
+                    "NOTICE_APPROVED",
+                    "NOTICE_SENT",
                   ]
         meta: { classification: PUBLIC }
       - name: actor_id

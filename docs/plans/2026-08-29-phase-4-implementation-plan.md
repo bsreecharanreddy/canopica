@@ -141,21 +141,35 @@ write's own transaction). Phase 4 adds:
 canopica/
   data-platform/
     src/canopica_data/synthetic/
-      models.py                               <- Task 1 (modified: +race, +hispanic_origin on SyntheticPerson)
-      fetch_pums.py                            <- Task 1 (modified: +RAC1P/HISP marginals)
+      models.py                               <- Task 1 done (+race, +hispanic_origin on SyntheticPerson)
+      fetch_pums.py                            <- Task 1 done (+RAC1P/HISP marginals, re-run live)
+      generator.py                             <- Task 1 done (samples race/hispanic_origin)
+      data/acs_pums_marginals.json             <- Task 1 done (regenerated from real Census data)
+    src/canopica_data/serving/materialize.py    <- Task 1 done (+mart_fairness_audit to GOLD_MARTS)
     dbt/canopica_warehouse/models/
-      silver/dim_person.sql                    <- Task 1 (modified: +race, +hispanic_origin, tokenized)
-      gold/mart_fairness_audit.sql             <- Task 1 (new; rules-engine axis only)
+      silver/dim_person.sql                    <- Task 1 done (+race, +hispanic_origin, silver tier)
+      silver/fct_household_member.sql          <- Task 1 done (new; household_key <-> person_key bridge)
+      silver/silver.yml                        <- Task 1 done (+fct_household_member, +race/hispanic_origin
+                                                   cols, +fix to fct_audit_event's stale accepted_values)
+      gold/mart_fairness_audit.sql             <- Task 1 done (rules-engine axis only)
                                                 <- Task 3 (modified: +fraud-triage axis)
       gold/mart_payment_accuracy.sql           <- Task 4 (modified: real reviewed/payment_error_amount)
+      gold/gold.yml                            <- Task 1 done (+mart_fairness_audit entry)
+      semantic/semantic_models.yml             <- Task 1 done (+sem_fairness_audit)
+    dbt/canopica_warehouse/tests/
+      gate_no_disparate_impact.sql             <- Task 1 done (the actual CI gate, a dbt singular test)
     dbt/canopica_warehouse/models/staging/
       stg_payment_error_review.sql             <- Task 4 (new; sources the new operational table below)
     tests/
-      test_fairness_gate.py                    <- Task 1 (CI gate: disparate-impact ratio check)
+      test_generator.py                        <- Task 1 done (+race/hispanic_origin distribution test)
+      test_fairness_gate.py                    <- Task 1 done (proves the gate fires + withholds)
+      test_materialize.py                      <- Task 1 done (+mart_fairness_audit row-count assertion)
+      conftest.py                              <- Task 1 done (+seeded_fairness_dsn fixture)
   api/src/main/resources/db/migration/
-    V22__fraud_risk_score.sql                  <- Task 2
-    V23__payment_error_review.sql              <- Task 4
-    V24__audit_event_type_phase4.sql           <- Task 2 (widen CHECK once for all four new event types)
+    V22__person_demographics.sql               <- Task 1 (done: race/hispanic_origin on person)
+    V23__fraud_risk_score.sql                  <- Task 2
+    V24__payment_error_review.sql              <- Task 4
+    V25__audit_event_type_phase4.sql           <- Task 2 (widen CHECK once for all four new event types)
   api/src/main/java/canopica/api/
     fraud/FraudRiskScore.java, FraudRiskScoreRepository.java           <- Task 2
     api/FraudReviewController.java             <- Task 3 (review queue, confirm/clear)
@@ -267,50 +281,89 @@ the fraud-triage axis once `fraud_risk_score` exists.
 - Consumes: `fct_eligibility_determination` (existing), `dim_person`
   (existing, this task widens it).
 
-- [ ] **Step 1: Confirm PUMS variable names against the pinned vintage**
-      (prerequisite above) before writing any parsing code.
-- [ ] **Step 2: `fetch_pums.py` marginals.** Add `RAC1P`/`HISP`
-      distributions using the file's existing `_weighted_share` helper —
-      no new statistical machinery, the same pattern every other marginal
-      in this file already uses.
-- [ ] **Step 3: `SyntheticPerson` sampling.** `race`/`hispanic_origin`
-      sampled from the new marginals at generation time, same call shape
-      as `sex`.
-- [ ] **Step 4: `dim_person` silver model.** Add the two columns; apply
-      this project's existing PII classification/tokenization treatment
-      (matches the testing policy's "no unmasked PII-shaped column reaches
-      gold" custom test — extend that test's column list to cover these
-      two).
-- [ ] **Step 5: `mart_fairness_audit`.** One disparate-impact-ratio
-      computation (approval rate for slice X ÷ approval rate for the
-      reference slice, the standard EEOC four-fifths-rule shape) grouped
-      by demographic slice, for `model = 'rules_engine'`, sourced from
-      `fct_eligibility_determination` joined to the widened `dim_person`.
-      Grain is the aggregate slice, never an individual determination —
-      constraint 23.
-- [ ] **Step 6: CI gate.** `test_fairness_gate.py` fails the job if any
-      slice's ratio drops below the standard four-fifths threshold (or
-      regresses against a stored baseline — decide the exact
-      threshold-vs-baseline mechanics at implementation time, same
-      "Task-level detail" treatment the design doc §2.11 gives QC's sample
-      size). Wired into the existing dbt/data-platform CI job, run
-      immediately after `dbt build`.
-- [ ] **Step 7: Power BI/Metabase page.** The same computation renders as
-      a report page — "a gate proves it's enforced, a report proves it's
-      visible" (roadmap §3.3).
-- [ ] **Step 8: Tests.** dbt tests on the new mart (`not_null`,
-      `accepted_values` on `model`); `test_fairness_gate.py` against a
-      synthetic fixture with a deliberately induced disparity, confirming
-      the gate actually fails on it, not just passes on real data.
-- [ ] **Step 9: Full suite + commit.**
+- [x] **Step 1: Confirm PUMS variable names against the pinned vintage**
+      (prerequisite above) before writing any parsing code. Done for real:
+      fetched the live 2024 PUMS data dictionary text file from the Census
+      Bureau, confirmed RAC1P (9 codes) and HISP (24 codes, 01=not
+      Hispanic) verbatim before writing `_RACE_MAP`.
+- [x] **Step 2: `fetch_pums.py` marginals.** Added `RAC1P`/`HISP`
+      distributions via `_weighted_share`; re-ran the script live against
+      the real Census Bureau Wyoming 2024 1-Year files and committed the
+      regenerated `acs_pums_marginals.json` (real numbers: `WHITE` 0.836,
+      `p_hispanic_origin` 0.090, etc. — Wyoming's real demographics, not
+      fabricated).
+- [x] **Step 3: `SyntheticPerson` sampling.** Done. One design refinement
+      beyond the plan's own text: ethnicity is a single Hispanic/Latino
+      boolean, not HISP's 24 national-origin subcategories — see the
+      implementation plan's own "Starting point" section... actually see
+      `fetch_pums.py`'s own comment: keeping the subcategory would be
+      exactly the proxy feature constraint 20 excludes.
+- [x] **Step 4: `dim_person` silver model.** Done, same tier as `sex`
+      (not tokenized — a category value, not an identifier); extended
+      `silver.yml`'s `accepted_values` test on `race`, not the PII macro
+      (name-based, doesn't match "race"/"hispanic_origin" and shouldn't).
+- [x] **Step 5: `mart_fairness_audit`.** Done, plus a real correction found
+      testing against real data: an inadequately-sized slice can't anchor
+      the reference rate (a real n=1 case swung the whole computation on
+      pure luck) — the `reference` CTE now excludes any slice where
+      `total_count < 30`, and a new `sample_size_adequate` column makes
+      that withholding explicit rather than silent. `fct_household_member`
+      (new silver model — bridges `household_key`↔`person_key`, bronze had
+      carried this since Phase 1b with no silver model ever built on it)
+      was needed to resolve which person's demographics a determination's
+      household maps to; joins to the `SELF` household member only.
+- [x] **Step 6: CI gate.** Implemented as a dbt **singular test**
+      (`tests/gate_no_disparate_impact.sql`), not a separate Python CI
+      step — runs automatically inside the existing `dbt build` this
+      project's CI job already calls, same "runs in CI and blocks a merge
+      on regression" discipline with no new wiring needed. Fails only on
+      an *adequately-sized* slice below 0.8, per Step 5's finding.
+      `data-platform/tests/test_fairness_gate.py` is the correctness test
+      proving this dbt test actually fires (and correctly withholds on a
+      tiny slice) — added to `ci.yml`'s explicit dbt/data-platform job test
+      list, which enumerates files rather than picking up `-m integration`
+      automatically.
+- [~] **Step 7: Power BI/Metabase page.** Materialized into the serving
+      Postgres `reporting` schema (`materialize.py`'s `GOLD_MARTS`), so
+      it's queryable the same way every other mart is — but no dedicated
+      Metabase card/dashboard or Power BI TMDL table was built for it
+      specifically. Checked first: none of Phase 1b's own
+      `mart_payment_accuracy`/`mart_processing_timeliness` have a
+      dedicated card/TMDL table either (`provision_metabase.py` only ever
+      provisioned one card, for `mart_determination_outcomes`) — this
+      mart is at the same real coverage level as its own siblings, not a
+      regression. Building an actual fairness dashboard page is real,
+      separate work; not done here.
+- [x] **Step 8: Tests.** dbt tests on the new mart (all pass — `not_null`
+      on every non-nullable column, `accepted_values` on `model`/
+      `demographic_axis`). `test_fairness_gate.py`'s fixture
+      (`seeded_fairness_dsn`, 30+30+1 rows) proves a deliberately induced
+      disparity (30/90% vs 9/30%, ratio 0.333) genuinely fails `dbt
+      build`'s exit code, and that a tiny slice (n=1) is genuinely
+      withheld regardless of its own ratio — both properties from one
+      fixture, both asserted directly against real materialized numbers
+      (not just that some test failed). Also verified against the real
+      running stack, not just fixtures: rebuilt `infra-api-1` (V22 applied
+      cleanly), posted 30 real synthetic households + ran 30 real
+      determinations through the live API, confirmed real race/
+      hispanic_origin values reached Postgres and the mart. Full suite
+      green: api 142+12 (`BUILD SUCCESS`), data-platform 31 non-e2e,
+      `ai/` 202 (unaffected), `worker/` 18 (unaffected); `ruff`/`mypy`
+      clean. Two pre-existing, unrelated bugs found live and fixed along
+      the way (not this task's own code): `fct_audit_event.event_type`'s
+      `accepted_values` test was stale against Phase 3's widened
+      `AuditEventType` (V18/V19 never updated this list); `materialize_gold`'s
+      `GOLD_MARTS` tuple needed this mart added or it would never reach
+      the serving layer despite building correctly in DuckDB.
+- [x] **Step 9: Full suite + commit.**
 
 ---
 
 ## Task 2: Fraud Risk Triage — scoring
 
 **Files:**
-- Create: `api/src/main/resources/db/migration/V22__fraud_risk_score.sql`
-- Create: `api/src/main/resources/db/migration/V24__audit_event_type_
+- Create: `api/src/main/resources/db/migration/V23__fraud_risk_score.sql`
+- Create: `api/src/main/resources/db/migration/V25__audit_event_type_
   phase4.sql` (widen `AuditEventType`'s CHECK constraint once for all four
   of this phase's new event types — `FRAUD_FLAG_RAISED`, `FRAUD_FLAG_
   REVIEWED`, `QC_DISCREPANCY_FLAGGED`, `QC_REVIEW_COMPLETED` — same "widen
@@ -440,7 +493,7 @@ the fraud-triage axis once `fraud_risk_score` exists.
 ## Task 4: QC / Payment Error Rate Assistant — sampling
 
 **Files:**
-- Create: `api/src/main/resources/db/migration/V23__payment_error_review.sql`
+- Create: `api/src/main/resources/db/migration/V24__payment_error_review.sql`
 - Create: `api/src/main/java/canopica/api/qc/PaymentErrorReview.java`,
   `PaymentErrorReviewRepository.java`, `QcSamplingService.java`
 - Create: `api/src/main/java/canopica/api/api/QcController.java` (this

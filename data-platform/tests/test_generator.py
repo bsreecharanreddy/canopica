@@ -24,6 +24,21 @@ def test_household_size_distribution_matches_the_pums_marginal() -> None:
         assert observed[int(size)] / 5_000 == pytest.approx(share, abs=0.02)
 
 
+def test_race_and_hispanic_origin_distributions_match_the_pums_marginal() -> None:
+    # Phase 4's fairness audit needs a real demographic axis, not a fabricated one -- see
+    # fetch_pums.py's RAC1P/HISP handling and models.py's SyntheticPerson comment.
+    households = generate_households(2_000, seed=13)
+    members = [m for h in households for m in h.members]
+    marginals = load_marginals()
+
+    race_observed = Counter(m.race for m in members)
+    for race, share in marginals["race"].items():
+        assert race_observed[race] / len(members) == pytest.approx(share, abs=0.03)
+
+    hispanic_share = sum(1 for m in members if m.hispanic_origin) / len(members)
+    assert hispanic_share == pytest.approx(marginals["p_hispanic_origin"], abs=0.03)
+
+
 def test_every_household_is_internally_consistent() -> None:
     for household in generate_households(500, seed=3):
         assert len(household.members) >= 1
@@ -41,6 +56,10 @@ def test_every_household_is_internally_consistent() -> None:
         relationships = [m.relationship for m in household.members]
         assert relationships.count("SPOUSE") <= 1
         assert relationships.count("PARENT") <= 1
+        # Every member gets a race/hispanic_origin -- ACS PUMS has no "declined" response to
+        # sample a null from (see models.py's SyntheticPerson comment).
+        assert all(m.race is not None for m in household.members)
+        assert all(m.hispanic_origin is not None for m in household.members)
 
 
 def test_generated_payload_validates_against_the_real_intake_contract() -> None:
@@ -59,4 +78,5 @@ def test_generated_payload_validates_against_the_real_intake_contract() -> None:
     member = members[0]
     assert set(member) >= {
         "firstName", "lastName", "dateOfBirth", "sex", "relationship", "incomes", "expenses",
+        "race", "hispanicOrigin",
     }

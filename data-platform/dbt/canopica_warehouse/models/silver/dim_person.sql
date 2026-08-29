@@ -24,6 +24,12 @@ select
     extract(year from l.date_of_birth)::int   as birth_year,
     l.sex,
     l.is_us_citizen,
+    -- Voluntary civil-rights demographic data (7 CFR 272.6), nullable -- same tier as sex above,
+    -- not tokenized: constraint 23 (Phase 4 plan) requires these never reach gold except as an
+    -- aggregate slice in mart_fairness_audit, which is a silver-layer concern for that mart's own
+    -- query to enforce, not a reason to tokenize a category value the way a name/SSN needs.
+    l.race,
+    l.hispanic_origin,
     t.name_token,
     l._ingested_at                            as loaded_at
 from latest l
