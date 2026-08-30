@@ -18,6 +18,7 @@ import enDocumentReview from './locales/en/documentReview.json';
 import enNoticeReview from './locales/en/noticeReview.json';
 import enFraudReview from './locales/en/fraudReview.json';
 import enQcReview from './locales/en/qcReview.json';
+import enSlaMonitor from './locales/en/slaMonitor.json';
 import enRuleAuthoring from './locales/en/ruleAuthoring.json';
 
 import esCommon from './locales/es/common.json';
@@ -30,6 +31,7 @@ import esDocumentReview from './locales/es/documentReview.json';
 import esNoticeReview from './locales/es/noticeReview.json';
 import esFraudReview from './locales/es/fraudReview.json';
 import esQcReview from './locales/es/qcReview.json';
+import esSlaMonitor from './locales/es/slaMonitor.json';
 import esRuleAuthoring from './locales/es/ruleAuthoring.json';
 
 export const SUPPORTED_LANGUAGES = ['en', 'es'] as const;
@@ -52,6 +54,7 @@ void i18n
       'noticeReview',
       'fraudReview',
       'qcReview',
+      'slaMonitor',
       'ruleAuthoring',
     ],
     resources: {
@@ -66,6 +69,7 @@ void i18n
         noticeReview: enNoticeReview,
         fraudReview: enFraudReview,
         qcReview: enQcReview,
+        slaMonitor: enSlaMonitor,
         ruleAuthoring: enRuleAuthoring,
       },
       es: {
@@ -79,6 +83,7 @@ void i18n
         noticeReview: esNoticeReview,
         fraudReview: esFraudReview,
         qcReview: esQcReview,
+        slaMonitor: esSlaMonitor,
         ruleAuthoring: esRuleAuthoring,
       },
     },

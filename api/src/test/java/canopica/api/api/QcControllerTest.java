@@ -52,6 +52,27 @@ class QcControllerTest extends AbstractApiTest {
     }
 
     @Test
+    void runSampleWithARealAirflowServiceAccountTokenSucceedsAndCreatesNoWorkerRow() throws Exception {
+        // The real, live-found bug (Phase 4 Task 6): canopica-airflow's client_credentials token
+        // carries no `email` claim, and KeycloakWorkerSyncFilter's own worker-provisioning insert
+        // used to crash on that with a not-null constraint violation before this was fixed. This is
+        // the one caller this endpoint actually has in production (canopica_pipeline_dag.py's own
+        // run_qc_sample task), so it gets its own real-token test rather than relying on adminToken()
+        // (a password-grant test identity that was never the real caller here).
+        mvc.perform(post("/api/internal/qc/run-sample?sampleSize=0")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + airflowServiceAccountToken()))
+                .andExpect(status().isOk());
+
+        // "service-account-canopica-airflow" is exactly what KeycloakWorkerSyncFilter's own
+        // fullName(jwt) would have resolved to and tried to insert pre-fix (no given_name/family_name
+        // claim on a service-account token, so it falls back to preferred_username).
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from worker where full_name = 'service-account-canopica-airflow'",
+                        Integer.class))
+                .isEqualTo(0);
+    }
+
+    @Test
     void runSampleWithAnExplicitSizeSamplesUpToThatManyEligibleDeterminations() throws Exception {
         var ids = CaseFixtures.threePersonWorkingHousehold(jdbc);
         determinations.determine(

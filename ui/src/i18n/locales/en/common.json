@@ -12,6 +12,7 @@
     "noticeReview": "Notice review",
     "fraudReview": "Fraud review",
     "qcReview": "QC review",
+    "slaMonitor": "SLA monitor",
     "ruleAuthoring": "Rule authoring",
     "signOut": "Sign out"
   },

@@ -2,6 +2,7 @@ import { NavLink, useMatch } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
+  AlarmClock,
   Briefcase,
   FileCog,
   FileSearch,
@@ -33,12 +34,14 @@ const LINKS_FOR: Record<Role, { to: string; labelKey: string; icon: LucideIcon }
   WORKER: WORKER_LINKS,
   // A strict superset of WORKER's own links (SecurityConfig's own hasAnyRole("WORKER",
   // "SUPERVISOR") pattern on most case endpoints), plus the SUPERVISOR-only fraud review queue
-  // (Phase 4 Task 3, design doc §2.9 -- reuses this role, no new Keycloak role) and QC review
-  // queue (Phase 4 Task 5, same role/reasoning).
+  // (Phase 4 Task 3, design doc §2.9 -- reuses this role, no new Keycloak role), QC review queue
+  // (Phase 4 Task 5, same role/reasoning), and the SLA at-risk queue (Phase 4 Task 6, same
+  // role/reasoning again).
   SUPERVISOR: [
     ...WORKER_LINKS,
     { to: '/fraud/review', labelKey: 'nav.fraudReview', icon: ShieldAlert },
     { to: '/qc/review', labelKey: 'nav.qcReview', icon: ScanSearch },
+    { to: '/sla/monitor', labelKey: 'nav.slaMonitor', icon: AlarmClock },
   ],
   ADMIN: [{ to: '/rule-authoring', labelKey: 'nav.ruleAuthoring', icon: FileCog }],
 };

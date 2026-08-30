@@ -57,6 +57,18 @@ canopica:
     # unlike jwks-uri below, it does not get overridden per environment.
     workers-issuer-uri: ${CANOPICA_KEYCLOAK_WORKERS_ISSUER_URI:http://localhost:8081/realms/canopica-workers}
     citizens-issuer-uri: ${CANOPICA_KEYCLOAK_CITIZENS_ISSUER_URI:http://localhost:8081/realms/canopica-citizens}
+    # Phase 4 Task 4's canopica-airflow service-account client is the first
+    # real exception to the comment above: it requests its own token from
+    # *inside* the Compose network (canopica_pipeline_dag.py's own
+    # KEYCLOAK_TOKEN_URL, http://keycloak:8080/...), so its token's real
+    # `iss` claim is the container-network address, not localhost:8081 --
+    # a genuinely different, second valid issuer for the same worker realm,
+    # not a replacement for the one above (the browser-facing UI still
+    # requests its own tokens via localhost:8081 and needs that to keep
+    # validating). SecurityConfig's own multi-issuer validator accepts
+    # either. Citizens has no equivalent server-to-server caller, so it
+    # stays single-issuer.
+    workers-container-issuer-uri: ${CANOPICA_KEYCLOAK_WORKERS_CONTAINER_ISSUER_URI:http://keycloak:8080/realms/canopica-workers}
     # jwks-uri is a real network address this app fetches signing keys from
     # -- unlike issuer-uri, it must actually be reachable from wherever
     # api itself runs. Local (non-Docker) dev default matches the

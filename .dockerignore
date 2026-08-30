@@ -1,20 +1,29 @@
-# Repo-root .dockerignore -- two Dockerfiles build from this context.
+# Repo-root .dockerignore -- three Dockerfiles build from this context.
 # api/Dockerfile needs the multi-module Maven reactor: root pom.xml plus
 # the rules-engine module api depends on. infra/fly/Dockerfile.public-demo
 # (Task 9 Step 5) needs ai/ plus infra/opensearch/'s index mapping and
 # search pipeline JSON (corpus/index.py and search_pipeline.py both
-# resolve those paths relative to the repo root). ui and data-platform
-# have their own, self-contained build contexts and their own
-# .dockerignore.
+# resolve those paths relative to the repo root). infra/airflow/Dockerfile
+# (previously built from ../data-platform alone; Phase 4 Task 6 switched
+# it to this same root context) needs both data-platform/ and ai/, for the
+# same reason public-demo needs the latter -- see that Dockerfile's own
+# isolated-venv comment. ui has its own, self-contained build context and
+# its own .dockerignore. data-platform doesn't need its own entry here
+# even though its own separate `pipeline` service builds it standalone
+# (`context: ../data-platform`) -- that build already has its own
+# data-platform/.dockerignore, unaffected by this file either way.
 #
 # infra/ is excluded subdirectory-by-subdirectory rather than as a whole
 # tree, specifically so infra/opensearch and infra/fly stay included --
 # Docker's .dockerignore cannot re-include a path via `!pattern` once a
 # parent directory is already excluded, so this has to be the explicit
-# list rather than an exclude-all-then-negate.
+# list rather than an exclude-all-then-negate. infra/airflow stays
+# excluded even now that airflow's own Dockerfile builds from this
+# context -- it COPYs nothing from that directory (the DAGs volume-mount
+# in at runtime instead, see docker-compose.yml), so there's nothing here
+# it would need.
 .git
 .claude
-data-platform
 reporting
 docs
 infra/.env.example

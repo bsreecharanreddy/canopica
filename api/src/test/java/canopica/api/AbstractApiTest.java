@@ -58,6 +58,7 @@ public abstract class AbstractApiTest extends AbstractPostgresTest {
     private static String cachedAdminToken;
     private static String cachedCitizenToken;
     private static String cachedOtherCitizenToken;
+    private static String cachedAirflowServiceAccountToken;
 
     protected static synchronized String workerToken() {
         if (cachedWorkerToken == null) {
@@ -103,6 +104,38 @@ public abstract class AbstractApiTest extends AbstractPostgresTest {
                     "canopica-citizens", "test-customer", "test-customer-secret", "citizen.morgan@canopica.local", "CanopicaCitizen456!");
         }
         return cachedOtherCitizenToken;
+    }
+
+    // The real canopica-airflow service-account client (identity/realm-export/canopica-workers-realm.json)
+    // -- a client_credentials token, no username/password, no email claim. Exercises the exact real caller
+    // KeycloakWorkerSyncFilter must not crash on (Phase 4 Task 6's own live-verified fix).
+    protected static synchronized String airflowServiceAccountToken() {
+        if (cachedAirflowServiceAccountToken == null) {
+            cachedAirflowServiceAccountToken = fetchClientCredentialsToken(
+                    "canopica-workers", "canopica-airflow", "canopica-airflow-secret");
+        }
+        return cachedAirflowServiceAccountToken;
+    }
+
+    private static String fetchClientCredentialsToken(String realm, String clientId, String clientSecret) {
+        String body = "grant_type=client_credentials" + "&client_id=" + clientId + "&client_secret=" + clientSecret;
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(KEYCLOAK.getAuthServerUrl() + "/realms/" + realm + "/protocol/openid-connect/token"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(BodyPublishers.ofString(body))
+                .build();
+        try {
+            HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new IllegalStateException(
+                        "client_credentials token fetch for " + clientId + "@" + realm + " failed: "
+                                + response.statusCode() + " " + response.body());
+            }
+            JsonNode node = JSON.readTree(response.body());
+            return node.get("access_token").asText();
+        } catch (IOException | InterruptedException e) {
+            throw new IllegalStateException("client_credentials token fetch for " + clientId + "@" + realm + " failed", e);
+        }
     }
 
     private static String fetchToken(String realm, String clientId, String clientSecret, String username, String password) {

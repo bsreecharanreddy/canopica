@@ -13,9 +13,13 @@
 # healthcheck) differs. Mirrors the x-airflow-common pattern Airflow's own
 # official reference docker-compose.yaml uses for the same reason.
 x-airflow-common: &airflow-common
+  # Repo root, not ../data-platform -- Phase 4 Task 6 added a second
+  # Python project (ai/, its own isolated venv, see Dockerfile) this image
+  # needs to COPY from, the same reason api's own build already uses this
+  # same root context (see the root .dockerignore's own header comment).
   build:
-    context: ../data-platform
-    dockerfile: ../infra/airflow/Dockerfile
+    context: ..
+    dockerfile: infra/airflow/Dockerfile
   environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
@@ -41,6 +45,12 @@ x-airflow-common: &airflow-common
     # container-network address for the `jaeger` service below, not the
     # host-published one Settings' own default points at.
     CANOPICA_OTEL_EXPORTER_ENDPOINT: http://jaeger:4318/v1/traces
+    # Phase 4 Task 6's refresh_sla_stall_reasons task calls into ai/'s own
+    # isolated venv, which needs the container-network address for Ollama
+    # (Settings' own default is localhost, unreachable from this container)
+    # -- same "hardcoded address for a same-Compose-network peer" posture
+    # canopica_pipeline_dag.py's own API_BASE_URL constant already documents.
+    CANOPICA_OLLAMA_BASE_URL: http://ollama:11434
   volumes:
     - ../infra/airflow/dags:/opt/airflow/dags
   depends_on:

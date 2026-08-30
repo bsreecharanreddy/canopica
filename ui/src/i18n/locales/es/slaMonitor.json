@@ -1,0 +1,14 @@
+{
+  "heading": "Cola de casos en riesgo",
+  "description": "Casos pendientes evaluados según el estándar de procesamiento de SNAP (7 días acelerado / 30 días estándar), más urgentes primero. Los motivos de retraso se generan periódicamente, no al cargar esta página.",
+  "loadError": "No se pudo cargar la cola de casos en riesgo.",
+  "loading": "Cargando la cola de casos en riesgo…",
+  "empty": "No hay casos actualmente en riesgo de incumplir su estándar de procesamiento.",
+  "requestedOn": "Solicitado el {{date}}",
+  "expedited": "Acelerado",
+  "daysRemaining": "{{count}} día restante",
+  "daysRemaining_other": "{{count}} días restantes",
+  "daysOverdue": "{{count}} día de retraso",
+  "daysOverdue_other": "{{count}} días de retraso",
+  "noReasonYet": "Aún no se ha generado un motivo de retraso."
+}

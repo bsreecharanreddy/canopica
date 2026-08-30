@@ -300,6 +300,20 @@ export type PaymentErrorReviewItem = {
   reviewedAt: string | null;
 };
 
+// Mirrors canopica.api.api.dto.AtRiskCaseResponse (Phase 4 Task 6) -- one row of the Case SLA/
+// Compliance Monitor's at-risk queue. stallReason/stallReasonGeneratedAt are null until ai/
+// sla_monitor's own refresh job has run at least once for this case (design doc §2.4: no LLM call
+// on the live request path).
+export type AtRiskCaseItem = {
+  programRequestId: string;
+  householdHeadName: string;
+  requestedOn: string;
+  isExpedited: boolean;
+  daysRemaining: number;
+  stallReason: string | null;
+  stallReasonGeneratedAt: string | null;
+};
+
 // Mirrors canopica.api.api.dto.NoticeResponse.
 export type NoticeResponse = {
   id: string;

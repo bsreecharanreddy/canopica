@@ -6,6 +6,15 @@ exactly one implementation of each stage regardless of whether it's
 triggered manually or on a schedule. Phase 4 Task 4 adds a fifth,
 independent task on the same hourly cadence: `run_qc_sample`, which
 triggers the QC / Payment Error Rate Assistant's sampled re-derivation.
+Task 6 adds a sixth, also independent: `refresh_sla_stall_reasons`, a
+`BashOperator` (same shape as `dbt_build` below, not a `@task` Python
+import) that calls `ai/`'s own isolated venv's `canopica_ai.sla_monitor.
+cli refresh` -- see `infra/airflow/Dockerfile`'s own block comment for why
+`ai/`, unlike `canopica_data` above, gets a fully isolated environment
+rather than being merged into this image's shared, constraint-pinned one.
+Reuses the existing hourly cadence rather than adding a second schedule,
+since design doc §2.4 only asks for "current within the workday," not
+real-time.
 
 Imports from `canopica_data` happen inside each task function, not at module
 level -- the scheduler re-parses every DAG file on its own file-processing
@@ -121,7 +130,10 @@ def run_qc_sample() -> None:
 
 with DAG(
     dag_id="canopica_pipeline",
-    description="Ingest -> dbt build -> serving materialization -> Metabase provisioning; QC sampling",
+    description=(
+        "Ingest -> dbt build -> serving materialization -> Metabase provisioning; "
+        "QC sampling; SLA stall-reason refresh"
+    ),
     schedule="@hourly",
     start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
     catchup=False,
@@ -135,8 +147,22 @@ with DAG(
         ),
     )
 
+    # ai/'s own isolated venv (infra/airflow/Dockerfile), called by absolute binary path -- same
+    # "isolated tool, own venv, no shared-environment import" shape dbt_build above already takes,
+    # not a @task Python import into Airflow's own environment (see that Dockerfile's own block
+    # comment for why ai/ specifically gets this treatment, unlike canopica_data above).
+    refresh_sla_stall_reasons = BashOperator(
+        task_id="refresh_sla_stall_reasons",
+        bash_command="/opt/canopica-ai/.venv/bin/python -m canopica_ai.sla_monitor.cli refresh",
+    )
+
     extract() >> tokenize() >> dbt_build >> materialize() >> provision_metabase()
 
     # Independent of the chain above -- run_qc_sample writes to the operational database directly
     # (through the API), not the warehouse, so it has nothing to wait on and nothing waits on it.
     run_qc_sample()
+
+    # Independent of everything else in this DAG -- refresh_sla_stall_reasons writes to its own
+    # operational table directly (through ai/, not the API), so it has nothing to wait on and
+    # nothing waits on it either.
+    refresh_sla_stall_reasons

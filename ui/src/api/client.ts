@@ -1,4 +1,5 @@
 import type {
+  AtRiskCaseItem,
   AuditEventResponse,
   CaseDetailResponse,
   CaseloadStatsResponse,
@@ -160,6 +161,10 @@ export function confirmQcReview(reviewId: string): Promise<PaymentErrorReviewIte
 
 export function dismissQcReview(reviewId: string): Promise<PaymentErrorReviewItem> {
   return request<PaymentErrorReviewItem>(`/api/qc/${reviewId}/dismiss`, { method: 'POST' });
+}
+
+export function getAtRiskQueue(): Promise<AtRiskCaseItem[]> {
+  return request<AtRiskCaseItem[]>('/api/sla/at-risk-queue');
 }
 
 export function askPolicyQuestion(question: string): Promise<QaAnswer> {

@@ -1,0 +1,14 @@
+{
+  "heading": "At-risk case queue",
+  "description": "Pending cases aged against SNAP's 7-day-expedited/30-day processing standard, most urgent first. Stall reasons are drafted periodically, not on this page load.",
+  "loadError": "Could not load the at-risk case queue.",
+  "loading": "Loading the at-risk case queue…",
+  "empty": "No cases are currently at risk of missing their processing standard.",
+  "requestedOn": "Requested {{date}}",
+  "expedited": "Expedited",
+  "daysRemaining": "{{count}} day remaining",
+  "daysRemaining_other": "{{count}} days remaining",
+  "daysOverdue": "{{count}} day overdue",
+  "daysOverdue_other": "{{count}} days overdue",
+  "noReasonYet": "No stall reason generated yet."
+}

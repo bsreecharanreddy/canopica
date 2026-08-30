@@ -745,23 +745,25 @@ operational table this warehouse reports on.
   determination or its benefit amount (constraint 19) — QC flags an
   estimate of error, it does not fix one.
 
-- [ ] **Step 1: Review-queue + confirm/dismiss endpoints.**
+- [x] **Step 1: Review-queue + confirm/dismiss endpoints.**
       `SUPERVISOR`-scoped, same pattern as Task 3's fraud-review
       endpoints.
-- [ ] **Step 2: `QcReviewPage.tsx`.** Shows the original amount, the
+- [x] **Step 2: `QcReviewPage.tsx`.** Shows the original amount, the
       reproduced amount, the diff, and the AI-drafted summary (visibly
       marked advisory, same `AiAdvisoryBadge` component the UI
       modernization work already built for this exact purpose);
       confirm/dismiss actions.
-- [ ] **Step 3: Accessibility pass.**
-- [ ] **Step 4: Tests.** Java: caseload-agnostic `SUPERVISOR` scoping
+- [x] **Step 3: Accessibility pass.**
+- [x] **Step 4: Tests.** Java: caseload-agnostic `SUPERVISOR` scoping
       (QC review isn't tied to a single caseload the way fraud review's
       case-level access is — confirm the intended scope at implementation
       time); confirm/dismiss never writes to `eligibility_determination`.
       Vitest/RTL: page renders the diff and summary, confirm/dismiss call
       the right endpoint.
-- [ ] **Step 5: Live manual check.**
-- [ ] **Step 6: Full suite + commit.**
+- [~] **Step 5: Live manual check.** Not done this session -- deferred to
+      Task 10's own end-to-end verification pass, same stated-honestly
+      posture Task 3's own Step 6 already took for a different UI.
+- [x] **Step 6: Full suite + commit.**
 
 ---
 
@@ -796,35 +798,39 @@ operational table this warehouse reports on.
   per-request — keeps the endpoint itself a plain, fast SQL query with no
   LLM call on the request path.
 
-- [ ] **Step 1: At-risk query.** Operational, not a mart (design doc
+- [x] **Step 1: At-risk query.** Operational, not a mart (design doc
       §2.4's explicit reasoning: same-day currency a nightly pipeline
       can't give) — ages `program_request` rows still pending against the
       existing 7/30-day standard.
-- [ ] **Step 2: `prioritize.py`.** Plain deterministic ranking (days
+- [x] **Step 2: `prioritize.py`.** Plain deterministic ranking (days
       remaining, ascending) — explicitly not an LLM's job, per design doc
       §2.4.
-- [ ] **Step 3: `summarize.py`.** One-line stall reason per at-risk case,
+- [x] **Step 3: `summarize.py`.** One-line stall reason per at-risk case,
       grounded in that case's own outstanding `verification` rows and
       recent audit-trail entries (e.g. "awaiting INCOME verification, due
       in 2 days, last worker action 6 days ago") — composed from real
       fields, never invented, same discipline as Task 4's QC summary.
-- [ ] **Step 4: Refresh job.** The Airflow task calls `service.
+- [x] **Step 4: Refresh job.** The Airflow task calls `service.
       summarize` for the current at-risk set on its own cadence,
       writing results to a small table the `at-risk-queue` endpoint reads
       from directly (no LLM call on the live request path).
-- [ ] **Step 5: `SlaMonitorPage.tsx`.** `SUPERVISOR`-scoped queue view,
+- [x] **Step 5: `SlaMonitorPage.tsx`.** `SUPERVISOR`-scoped queue view,
       days-remaining prominent, stall reason visibly AI-generated
       (`AiAdvisoryBadge`).
-- [ ] **Step 6: Accessibility pass.**
-- [ ] **Step 7: Tests.** Java: at-risk query correctly ages a fixture set
+- [x] **Step 6: Accessibility pass.**
+- [x] **Step 7: Tests.** Java: at-risk query correctly ages a fixture set
       of pending requests against the 7/30-day standard, matches what
       `mart_processing_timeliness` would compute for the same case once
       decided (a real cross-check, not just an isolated unit test).
       `ai/`: a stall-reason summary references only real
       verification/audit fields from its fixture case (deterministic
       grounding check). Vitest/RTL: queue renders sorted by urgency.
-- [ ] **Step 8: Live manual check.**
-- [ ] **Step 9: Full suite + commit.**
+- [~] **Step 8: Live manual check.** The backend is real-verified end to
+      end (a full live Airflow DAG run, real Ollama/Postgres) -- see this
+      task's own verification-log row -- but `SlaMonitorPage.tsx` itself
+      was not clicked through in a browser this session. Deferred to
+      Task 10, same posture as Task 5's own Step 5.
+- [x] **Step 9: Full suite + commit.**
 
 ---
 

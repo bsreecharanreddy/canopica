@@ -13,6 +13,7 @@ import DocumentReviewPage from './pages/DocumentReviewPage';
 import NoticeReviewPage from './pages/NoticeReviewPage';
 import FraudReviewPage from './pages/FraudReviewPage';
 import QcReviewPage from './pages/QcReviewPage';
+import SlaMonitorPage from './pages/SlaMonitorPage';
 
 // Where each role lands with no path of its own. ADMIN is deliberately not sent
 // to /cases: an admin holds no caseload and /api/worker/** would refuse them.
@@ -44,6 +45,7 @@ function AuthedAppShell({ role, signOut }: { role: Role; signOut: () => void }) 
                 <Route path="/notices/review" element={<NoticeReviewPage />} />
                 <Route path="/fraud/review" element={<FraudReviewPage />} />
                 <Route path="/qc/review" element={<QcReviewPage />} />
+                <Route path="/sla/monitor" element={<SlaMonitorPage />} />
                 <Route path="/rule-authoring" element={<RuleAuthoringPage />} />
               </Routes>
             </div>

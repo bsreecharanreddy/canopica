@@ -2,6 +2,7 @@ package canopica.api.config;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +13,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -66,9 +71,13 @@ class SecurityConfig {
             HttpSecurity http,
             KeycloakWorkerSyncFilter keycloakWorkerSyncFilter,
             @Value("${canopica.keycloak.workers-issuer-uri}") String workersIssuerUri,
+            @Value("${canopica.keycloak.workers-container-issuer-uri}") String workersContainerIssuerUri,
             @Value("${canopica.keycloak.workers-jwks-uri}") String workersJwksUri)
             throws Exception {
-        JwtDecoder decoder = lazyJwksDecoder(workersJwksUri, workersIssuerUri);
+        // Two valid issuers, not one -- see application.yml's own comment on
+        // workers-container-issuer-uri for why canopica-airflow's token carries a
+        // genuinely different (but equally real) `iss` claim than the browser UI's.
+        JwtDecoder decoder = lazyJwksDecoder(workersJwksUri, workersIssuerUri, workersContainerIssuerUri);
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -120,6 +129,10 @@ class SecurityConfig {
                         // follows this one either.
                         .requestMatchers("/api/qc/**")
                         .hasRole("SUPERVISOR")
+                        // Case SLA/Compliance Monitor (Phase 4 Task 6). SUPERVISOR, same role and
+                        // cross-caseload triage-queue reasoning as /api/fraud/** and /api/qc/** above.
+                        .requestMatchers("/api/sla/**")
+                        .hasRole("SUPERVISOR")
                         .requestMatchers("/api/worker/**")
                         .hasAnyRole("WORKER", "SUPERVISOR")
                         .anyRequest()
@@ -147,7 +160,14 @@ class SecurityConfig {
     // (already-lazy) construction until first decode() call, so a test class that boots this same
     // @SpringBootTest context without needing MockMvc/security at all (schema tests, policy-parameter
     // tests...) never touches Keycloak, reachable or not.
-    private static JwtDecoder lazyJwksDecoder(String jwksUri, String expectedIssuer) {
+    //
+    // expectedIssuers is variadic, not a single String, since Phase 4 Task 4's canopica-airflow
+    // client broke the "every caller reaches Keycloak the same way" assumption the single-issuer
+    // version of this method used to make (see application.yml's workers-container-issuer-uri
+    // comment) -- a token is valid if its `iss` claim matches ANY of the caller's own known-real
+    // addresses for this realm, not exactly one.
+    private static JwtDecoder lazyJwksDecoder(String jwksUri, String... expectedIssuers) {
+        Set<String> validIssuers = Set.of(expectedIssuers);
         return new JwtDecoder() {
             private volatile JwtDecoder delegate;
 
@@ -159,13 +179,28 @@ class SecurityConfig {
                         resolved = delegate;
                         if (resolved == null) {
                             NimbusJwtDecoder nimbusDecoder = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
-                            nimbusDecoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(expectedIssuer));
+                            nimbusDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                                    JwtValidators.createDefault(), issuerIn(validIssuers)));
                             resolved = delegate = nimbusDecoder;
                         }
                     }
                 }
                 return resolved.decode(token);
             }
+        };
+    }
+
+    // JwtValidators.createDefaultWithIssuer() only ever accepts exactly one issuer string; this is
+    // the same check widened to a set, for the multi-issuer worker chain above (the citizens chain
+    // still passes a single-element set, behaving identically to the original single-issuer check).
+    private static OAuth2TokenValidator<Jwt> issuerIn(Set<String> validIssuers) {
+        return jwt -> {
+            String issuer = jwt.getIssuer() != null ? jwt.getIssuer().toString() : null;
+            if (validIssuers.contains(issuer)) {
+                return OAuth2TokenValidatorResult.success();
+            }
+            return OAuth2TokenValidatorResult.failure(new OAuth2Error(
+                    "invalid_issuer", "The iss claim " + issuer + " is not one of " + validIssuers, null));
         };
     }
 
