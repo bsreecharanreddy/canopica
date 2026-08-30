@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     document_intake_queue: str = "document_intake"
     correspondence_dispatch_queue: str = "correspondence_dispatch"
     fraud_scoring_queue: str = "fraud_scoring"
+    qc_summary_queue: str = "qc_summary"
 
     # How long a message stays invisible to other readers after `read()`
     # before it's eligible to be read again -- long enough for a real

@@ -60,6 +60,10 @@ public abstract class AbstractPostgresTest {
             statement.execute("select pgmq.create('correspondence_dispatch')");
             // Phase 4 Task 2: JdbcDeterminationService.determine() now sends here too.
             statement.execute("select pgmq.create('fraud_scoring')");
+            // Phase 4 Task 4: QcSamplingService.sampleOne() sends here for a nonzero diff. Missing this
+            // once already broke 21 tests for fraud_scoring (Task 2's own verification-log entry) --
+            // added up front this time rather than rediscovered the same way.
+            statement.execute("select pgmq.create('qc_summary')");
         } catch (SQLException e) {
             throw new IllegalStateException("failed to initialize pgmq extension/queues in the test Postgres container", e);
         }

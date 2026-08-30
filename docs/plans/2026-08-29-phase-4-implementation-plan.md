@@ -155,13 +155,15 @@ canopica/
                                                 <- Task 3 done (+fct_fraud_risk_score entry)
       gold/mart_fairness_audit.sql             <- Task 1 done (rules-engine axis only)
                                                 <- Task 3 done (+fraud-triage axis)
-      gold/mart_payment_accuracy.sql           <- Task 4 (modified: real reviewed/payment_error_amount)
+      gold/mart_payment_accuracy.sql           <- Task 4 done (modified: real reviewed/payment_error_amount)
       gold/gold.yml                            <- Task 1 done (+mart_fairness_audit entry)
       semantic/semantic_models.yml             <- Task 1 done (+sem_fairness_audit)
     dbt/canopica_warehouse/tests/
       gate_no_disparate_impact.sql             <- Task 1 done (the actual CI gate, a dbt singular test)
-    dbt/canopica_warehouse/models/staging/
-      stg_payment_error_review.sql             <- Task 4 (new; sources the new operational table below)
+    dbt/canopica_warehouse/models/silver/
+      fct_payment_error_review.sql             <- Task 4 done (new; real silver-layer naming, not the
+                                                   plan's original staging/stg_ guess -- see Task 4's
+                                                   own file-list note for why)
     tests/
       test_generator.py                        <- Task 1 done (+race/hispanic_origin distribution test)
       test_fairness_gate.py                    <- Task 1 done (proves the gate fires + withholds)
@@ -174,28 +176,35 @@ canopica/
                                                    only -- see Task 2's own file-list note for why
                                                    this renumbers away from the plan's original
                                                    single "widen all four at once" V25)
-    V25__payment_error_review.sql              <- Task 4's real next number when it lands, not
-                                                   reserved in advance
+    V25__audit_event_type_fraud_flag_reviewed.sql <- Task 3 done (widen CHECK for FRAUD_FLAG_REVIEWED
+                                                   only)
+    V26__payment_error_review.sql,
+    V27__audit_event_type_qc_discrepancy_flagged.sql <- Task 4 done (real next numbers when it
+                                                   landed, not V25 as the plan originally guessed --
+                                                   see Task 4's own file-list note)
   api/src/main/java/canopica/api/
     fraud/FraudRiskScore.java, FraudRiskScoreRepository.java           <- Task 2 done
     api/FraudReviewController.java             <- Task 3 done (review queue, confirm/clear)
     fraud/FraudReviewService.java              <- Task 3 done (the one Java write to fraud_risk_score)
-    qc/PaymentErrorReview.java, PaymentErrorReviewRepository.java, QcSamplingService.java  <- Task 4
-    api/QcController.java                      <- Task 5 (review queue, confirm/dismiss); internal
-                                                   sample-trigger endpoint for Airflow <- Task 4
+    qc/PaymentErrorReview.java, PaymentErrorReviewRepository.java, QcSamplingService.java  <- Task 4 done
+    api/QcController.java                      <- Task 4 done (internal sample-trigger endpoint only;
+                                                   Task 5 adds the review queue/confirm/dismiss endpoints
+                                                   to the same file)
     caseload/AtRiskCaseQuery.java (or similar, in an existing package)  <- Task 6
     api/SlaMonitorController.java               <- Task 6
-    audit/AuditEventType.java                   <- Task 2 done (modified: +1 new event type,
-                                                   FRAUD_FLAG_RAISED -- see Task 2's own file-list
-                                                   note on why this isn't +4 as originally planned)
+    audit/AuditEventType.java                   <- Task 2/3/4 done (modified: +FRAUD_FLAG_RAISED,
+                                                   +FRAUD_FLAG_REVIEWED, +QC_DISCREPANCY_FLAGGED -- see
+                                                   Task 2's own file-list note on why this isn't +4 at
+                                                   once as originally planned)
   ai/src/canopica_ai/
     fraud_triage/
       features.py                              <- Task 2 done (feature engineering, proxy-exclusion enforced here)
       score.py                                 <- Task 2 done (IsolationForest wrapper)
       service.py                                <- Task 2 done
     qc_assistant/
-      summarize.py                              <- Task 4
-      service.py                                <- Task 4
+      draft.py, validate.py, service.py         <- Task 4 done (draft/validate/service split, not the
+                                                   plan's original summarize.py+service.py -- see Task 4's
+                                                   own file-list note)
     sla_monitor/
       prioritize.py, summarize.py, service.py    <- Task 6
     sop_copilot/
@@ -211,26 +220,25 @@ canopica/
       service.py                                <- Task 9
   ai/tests/
     test_fraud_triage.py                        <- Task 2 done
-    test_qc_assistant.py                        <- Task 4
+    test_qc_assistant.py                        <- Task 4 done
     test_sla_monitor.py                          <- Task 6
     test_sop_copilot.py                          <- Task 7
     test_data_quality.py                         <- Task 9
   worker/src/canopica_worker/
     fraud_scoring_consumer.py                    <- Task 2 done
-    qc_summary_consumer.py                       <- Task 4
-    main.py                                      <- Task 2 done (modified: +1 handler entry, fraud_scoring;
-                                                   Task 4 adds a 2nd), config.py (modified: +1 queue name;
-                                                   Task 4 adds a 2nd)
+    qc_summary_consumer.py                       <- Task 4 done
+    main.py                                      <- Task 2/4 done (modified: +fraud_scoring handler,
+                                                   +qc_summary handler), config.py (modified: +2 queue names)
   worker/tests/
     test_fraud_scoring_consumer.py               <- Task 2 done
-    test_qc_summary_consumer.py                  <- Task 4
+    test_qc_summary_consumer.py                  <- Task 4 done
   ui/src/pages/
     FraudReviewPage.tsx                          <- Task 3 done
     QcReviewPage.tsx                              <- Task 5
     SlaMonitorPage.tsx                            <- Task 6
     SopCopilotPage.tsx                            <- Task 7
   infra/airflow/dags/
-    canopica_pipeline_dag.py                      <- Task 4 (modified: +QC sample-trigger task), Task 6 (modified: +SLA-summary-refresh task), Task 9 (modified: +Elementary run)
+    canopica_pipeline_dag.py                      <- Task 4 done (modified: +run_qc_sample task), Task 6 (modified: +SLA-summary-refresh task), Task 9 (modified: +Elementary run)
   data-platform/dbt/canopica_warehouse/
     packages.yml                                  <- Task 9 (modified: +elementary-data)
   api/src/main/resources/db/migration/
@@ -568,26 +576,47 @@ the fraud-triage axis once `fraud_risk_score` exists.
 ## Task 4: QC / Payment Error Rate Assistant — sampling
 
 **Files:**
-- Create: `api/src/main/resources/db/migration/V25__payment_error_review.sql`
-  (or whatever number is actually next when this task lands -- Task 2's
-  own file-list note explains why this isn't pre-reserved)
+- Create: `api/src/main/resources/db/migration/V26__payment_error_review.sql`,
+  `V27__audit_event_type_qc_discrepancy_flagged.sql` (**done: renumbered
+  from the plan's original `V25`/single-file guess -- Task 3 claimed V25
+  for `audit_event_type_fraud_flag_reviewed.sql` first, and the widen-CHECK
+  step is its own migration per Task 2/3's own corrected "one real need per
+  file" numbering, not folded into the table's own file**)
 - Create: `api/src/main/java/canopica/api/qc/PaymentErrorReview.java`,
   `PaymentErrorReviewRepository.java`, `QcSamplingService.java`
 - Create: `api/src/main/java/canopica/api/api/QcController.java` (this
   task: an internal, `ADMIN`-scoped sample-trigger endpoint for Airflow to
   call; Task 5 adds the human review-queue endpoints)
-- Create: `ai/src/canopica_ai/qc_assistant/summarize.py`, `service.py`
+- Create: `ai/src/canopica_ai/qc_assistant/draft.py`, `validate.py`,
+  `service.py` (**done: split into three files, not `summarize.py`+
+  `service.py` as planned -- matches `correspondence/`'s own real
+  draft/validate/service split once this capability turned out to need
+  the identical LLM-draft-then-deterministic-grounding-check shape, which
+  wasn't obvious until the grounding requirement in Step 8 below was
+  actually implemented**)
 - Create: `ai/tests/test_qc_assistant.py`
 - Create: `worker/src/canopica_worker/qc_summary_consumer.py`
 - Create: `worker/tests/test_qc_summary_consumer.py`
-- Create: `data-platform/dbt/canopica_warehouse/models/staging/
-  stg_payment_error_review.sql`
+- Create: `data-platform/dbt/canopica_warehouse/models/silver/
+  fct_payment_error_review.sql` (**done: real deviation from the plan's
+  `models/staging/stg_payment_error_review.sql` -- no `staging/` layer
+  exists anywhere in this warehouse; every other operational-table
+  ingestion, `fct_fraud_risk_score.sql` included, uses the real silver
+  `fct_` pattern, so this follows that actual precedent instead of
+  introducing a one-off directory convention**)
 - Modify: `data-platform/dbt/canopica_warehouse/models/gold/
   mart_payment_accuracy.sql` (real `reviewed`/`payment_error_amount`,
-  sourced from `stg_payment_error_review` instead of the current hardcoded
+  sourced from `fct_payment_error_review` instead of the current hardcoded
   `false`/`null`)
 - Modify: `infra/airflow/dags/canopica_pipeline_dag.py` (+a scheduled task
   calling the sample-trigger endpoint)
+- Modify: `identity/realm-export/canopica-workers-realm.json` (**done, not
+  in the plan's original file list -- a real prerequisite gap found while
+  implementing Step 5: nothing in this repo could authenticate a scheduled,
+  non-human caller as ADMIN. `test-worker`'s own name/description already
+  reserve it for pytest/Maven test suites; added `canopica-airflow`, a real
+  `client_credentials` service-account client, rather than repurpose a
+  client documented as test-only**)
 - Modify: `docs/STATUS.md`
 
 **Why this needs an operational table, not just a dbt computation** — a
@@ -603,10 +632,14 @@ operational table this warehouse reports on.
 
 **Interfaces:**
 - Produces: `canopica_ai.qc_assistant.service.summarize(determination_id:
-  UUID, original_amount: Decimal, reproduced_amount: Decimal) ->
-  DiscrepancySummary` (Pydantic: `summary: str`, composed only from the
-  diff and both determinations' trace records — constraint 21). Called by
-  the worker's `qc_summary_consumer.py`, never directly by Java.
+  UUID, original_amount: Decimal, reproduced_amount: Decimal) -> str`
+  (**done: returns the summary text directly rather than a
+  `DiscrepancySummary` wrapper — there was nothing else for that type to
+  carry once the grounding check lives in `validate.py` as its own
+  gate, not a field on the return value**, composed only from the diff and
+  both evaluations' own trace records — constraint 21, via a bundled
+  `DiscrepancyContext`). Called by the worker's `qc_summary_consumer.py`,
+  never directly by Java.
   `POST /api/internal/qc/run-sample` (`ADMIN`-scoped, Airflow-triggered):
   samples N recently decided determinations, calls `DeterminationService.
   reproduce()` on each, diffs against the stored `benefitAmount`, writes a
@@ -614,52 +647,84 @@ operational table this warehouse reports on.
   with a nonzero diff — an unflagged sample is itself evidence the mart
   needs), and enqueues `qc_summary` only for rows with a nonzero diff.
 
-- [ ] **Step 1: `payment_error_review` table.** `id`, `determination_id`,
-      `original_amount`, `reproduced_amount`, `error_amount`
-      (`reproduced_amount - original_amount`), `ai_summary`, `sampled_at`,
-      `reviewed_by`, `reviewed_at`, `review_outcome`
-      (`CONFIRMED_ERROR`/`DISMISSED`/null while pending).
-- [ ] **Step 2: `QcSamplingService`.** Samples a statistically valid
-      fraction of recently decided determinations (concrete percentage and
-      cadence: Task-level detail per design doc §2.11 — the real federal
-      SNAP QC process's own sampling rate is a reasonable starting
-      reference point to check against, not necessarily the number to
-      copy). Calls the existing `DeterminationService.reproduce()` for
-      each — no new DMN-evaluation code, per the "starting point" finding
-      above. Writes one `payment_error_review` row per sampled case.
-- [ ] **Step 3: Transactional enqueue.** For rows with a nonzero
-      `error_amount`, `pgmq.send('qc_summary', {payment_error_review_id})`
-      inside the same transaction as that row's insert.
-- [ ] **Step 4: `run-sample` endpoint.** `ADMIN`-scoped (an internal,
-      schedule-triggered operation, not a supervisor-facing one — narrowest
-      role that fits, same posture as the parameter-publish endpoint).
-- [ ] **Step 5: Airflow task.** A new task in `canopica_pipeline_dag.py`
-      calling the endpoint on the schedule Step 2 decided, matching "every
-      other scheduled job in this platform" (design doc §2.3).
-- [ ] **Step 6: `summarize.py` + worker consumer.** Composed only from the
-      diff and both determinations' `determination_trace` records
-      (constraint 21) — e.g. "this case's income was recalculated using
-      the FY2026 parameter set instead of FY2025, producing a $34/month
-      difference," built from real trace fields, not invented. Consumer
+- [x] **Step 1: `payment_error_review` table.** Done: `id`,
+      `determination_id`, `original_amount`, `reproduced_amount`,
+      `error_amount`, `reproduced_trace jsonb` (**not in the original plan
+      -- added because `reproduce()` persists nothing itself, so this is
+      the only place the reproduction's own `SnapDecision.trace()` can
+      live for Step 6's grounding check to read back later**), `ai_summary`,
+      `sampled_at`, `reviewed_by`, `reviewed_at`, `review_outcome`
+      (`CONFIRMED_ERROR`/`DISMISSED`/null while pending), `unique
+      (determination_id)` (race-safety net behind the sampling query's own
+      exclusion, same reasoning V23's own unique-ish review-queue index
+      note gives).
+- [x] **Step 2: `QcSamplingService`.** Done. 10% of the eligible/unsampled
+      population in a 30-day lookback (`DEFAULT_SAMPLE_RATE`, a stated,
+      unmeasured default like `_REVIEW_THRESHOLD`'s own precedent --
+      chosen well above the real federal SNAP QC program's roughly
+      1-in-1000 rate because this project's own data volume would sample
+      zero cases at that rate). Calls the existing
+      `DeterminationService.reproduce()` for each — no new DMN-evaluation
+      code, confirmed against the "starting point" finding above. Writes
+      one `payment_error_review` row per sampled case. **A real Spring AOP
+      bug caught and fixed before any test was written against it**: the
+      original `runSample()` called `this.sampleOne(...)` directly, which
+      is plain Java self-invocation and bypasses the `@Transactional`
+      proxy entirely -- fixed via `@Lazy` self-injection so Step 3's own
+      guarantee actually holds.
+- [x] **Step 3: Transactional enqueue.** Done, inside `sampleOne` (now
+      routed through the `self` proxy per Step 2's own fix) — for rows
+      with a nonzero `error_amount`, `pgmq.send('qc_summary',
+      {payment_error_review_id})` inside the same transaction as that
+      row's insert.
+- [x] **Step 4: `run-sample` endpoint.** Done. `ADMIN`-scoped via
+      `SecurityConfig`'s `/api/internal/qc/**` matcher, same posture as
+      `/api/policy/**`. Accepts an optional `sampleSize` query param,
+      defaulting to `QcSamplingService.computeDefaultSampleSize()`.
+- [x] **Step 5: Airflow task.** Done — `run_qc_sample`, independent of the
+      extract/dbt/materialize chain (it writes to the operational database
+      directly, not the warehouse), on the same `@hourly` cadence. **Real
+      prerequisite gap found and fixed**: nothing in this repo could
+      authenticate a scheduled caller as ADMIN — added `canopica-airflow`,
+      a real `client_credentials` service-account client, rather than
+      reuse `test-worker`'s password grant (reserved by its own
+      name/description for test suites).
+- [x] **Step 6: `draft.py`/`validate.py` + worker consumer.** Done, split
+      from the plan's single `summarize.py` into the draft/validate/service
+      shape `correspondence/` already established, once the grounding
+      requirement made that split the obviously correct one. Composed only
+      from the diff and both evaluations' own trace records (constraint
+      21) via a bundled `DiscrepancyContext`, not 6-8 positional
+      parameters (a real `ruff` finding, fixed by the bundle). Consumer
       writes `ai_summary` back onto the `payment_error_review` row,
       appends `QC_DISCREPANCY_FLAGGED` to the audit log, deletes the
       message.
-- [ ] **Step 7: `stg_payment_error_review` + `mart_payment_accuracy`
-      update.** The mart's `reviewed`/`payment_error_amount` columns now
-      come from a left join to this staging model — a determination never
-      sampled still shows `reviewed = false`/`null`, exactly matching
-      today's placeholder default; a sampled, confirmed-error case shows
-      the real diff.
-- [ ] **Step 8: Tests.** Java: `QcSamplingService` against a fixture with
-      a deliberately mismatched parameter-set version, confirming
-      `reproduce()`'s own diff surfaces correctly; the sample endpoint is
-      `ADMIN`-only. `ai/`: a discrepancy summary is grounded in the actual
-      diff/trace fields (a deterministic check the summary text references
-      the real dollar amounts and parameter-set versions, not invented
-      ones — same "citation-existence"-style pre-check Phase 2/3 already
-      use elsewhere). dbt: `mart_payment_accuracy`'s new join is tested
-      (`relationships` to `stg_payment_error_review`).
-- [ ] **Step 9: Full suite + commit.**
+- [x] **Step 7: `fct_payment_error_review` + `mart_payment_accuracy`
+      update.** Done (real silver-layer naming deviation — see the file
+      list note above). The mart's `reviewed`/`payment_error_amount`
+      columns now come from a left join to this silver model — a
+      determination never sampled still shows `reviewed = false`/`null`,
+      exactly matching the earlier placeholder default; a sampled case
+      shows the real diff.
+- [x] **Step 8: Tests.** Done. Java: `QcSamplingServiceTest` (5 tests) —
+      since `eligibility_determination` is append-only, the mismatched-
+      parameter-set scenario reuses a genuine determination's own real
+      `input_snapshot` and inserts a second row against FY2026's real,
+      different parameters (not a synthetic fixture) to force a genuine
+      `reproduce()` diff; `QcControllerTest` (3 tests) confirms
+      `ADMIN`-only. `ai/`: `test_qc_assistant.py` (7 tests) grounds a
+      discrepancy summary in the actual diff/trace fields via the same
+      "citation-existence"-style deterministic check Phase 2/3 already use
+      elsewhere, plus an `e2e` class proving the real three-table trace
+      join. dbt: `fct_payment_error_review`'s own `relationships` test
+      (to `fct_eligibility_determination`) is the real referential-
+      integrity check `mart_payment_accuracy`'s new join depends on,
+      confirmed by `test_dbt_build.py`.
+- [x] **Step 9: Full suite + commit.** Full suite green: api (142,
+      `BUILD SUCCESS`, +8), data-platform (31), `ai/` (213, +7), `worker/`
+      (24, +3), UI (66, unaffected); `ruff`/`mypy`/`oxlint`/`tsc` clean.
+      Live Airflow trigger not manually exercised this session — see
+      STATUS.md's own verification-log row.
 
 ---
 

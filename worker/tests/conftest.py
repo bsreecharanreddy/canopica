@@ -52,11 +52,12 @@ def settings(_postgres_container: PostgresContainer) -> Settings:
 
 @pytest.fixture(scope="session")
 def migrated_settings(settings: Settings, _postgres_container: PostgresContainer) -> Settings:
-    """`settings` plus the real API Flyway migrations and all three real
+    """`settings` plus the real API Flyway migrations and all four real
     pgmq queues -- for test files (test_document_intake_consumer.py, test_
-    correspondence_consumer.py, test_fraud_scoring_consumer.py) that need
-    `document`/`program_request`/`verification`/`audit_event`/`notice`/
-    `fraud_risk_score` to actually exist, not just pgmq's own tables. Same
+    correspondence_consumer.py, test_fraud_scoring_consumer.py, test_qc_
+    summary_consumer.py) that need `document`/`program_request`/
+    `verification`/`audit_event`/`notice`/`fraud_risk_score`/`payment_
+    error_review` to actually exist, not just pgmq's own tables. Same
     `flyway/flyway` Docker-CLI pattern data-
     platform/tests/conftest.py's own `migrated_dsn` fixture already
     established for the identical reason -- reused here, run against the
@@ -88,6 +89,7 @@ def migrated_settings(settings: Settings, _postgres_container: PostgresContainer
         cur.execute("select pgmq.create(%s)", (settings.document_intake_queue,))
         cur.execute("select pgmq.create(%s)", (settings.correspondence_dispatch_queue,))
         cur.execute("select pgmq.create(%s)", (settings.fraud_scoring_queue,))
+        cur.execute("select pgmq.create(%s)", (settings.qc_summary_queue,))
     return settings
 
 

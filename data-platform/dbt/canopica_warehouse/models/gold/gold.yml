@@ -91,9 +91,11 @@ models:
 
   - name: mart_payment_accuracy
     description: >
-      Placeholder shape for Phase 4's QC / Payment Error Rate Assistant --
-      `reviewed`/`payment_error_amount` are not real logic yet, see the
-      model's own doc comment.
+      Real payment-error-rate reporting (Phase 4 Task 4): `reviewed`/
+      `payment_error_amount` are populated from a sampled QC re-derivation
+      (fct_payment_error_review) via DeterminationService.reproduce(), not
+      the earlier placeholder. A determination never sampled still shows
+      `reviewed = false`/`null`.
     tests:
       - no_pii_in_gold
     columns:

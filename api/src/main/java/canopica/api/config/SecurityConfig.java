@@ -108,6 +108,13 @@ class SecurityConfig {
                         // one, because there is no per-case scoping to apply -- a parameter set is global.
                         .requestMatchers("/api/policy/**")
                         .hasRole("ADMIN")
+                        // QC sample-trigger (Phase 4 Task 4). ADMIN, same reasoning as /api/policy/**
+                        // above -- an internal, schedule-triggered operation (Airflow's own service-
+                        // account client, canopica-airflow in the workers realm export), not a
+                        // supervisor-facing one. Task 5's human review-queue endpoints land under
+                        // /api/qc/** instead, a separate SUPERVISOR-scoped surface.
+                        .requestMatchers("/api/internal/qc/**")
+                        .hasRole("ADMIN")
                         .requestMatchers("/api/worker/**")
                         .hasAnyRole("WORKER", "SUPERVISOR")
                         .anyRequest()

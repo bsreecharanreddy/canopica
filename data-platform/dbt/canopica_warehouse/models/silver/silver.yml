@@ -309,6 +309,35 @@ models:
       - name: scored_at
         tests: [not_null]
         meta: { classification: PUBLIC }
+
+  - name: fct_payment_error_review
+    description: >
+      One row per sampled determination, deduplicated to the latest bronze landing (a mutable row --
+      Task 5's own review fields update in place). Built in Phase 4 Task 4 for mart_payment_accuracy's
+      real reviewed/payment_error_amount columns.
+    columns:
+      - name: payment_error_review_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: determination_key
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments: { to: ref('fct_eligibility_determination'), field: determination_key }
+        meta: { classification: PUBLIC }
+      - name: original_amount
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: reproduced_amount
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: error_amount
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: sampled_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
       - name: review_outcome
         tests:
           - accepted_values:

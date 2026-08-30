@@ -38,9 +38,26 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "canopica-airflow",
+      "name": "Airflow's own service-account client (Phase 4 Task 4) -- client_credentials only, unlike test-worker's password grant, since this is a real machine caller (the QC sample-trigger DAG task), not a test harness standing in for a person",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "canopica-airflow-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
     }
   ],
   "users": [
+    {
+      "username": "service-account-canopica-airflow",
+      "enabled": true,
+      "serviceAccountClientId": "canopica-airflow",
+      "realmRoles": ["ADMIN"]
+    },
     {
       "username": "worker.sam",
       "enabled": true,

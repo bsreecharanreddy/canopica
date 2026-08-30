@@ -24,6 +24,8 @@ create extension if not exists pgmq cascade;
 select pgmq.create('document_intake');
 select pgmq.create('correspondence_dispatch');
 select pgmq.create('fraud_scoring');
+-- Phase 4 Task 4 adds a fourth, qc_summary, the same way.
+select pgmq.create('qc_summary');
 -- The extension and both queues' tables above are owned by this script's
 -- own bootstrap role (postgres), not canopica_app -- canopica_operational
 -- being owned BY canopica_app doesn't extend to objects a different role

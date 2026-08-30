@@ -59,5 +59,14 @@ public enum AuditEventType {
      * AuditService}, unlike {@link #FRAUD_FLAG_RAISED}: the review decision is Java's own write, not the
      * worker's.
      */
-    FRAUD_FLAG_REVIEWED
+    FRAUD_FLAG_REVIEWED,
+    /**
+     * A sampled QC re-derivation produced a nonzero diff against the original {@code benefit_amount}
+     * (Phase 4 Task 4). Written by the Python worker's {@code qc_summary_consumer.py} via a raw
+     * {@code update}/{@code insert}, never by this module's own {@link AuditService} -- same reasoning as
+     * {@link #DOCUMENT_CLASSIFIED}'s own doc comment: {@link JdbcAuditService#findBySubject} deserializes
+     * {@code event_type} back into this enum on every read, and a zero-diff sampled case is still recorded in
+     * {@code payment_error_review} but never raises this event.
+     */
+    QC_DISCREPANCY_FLAGGED
 }

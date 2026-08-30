@@ -41,6 +41,7 @@ ALL_TABLES = (
     # real scored population, not just document/notice-adjacent tables
     # (which never got a bronze landing, since no mart ever needed them).
     "fraud_risk_score",
+    "payment_error_review",
 )
 
 
