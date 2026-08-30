@@ -58,6 +58,8 @@ public abstract class AbstractPostgresTest {
             statement.execute("create extension if not exists pgmq cascade");
             statement.execute("select pgmq.create('document_intake')");
             statement.execute("select pgmq.create('correspondence_dispatch')");
+            // Phase 4 Task 2: JdbcDeterminationService.determine() now sends here too.
+            statement.execute("select pgmq.create('fraud_scoring')");
         } catch (SQLException e) {
             throw new IllegalStateException("failed to initialize pgmq extension/queues in the test Postgres container", e);
         }

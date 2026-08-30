@@ -44,5 +44,13 @@ public enum AuditEventType {
      * The same approval action recorded as "sent" (Phase 3 Task 6) -- see {@link #NOTICE_APPROVED}'s own doc
      * comment for why these two always appear as a pair.
      */
-    NOTICE_SENT
+    NOTICE_SENT,
+    /**
+     * A determination's fraud-risk score cleared the review threshold (Phase 4 Task 2). Written by the
+     * Python worker's {@code fraud_scoring_consumer.py} via a raw {@code insert}, never by this module's own
+     * {@link AuditService} -- same reasoning as {@link #DOCUMENT_CLASSIFIED}'s own doc comment: {@link
+     * JdbcAuditService#findBySubject} deserializes {@code event_type} back into this enum on every read, and
+     * a below-threshold score is still recorded in {@code fraud_risk_score} but never raises this event.
+     */
+    FRAUD_FLAG_RAISED
 }

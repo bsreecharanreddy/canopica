@@ -1,11 +1,13 @@
 """The worker's entrypoint: a generic poll/dispatch loop over pgmq queues,
-plus the two queues this phase actually needs (design doc §2.2). Task 1
-wired each queue to a placeholder handler that only logged and
-acknowledged a message; Task 3 replaces `document_intake`'s handler with
-real classification, Task 5 replaces `correspondence_dispatch`'s with real
-drafting. The loop mechanics (read, dispatch, delete-on-success,
-archive-after-`max_delivery_attempts`) are Task 1's real deliverable and
-don't change when those handlers do.
+plus the queues each phase has actually needed so far (Phase 3 design doc
+§2.2's `document_intake`/`correspondence_dispatch`, Phase 4's own
+`fraud_scoring`). Phase 3's Task 1 wired each of its two queues to a
+placeholder handler that only logged and acknowledged a message before its
+Task 3/5 replaced them with real classification/drafting; Phase 4's Task 2
+registers `fraud_scoring` with a real handler from the start, no
+placeholder stage needed. The loop mechanics (read, dispatch,
+delete-on-success, archive-after-`max_delivery_attempts`) are Phase 3
+Task 1's real deliverable and don't change as more queues register.
 """
 
 from __future__ import annotations
@@ -15,7 +17,11 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from canopica_worker import correspondence_consumer, document_intake_consumer
+from canopica_worker import (
+    correspondence_consumer,
+    document_intake_consumer,
+    fraud_scoring_consumer,
+)
 from canopica_worker.config import Settings
 from canopica_worker.observability import traced_queue_cycle
 from canopica_worker.queue import Message, archive, delete, read
@@ -94,6 +100,7 @@ def main() -> None:
             settings.correspondence_dispatch_queue: correspondence_consumer.build_handler(
                 settings=settings
             ),
+            settings.fraud_scoring_queue: fraud_scoring_consumer.build_handler(settings=settings),
         },
         settings=settings,
     )

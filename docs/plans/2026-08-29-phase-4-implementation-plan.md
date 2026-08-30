@@ -167,23 +167,29 @@ canopica/
       conftest.py                              <- Task 1 done (+seeded_fairness_dsn fixture)
   api/src/main/resources/db/migration/
     V22__person_demographics.sql               <- Task 1 (done: race/hispanic_origin on person)
-    V23__fraud_risk_score.sql                  <- Task 2
-    V24__payment_error_review.sql              <- Task 4
-    V25__audit_event_type_phase4.sql           <- Task 2 (widen CHECK once for all four new event types)
+    V23__fraud_risk_score.sql                  <- Task 2 done
+    V24__audit_event_type_fraud_flag_raised.sql <- Task 2 done (widen CHECK for FRAUD_FLAG_RAISED
+                                                   only -- see Task 2's own file-list note for why
+                                                   this renumbers away from the plan's original
+                                                   single "widen all four at once" V25)
+    V25__payment_error_review.sql              <- Task 4's real next number when it lands, not
+                                                   reserved in advance
   api/src/main/java/canopica/api/
-    fraud/FraudRiskScore.java, FraudRiskScoreRepository.java           <- Task 2
+    fraud/FraudRiskScore.java, FraudRiskScoreRepository.java           <- Task 2 done
     api/FraudReviewController.java             <- Task 3 (review queue, confirm/clear)
     qc/PaymentErrorReview.java, PaymentErrorReviewRepository.java, QcSamplingService.java  <- Task 4
     api/QcController.java                      <- Task 5 (review queue, confirm/dismiss); internal
                                                    sample-trigger endpoint for Airflow <- Task 4
     caseload/AtRiskCaseQuery.java (or similar, in an existing package)  <- Task 6
     api/SlaMonitorController.java               <- Task 6
-    audit/AuditEventType.java                   <- Task 2 (modified: +4 new event types)
+    audit/AuditEventType.java                   <- Task 2 done (modified: +1 new event type,
+                                                   FRAUD_FLAG_RAISED -- see Task 2's own file-list
+                                                   note on why this isn't +4 as originally planned)
   ai/src/canopica_ai/
     fraud_triage/
-      features.py                              <- Task 2 (feature engineering, proxy-exclusion enforced here)
-      score.py                                 <- Task 2 (IsolationForest wrapper)
-      service.py                                <- Task 2
+      features.py                              <- Task 2 done (feature engineering, proxy-exclusion enforced here)
+      score.py                                 <- Task 2 done (IsolationForest wrapper)
+      service.py                                <- Task 2 done
     qc_assistant/
       summarize.py                              <- Task 4
       service.py                                <- Task 4
@@ -201,17 +207,19 @@ canopica/
       root_cause.py                             <- Task 9
       service.py                                <- Task 9
   ai/tests/
-    test_fraud_triage.py                        <- Task 2
+    test_fraud_triage.py                        <- Task 2 done
     test_qc_assistant.py                        <- Task 4
     test_sla_monitor.py                          <- Task 6
     test_sop_copilot.py                          <- Task 7
     test_data_quality.py                         <- Task 9
   worker/src/canopica_worker/
-    fraud_scoring_consumer.py                    <- Task 2
+    fraud_scoring_consumer.py                    <- Task 2 done
     qc_summary_consumer.py                       <- Task 4
-    main.py                                      <- Task 2 (modified: +2 handler entries), config.py (modified: +2 queue names)
+    main.py                                      <- Task 2 done (modified: +1 handler entry, fraud_scoring;
+                                                   Task 4 adds a 2nd), config.py (modified: +1 queue name;
+                                                   Task 4 adds a 2nd)
   worker/tests/
-    test_fraud_scoring_consumer.py               <- Task 2
+    test_fraud_scoring_consumer.py               <- Task 2 done
     test_qc_summary_consumer.py                  <- Task 4
   ui/src/pages/
     FraudReviewPage.tsx                          <- Task 3
@@ -363,11 +371,20 @@ the fraud-triage axis once `fraud_risk_score` exists.
 
 **Files:**
 - Create: `api/src/main/resources/db/migration/V23__fraud_risk_score.sql`
-- Create: `api/src/main/resources/db/migration/V25__audit_event_type_
-  phase4.sql` (widen `AuditEventType`'s CHECK constraint once for all four
-  of this phase's new event types — `FRAUD_FLAG_RAISED`, `FRAUD_FLAG_
-  REVIEWED`, `QC_DISCREPANCY_FLAGGED`, `QC_REVIEW_COMPLETED` — same "widen
-  once" pattern V16/V18 already used)
+- Create: `api/src/main/resources/db/migration/
+  V24__audit_event_type_fraud_flag_raised.sql` (widen `AuditEventType`'s
+  CHECK constraint for `FRAUD_FLAG_RAISED` only — **corrected from this
+  plan's original text**, which called for a single V25 widening all four
+  of this phase's event types at once. This repo's real migration history
+  (V16, V18, V20/V21) is strictly "widen once per real need, in landing
+  order" — V18's own comment already documents correcting an identical
+  pre-widening mistake the Phase 3 plan made once before. Pre-reserving
+  V24 here for Task 4's `payment_error_review` while this widening landed
+  as V25 would also have broken Flyway's `outOfOrder=false` validation
+  (checked: `application.yml` has no such setting) the moment Task 4's
+  real V24 file is added afterward. Renumbered V23/V24; Task 3/4/5 each
+  widen for their own single event type when they land, and V25 is
+  Task 4's real next number, not reserved in advance.)
 - Create: `api/src/main/java/canopica/api/fraud/FraudRiskScore.java`,
   `FraudRiskScoreRepository.java`
 - Modify: `api/src/main/java/canopica/api/determination/
@@ -394,53 +411,53 @@ the fraud-triage axis once `fraud_risk_score` exists.
 - Consumes: the determination's household/income/verification history
   (read-only), the same data the DMN engine itself read.
 
-- [ ] **Step 1: `fraud_risk_score` table.** Per design doc §2.8: `id`,
-      `program_request_id`, `determination_id`, `score`, `top_
-      contributing_features` (jsonb), `model_version`, `scored_at`,
-      `reviewed_by`, `reviewed_at`, `review_outcome`
-      (`CONFIRMED_RISK`/`CLEARED`/null).
-- [ ] **Step 2: Transactional enqueue.** `pgmq.send('fraud_scoring',
-      {determination_id})` added inside `determine()`'s existing
-      transaction, alongside the existing `correspondence_dispatch` send —
-      scoring never holds up the binding decision.
-- [ ] **Step 3: Feature engineering (`features.py`).** Income volatility
-      across resubmissions, verification-response discrepancy rate,
-      household-composition change frequency, benefit-amount percentile
-      within household-size cohort — the exact set design doc §2.2 names.
-      **Constraint 20 enforced here in code**: no race/ethnicity field
-      (Task 1's new columns), no zip code as a standalone feature, no
-      surname-derived signal, no primary-language field. A code comment or
-      a small explicit denylist test asserting the feature vector's column
-      names never include an excluded field — this is the literal
-      enforcement point, not just the doc's policy statement.
-- [ ] **Step 4: `IsolationForest` wrapper (`score.py`).** Trained/fit
-      against the available synthetic case population (batch fit,
-      re-fit on a schedule — decide cadence at implementation time per
-      design doc §2.11); scores one case against that fitted model,
-      returns the score plus per-feature contribution (e.g. via
-      isolation-path-length decomposition or a comparably explainable
-      method — pin the exact technique at implementation time).
-- [ ] **Step 5: Worker consumer.** `fraud_scoring_consumer.py`, same shape
-      as Phase 3's two existing consumers: read message, call `service.
-      score`, insert the `fraud_risk_score` row, append `FRAUD_FLAG_
-      RAISED` to the audit log only when the score clears the review
-      threshold (a below-threshold score is still recorded, but doesn't
-      raise a flag — decide whether every scored case gets a row or only
-      flagged ones at implementation time), delete the message. A
-      processing failure leaves the message for pgmq's own retry, same as
-      every other consumer.
-- [ ] **Step 6: `main.py`/`config.py` wiring.** One more `Settings` queue
-      name, one more `handlers` dict entry in `run_forever`'s call in
-      `main()` — the loop mechanics themselves (Phase 3 Task 1's real
-      deliverable) don't change.
-- [ ] **Step 7: Tests.** `test_fraud_triage.py`: the feature vector never
-      contains an excluded column (constraint 20, asserted directly, not
-      just described); a synthetic case with deliberately anomalous
-      values (e.g. income reported three different ways across
-      resubmissions) scores measurably higher than a typical case.
-      `test_fraud_scoring_consumer.py`: end to end against a real local
-      stack, a determination commit results in a `fraud_risk_score` row.
-- [ ] **Step 8: Full suite + commit.**
+- [x] **Step 1: `fraud_risk_score` table.** Done, per design doc §2.8's
+      column list, plus a `score >= 0 and score <= 1` check (score.py's own
+      min-max normalization guarantees the range) and the same
+      reviewed-together check `policy_parameter_proposal` (V14) uses.
+- [x] **Step 2: Transactional enqueue.** Done, alongside the existing
+      `correspondence_dispatch` send in `determine()`'s own transaction.
+- [x] **Step 3: Feature engineering (`features.py`).** Done, the exact four
+      features design doc §2.2 names, each a single SQL query against real
+      operational tables (income_record's coefficient of variation,
+      verification_response's DISCREPANCY rate, household_member rows past
+      the household's own earliest effective_from, a percent_rank() window
+      query for the percentile). Constraint 20 enforced as a `FEATURE_NAMES`
+      tuple plus a real denylist test (`test_fraud_triage.py`), not just a
+      comment.
+- [x] **Step 4: `IsolationForest` wrapper (`score.py`).** Done. Cadence
+      decided: fits fresh against the full case population on every score
+      call, not a scheduled batch fit — a deliberate, stated substitution
+      against design doc §2.11's shape (real cost recorded in the
+      tradeoffs doc's existing Fraud risk triage row), correct and cheap
+      at this project's real synthetic-population scale. Attribution
+      technique decided: per-feature z-score against the same fitted
+      population's own mean/stdev, not isolation-path-length decomposition
+      (sklearn exposes no public per-feature path-length API) — comparably
+      explainable and deterministically testable.
+- [x] **Step 5: Worker consumer.** Done. Decided: every scored case gets a
+      `fraud_risk_score` row (Task 3's fairness-audit extension needs the
+      full scored population, not only flagged cases, to compute a real
+      selection rate); `FRAUD_FLAG_RAISED` fires only at or above a stated,
+      not-yet-measured `_REVIEW_THRESHOLD = 0.75` starting default.
+- [x] **Step 6: `main.py`/`config.py` wiring.** Done.
+- [x] **Step 7: Tests.** Done. `test_fraud_triage.py`: the denylist check,
+      plus a deliberately anomalous case (income reported three wildly
+      different ways, every verification a discrepancy, constant
+      composition change) scoring above every typical case in the same
+      population, and a degenerate single-case population scoring exactly
+      0.0. `test_fraud_scoring_consumer.py`: three real end-to-end cases
+      against a real local Postgres (above-threshold persists + flags,
+      below-threshold persists without flagging, a processing failure
+      leaves the message for pgmq's own retry).
+- [x] **Step 8: Full suite + commit.** Full suite green: api (142 + 12
+      rules-engine, `BUILD SUCCESS`), data-platform (31 non-e2e,
+      unaffected), `ai/` (206 non-e2e, +4), `worker/` (21, +3); `ruff`/
+      `mypy` clean. One real bug caught only by running the full suite:
+      `AbstractPostgresTest` (Java) had never created the `fraud_scoring`
+      pgmq queue, so all 21 tests through a real Spring context calling
+      `determine()` failed with `bad SQL grammar [select pgmq.send(...)]`
+      until fixed.
 
 ---
 

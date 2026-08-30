@@ -38,6 +38,12 @@ dependencies = [
     "pytesseract>=0.3.13",
     "pillow>=12.0.0",
     "pyyaml>=6.0.2",
+    # Fraud Risk Triage's anomaly-scoring model (Phase 4 Task 2 plan,
+    # design doc §2.2): IsolationForest, no LLM in this path at all -- a
+    # bounded numeric score, not free text. Current stable on PyPI at
+    # implementation time (2026-08-29, checked live), not assumed from
+    # training knowledge, per the Phase 4 plan's own prerequisite.
+    "scikit-learn>=1.9.0",
     # Only ever undeclared-transitive before Task 9 Step 4/5 -- uv.lock
     # already resolved it (some other dependency needs it), but the
     # public demo's own server entry point (`uvicorn canopica_ai.
@@ -90,6 +96,14 @@ mypy_path = "src"
 # function with a plain str/Image argument and str return, low enough risk
 # to accept untyped rather than hand-write and maintain a local stub for.
 module = "pytesseract"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# No py.typed marker shipped by scikit-learn 1.9.0 (checked live in this
+# project's own .venv) -- same reasoning as pytesseract's override above:
+# its surface used here (IsolationForest.fit/score_samples) is small
+# enough to accept untyped rather than hand-write a local stub.
+module = "sklearn.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

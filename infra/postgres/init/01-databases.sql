@@ -17,11 +17,13 @@ create database canopica_serving owner canopica_app;
 -- way this script's postgres role already has it. worker/'s own
 -- queue.py never calls pgmq.create() itself; the two queues this phase
 -- needs are created once, here, so both exist before anything tries to
--- send to them.
+-- send to them. Phase 4 Task 2 adds a third, fraud_scoring, the same way
+-- -- created once here, never by worker/'s own code.
 \connect canopica_operational
 create extension if not exists pgmq cascade;
 select pgmq.create('document_intake');
 select pgmq.create('correspondence_dispatch');
+select pgmq.create('fraud_scoring');
 -- The extension and both queues' tables above are owned by this script's
 -- own bootstrap role (postgres), not canopica_app -- canopica_operational
 -- being owned BY canopica_app doesn't extend to objects a different role

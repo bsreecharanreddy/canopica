@@ -96,6 +96,11 @@ class JdbcDeterminationService implements DeterminationService {
         // enqueue, not a call into ai/ from here.
         pgmq.send("correspondence_dispatch", Map.of("determination_id", determinationId.toString()));
 
+        // Phase 4 Task 2, constraint 17 again: fraud-risk scoring shares this same transaction and
+        // is just as much a fire-and-forget enqueue as correspondence above -- scoring never holds up
+        // this binding decision, and never fires for a determination that ends up rolled back.
+        pgmq.send("fraud_scoring", Map.of("determination_id", determinationId.toString()));
+
         return determinationId;
     }
 
