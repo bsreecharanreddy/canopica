@@ -37,6 +37,14 @@ dependencies = [
     # `data-platform`'s own dbt needing a real Postgres client library.
     "pytesseract>=0.3.13",
     "pillow>=12.0.0",
+    # duckdb's Python client imports this lazily, only when a fetched row
+    # actually has a TIMESTAMPTZ column -- data_quality/root_cause.py's
+    # failing-row sample is the first ai/ call site to do that. Present in
+    # data-platform/'s own venv only as dbt-core's transitive dependency,
+    # never installed here otherwise, so this went unnoticed until Task 10's
+    # own live end-to-end DAG run exercised this path against a real
+    # failing test for the first time.
+    "pytz>=2026.3",
     "pyyaml>=6.0.2",
     # Fraud Risk Triage's anomaly-scoring model (Phase 4 Task 2 plan,
     # design doc §2.2): IsolationForest, no LLM in this path at all -- a

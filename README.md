@@ -57,7 +57,7 @@ flowchart TB
 
     subgraph async["Async Worker — pgmq-driven"]
         direction LR
-        Q["pgmq queues\n(document_intake · correspondence_dispatch)"] --> W["Worker\n(classification · notice drafting)"]
+        Q["pgmq queues\n(document_intake · correspondence_dispatch\nfraud_scoring · qc_summary)"] --> W["Worker\n(classification · notice drafting\nfraud scoring · QC summarization)"]
     end
 
     subgraph data["Data Platform — ELT, orchestrated by Airflow"]

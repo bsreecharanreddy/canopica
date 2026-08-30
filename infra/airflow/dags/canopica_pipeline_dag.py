@@ -32,6 +32,7 @@ import pendulum
 from airflow.decorators import task
 from airflow.models.dag import DAG
 from airflow.operators.bash import BashOperator
+from airflow.utils.trigger_rule import TriggerRule
 
 DBT_PROJECT_DIR = "/opt/canopica-data-platform/dbt/canopica_warehouse"
 # dbt lives in its own venv, isolated from Airflow's own click version --
@@ -73,8 +74,16 @@ def tokenize() -> None:
     print(f"tokenized {token_count} person names", file=sys.stderr)
 
 
-@task(task_id="materialize")
+@task(task_id="materialize", trigger_rule=TriggerRule.ALL_DONE)
 def materialize() -> None:
+    # ALL_DONE, not the Airflow default ALL_SUCCESS: `dbt build` bundles model
+    # runs with tests, and an exit code of 1 from a real test failure (as
+    # opposed to a model actually failing to build) leaves the DuckDB tables
+    # this reads from fully populated. Refusing to materialize into serving
+    # over a test failure would make this task's own success or failure
+    # depend on data-quality assertions it isn't set up to interpret -- if a
+    # model genuinely failed to build, the table it reads from won't exist,
+    # and this task fails for that real reason instead.
     from canopica_data.config import Settings
     from canopica_data.serving.materialize import ensure_data_quality_incident_table, materialize_gold
 
@@ -173,6 +182,12 @@ with DAG(
             "/opt/canopica-ai/.venv/bin/python -m canopica_ai.data_quality.cli refresh "
             f"--run-results {DBT_PROJECT_DIR}/target/run_results.json"
         ),
+        # ALL_DONE, matching materialize() above: this task's entire purpose
+        # is to read dbt_build's run_results.json and surface real test
+        # failures as data_quality_incident rows -- the default ALL_SUCCESS
+        # trigger rule would skip it via upstream_failed on exactly the run
+        # it exists to report on.
+        trigger_rule=TriggerRule.ALL_DONE,
     )
 
     (

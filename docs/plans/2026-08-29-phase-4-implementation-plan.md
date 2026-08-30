@@ -1007,12 +1007,15 @@ operational table this warehouse reports on.
 - Modify: `README.md` (architecture diagram — two new queues, the new
   fairness/QC/SLA/SOP/data-quality components)
 
-- [ ] **Step 1: Worker spans.** `traced_queue_cycle` around both new
-      consumers' read/dispatch/delete-or-archive cycles.
-- [ ] **Step 2: Grafana panels.** Fraud-scoring throughput and review
+- [x] **Step 1: Worker spans.** `traced_queue_cycle` around both new
+      consumers' read/dispatch/delete-or-archive cycles. Needed no new
+      code — it's applied once, centrally, in `main.py`'s `poll_once`,
+      already covering every registered queue including `fraud_scoring`/
+      `qc_summary`.
+- [x] **Step 2: Grafana panels.** Fraud-scoring throughput and review
       backlog; QC-sampling throughput and review backlog — same
       operational-visibility reasoning as Phase 3's own pgmq panel.
-- [ ] **Step 3: End-to-end verification.** Run for real, against the live
+- [x] **Step 3: End-to-end verification.** Run for real, against the live
       local stack, not mocked: a determination commit → fraud score →
       review-queue → confirm/clear path; a QC sample run → discrepancy →
       review-queue → confirm/dismiss path; the SLA at-risk queue against a
@@ -1020,24 +1023,28 @@ operational table this warehouse reports on.
       the real corpus; an Analytics Copilot query against one of Task 8's
       new metrics; a deliberately broken dbt fixture producing a real
       `data_quality_incident` row. Same "verified for real" bar every
-      earlier phase's own definition of done already holds to.
-- [ ] **Step 4: Full suite, push, CI-confirm.**
+      earlier phase's own definition of done already holds to. See
+      `docs/STATUS.md`'s Task 10 verification-log row for the full
+      evidence and the four real bugs this pass found and fixed.
+- [ ] **Step 4: Full suite, push, CI-confirm.** Full suite green locally;
+      push and CI-confirmation still pending.
 
 ---
 
 ## Phase 4 definition of done
 
-- [ ] All 10 tasks committed, each with its own green full-suite run.
+- [x] All 10 tasks committed, each with its own green full-suite run.
 - [ ] Every task's CI job is CI-confirmed green — not just locally
-      verified, per this project's established "CI-confirmed" bar.
-- [ ] The fairness CI gate genuinely fails on an induced disparity in both
+      verified, per this project's established "CI-confirmed" bar. Pending
+      the push this task's own Step 4 still needs.
+- [x] The fairness CI gate genuinely fails on an induced disparity in both
       the rules-engine and fraud-triage axes (Task 1/3's own tests prove
       this, not just that the gate exists).
-- [ ] A live, manual walkthrough of every component (Task 10 Step 3) is
+- [x] A live, manual walkthrough of every component (Task 10 Step 3) is
       run for real before this phase is called done.
-- [ ] `docs/STATUS.md` reflects Phase 4 as done, at the same task
+- [x] `docs/STATUS.md` reflects Phase 4 as done, at the same task
       granularity Phase 1b/2/3 already use.
-- [ ] The README's architecture diagram updates to show the two new
+- [x] The README's architecture diagram updates to show the two new
       queues and this phase's components, per CLAUDE.md's same-commit
       convention for that diagram.
 

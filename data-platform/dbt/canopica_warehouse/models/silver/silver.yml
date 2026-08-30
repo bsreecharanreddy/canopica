@@ -342,7 +342,7 @@ models:
         tests:
           - accepted_values:
               arguments:
-                values: ['CONFIRMED_RISK', 'CLEARED']
+                values: ['CONFIRMED_ERROR', 'DISMISSED']
               config: { where: "review_outcome is not null" }
         meta: { classification: SENSITIVE }
       - name: loaded_at
@@ -417,16 +417,20 @@ models:
         tests:
           - not_null
           # Mirrors audit_event's own CHECK constraint (V6, widened by V16,
-          # V18/V19). These three have to move together -- the migration,
-          # canopica.api.audit.AuditEventType, and this list -- or the first
-          # event of a new type turns this test red long after the change
-          # that introduced it. That's exactly what happened here: Phase 3
-          # (V18/V19) widened the other two but never this list, caught
-          # live running Phase 4 Task 1's dbt build against the shared
-          # local dev Postgres, which had already accumulated real
-          # DOCUMENT_*/NOTICE_* events from Phase 3's own manual checks --
-          # a fresh CI database hadn't hit this yet, but any real usage
-          # eventually would have.
+          # V18/V19, and Phase 4's V24/V25/V27/V28). These three have to
+          # move together -- the migration, canopica.api.audit.
+          # AuditEventType, and this list -- or the first event of a new
+          # type turns this test red long after the change that introduced
+          # it. This has now happened twice: Phase 3 (V18/V19) widened the
+          # other two but never this list, caught live running Phase 4
+          # Task 1's dbt build against the shared local dev Postgres; and
+          # Phase 4 itself repeated the identical mistake for its own four
+          # new event types (FRAUD_FLAG_RAISED/REVIEWED, QC_DISCREPANCY_
+          # FLAGGED, QC_REVIEW_COMPLETED) -- caught live running Task 10's
+          # own end-to-end verification, the first time any of these four
+          # event types had ever actually been written in this shared dev
+          # database. A fresh CI database hadn't hit either gap yet, but
+          # any real usage eventually would have.
           - accepted_values:
               arguments:
                 values:
@@ -441,6 +445,10 @@ models:
                     "NOTICE_DRAFTED",
                     "NOTICE_APPROVED",
                     "NOTICE_SENT",
+                    "FRAUD_FLAG_RAISED",
+                    "FRAUD_FLAG_REVIEWED",
+                    "QC_DISCREPANCY_FLAGGED",
+                    "QC_REVIEW_COMPLETED",
                   ]
         meta: { classification: PUBLIC }
       - name: actor_id

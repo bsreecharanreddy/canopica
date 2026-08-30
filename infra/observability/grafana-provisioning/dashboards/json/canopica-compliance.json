@@ -1,0 +1,70 @@
+{
+  "title": "Canopica Compliance & Integrity",
+  "uid": "canopica-compliance",
+  "schemaVersion": 39,
+  "timezone": "browser",
+  "time": { "from": "now-7d", "to": "now" },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Fraud Risk Triage: unreviewed queue backlog",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "postgres-operational" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres-operational" },
+          "format": "table",
+          "rawSql": "select count(*) as backlog from fraud_risk_score where review_outcome is null",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Fraud Risk Triage: determinations scored per day",
+      "type": "timeseries",
+      "datasource": { "type": "postgres", "uid": "postgres-operational" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres-operational" },
+          "format": "time_series",
+          "rawSql": "select $__timeGroup(scored_at, '1d') as time, count(*) as scored\nfrom fraud_risk_score\nwhere $__timeFilter(scored_at)\ngroup by 1\norder by 1",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "QC / Payment Error: unreviewed discrepancy backlog",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "postgres-operational" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres-operational" },
+          "format": "table",
+          "rawSql": "select count(*) as backlog from payment_error_review where review_outcome is null and error_amount <> 0",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "QC / Payment Error: determinations sampled per day",
+      "type": "timeseries",
+      "datasource": { "type": "postgres", "uid": "postgres-operational" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres-operational" },
+          "format": "time_series",
+          "rawSql": "select $__timeGroup(sampled_at, '1d') as time, count(*) as sampled\nfrom payment_error_review\nwhere $__timeFilter(sampled_at)\ngroup by 1\norder by 1",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
