@@ -448,7 +448,14 @@ meaningful, which is why it comes after intake and correspondence exist:
   and Medicaid) is real professional experience to state in an interview,
   not portfolio-repo work to redo. Per this project's own "considered,
   deliberately deferred" convention: stated rather than silently absent.
-- Correspondence and interfaces breadth beyond SNAP
+- **Correspondence and interfaces breadth beyond SNAP is likewise a
+  stated-not-built extension point**, decided 2026-08-30 on the same
+  audience-depth-over-breadth reasoning as domain expansion above: a
+  second program's notice types and interface variants would mostly
+  re-exercise the correspondence pipeline Phase 3 already proves (DMN
+  determination + audit trail → drafted notice → validation-gated →
+  dispatched), not add new engineering signal. Statable directly in an
+  interview without needing to be built.
 - Real cloud deployment demos: the existing dbt project run for real on
   a free Databricks tier, and the existing Terraform applied to an Azure
   free trial for a real screenshot. Two things to verify at the time
