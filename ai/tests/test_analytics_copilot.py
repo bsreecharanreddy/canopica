@@ -110,6 +110,22 @@ def _build_probe_warehouse(tmp_path: Path) -> Settings:
         duckdb_path=duckdb_path,
     )
 
+    # dbt does not auto-install packages.yml's own dependencies
+    # (Elementary, Phase 4 Task 9) -- a fresh CI checkout's `dbt parse`
+    # below would otherwise fail outright with no `dbt_packages/` present.
+    # Idempotent and fast once already installed, same reasoning
+    # data-platform/tests/conftest.py's own `_dbt_deps_installed` fixture
+    # gives -- this job's checkout is data-platform's own, separate one,
+    # so that fixture (a different Python process entirely) never covers it.
+    deps = subprocess.run(
+        [str(DBT_BINARY), "deps", "--project-dir", str(DBT_PROJECT_DIR),
+         "--profiles-dir", str(DBT_PROJECT_DIR)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert deps.returncode == 0, deps.stdout + deps.stderr
+
     parse = subprocess.run(
         [str(DBT_BINARY), "parse", "--project-dir", str(DBT_PROJECT_DIR),
          "--profiles-dir", str(DBT_PROJECT_DIR), "--quiet"],

@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import duckdb
+import psycopg
 
 from canopica_data.observability.tracing import traced
 
@@ -24,6 +25,9 @@ GOLD_MARTS = (
     "mart_payment_accuracy",
     "mart_processing_timeliness",
     "mart_fairness_audit",
+    # Phase 4 Task 8 added this mart but never this list -- a real gap,
+    # found and closed here (Task 9 is what next touched this file).
+    "mart_notice_outcomes",
 )
 
 
@@ -56,3 +60,29 @@ def materialize_gold(duckdb_path: Path | str, serving_dsn: str) -> dict[str, int
             return counts
         finally:
             con.close()
+
+
+def ensure_data_quality_incident_table(serving_dsn: str) -> None:
+    """Idempotent DDL for the one serving-layer table this pipeline writes
+    to directly rather than rebuilding wholesale from a gold mart (Phase 4
+    Task 9, design doc §2.8) -- an AI-drafted root-cause incident log, not
+    a warehouse copy, so it doesn't belong in `GOLD_MARTS`/`materialize_
+    gold` above. Plain psycopg DDL rather than DuckDB's postgres-extension
+    attach `materialize_gold` uses: that attach exists to bulk-copy real
+    DuckDB tables, which this single one-time `create table if not exists`
+    has no reason to pay for. `canopica_ai.data_quality.service` is what
+    actually inserts rows here, via its own psycopg connection, after this
+    table is known to exist.
+    """
+    with psycopg.connect(serving_dsn, autocommit=True) as conn, conn.cursor() as cur:
+        cur.execute("create schema if not exists reporting")
+        cur.execute(
+            "create table if not exists reporting.data_quality_incident ("
+            "id uuid primary key, "
+            "source text not null, "
+            "model_name text not null, "
+            "test_or_check_name text not null, "
+            "detected_at timestamptz not null, "
+            "summary text not null, "
+            "raw_context jsonb not null)"
+        )

@@ -12,6 +12,15 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+# Phase 4 Task 9: no on-run-end hook added here -- the elementary package
+# already defines `on-run-end: - "{{ elementary.on_run_end() }}"` in its
+# own dbt_project.yml (dbt runs every installed package's own hooks
+# automatically, not just the root project's). Adding the same call here
+# too was tried and verified live to double-execute it -- confirmed by
+# duplicate rows in main.elementary_test_results -- so this comment
+# stands in its place as the "checked, not assumed" record.
+
+
 models:
   canopica_warehouse:
     silver:

@@ -80,6 +80,13 @@ RUN curl -sSL "https://raw.githubusercontent.com/apache/airflow/constraints-2.10
 COPY --chown=airflow:root data-platform/dbt /opt/canopica-data-platform/dbt
 RUN python -m venv /opt/dbt-venv \
     && /opt/dbt-venv/bin/pip install --no-cache-dir "dbt-core>=1.12.3" "dbt-duckdb>=1.11.0"
+# Phase 4 Task 9: packages.yml now declares Elementary -- dbt does not
+# auto-install it, so dbt_build's own BashOperator would otherwise fail
+# outright on its very first run ("found only 0 package(s) installed in
+# dbt_packages"). Baked in here, once, at image-build time, same
+# reasoning data-platform/Dockerfile's own identical step gives.
+RUN /opt/dbt-venv/bin/dbt deps --project-dir /opt/canopica-data-platform/dbt/canopica_warehouse \
+    --profiles-dir /opt/canopica-data-platform/dbt/canopica_warehouse
 
 # ai/'s own fully isolated venv -- see the block comment above. Frozen
 # against the real committed lockfile (`--frozen`), the same reproducible

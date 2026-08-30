@@ -28,6 +28,36 @@ from testcontainers.community.postgres import PostgresContainer
 # The FY2025 policy_parameter_set id V4__seed_snap_parameters.sql seeds --
 # reused so fixtures don't need to insert their own parameter set.
 SNAP_FY2025_PARAMETER_SET_ID = "9f1c0e10-0000-4000-8000-000000000001"
+
+DBT_PROJECT_DIR = Path(__file__).resolve().parents[1] / "dbt" / "canopica_warehouse"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _dbt_deps_installed() -> None:
+    """`dbt build`/`dbt parse`/`dbt test` do not auto-install
+    `packages.yml`'s own dependencies (Elementary, Phase 4 Task 9) --
+    found live (2026-08-30): a fresh checkout with no `dbt_packages/`
+    fails outright ("found only 0 package(s) installed in dbt_packages")
+    on the very first subprocess call. Autouse and session-scoped, so
+    every test file that shells out to dbt (test_dbt_build.py,
+    test_metric_semantics.py, test_elementary.py, test_materialize.py,
+    test_end_to_end.py -- and any future one) gets this for free, rather
+    than each remembering its own `dbt deps` call -- exactly the
+    "a sibling job/test never inherited the setup step" class of gap this
+    project's own canopica-recurring-ci-failure skill warns about.
+    Idempotent and fast after the first run within a session (dbt checks
+    package-lock.yml and no-ops), so the tests that don't touch dbt at
+    all pay only a negligible one-time cost.
+    """
+    subprocess.run(
+        ["dbt", "deps", "--project-dir", str(DBT_PROJECT_DIR),
+         "--profiles-dir", str(DBT_PROJECT_DIR)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 SEEDED_PERSON_COUNT = 3
 
 MIGRATIONS_DIR = (
@@ -437,6 +467,70 @@ def seeded_mining_dsn(migrated_dsn: str) -> Iterator[str]:
                 (str(uuid.uuid4()), program_request_id, determination_id, notice_type, status,
                  approved_by, approved_at, sent_at, rejected_by, rejected_at),
             )
+
+    yield migrated_dsn
+
+
+@pytest.fixture
+def seeded_data_quality_dsn(migrated_dsn: str) -> Iterator[str]:
+    """migrated_dsn with one determination decided *before* its own
+    application was submitted -- a genuine data-integrity violation (real
+    pipeline data can't produce it), which trips
+    `tests/no_negative_processing_days.sql` for real. Phase 4 Task 9's own
+    fixture for the Elementary-results -> summarize() pipeline.
+    """
+    person_id = str(uuid.uuid4())
+    household_id = str(uuid.uuid4())
+    application_id = str(uuid.uuid4())
+    program_request_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+    submitted_at = now
+    decided_at = now - timedelta(days=2)  # decided before submitted -- the violation
+
+    with psycopg.connect(migrated_dsn, autocommit=True) as conn, conn.cursor() as cur:
+        cur.execute(
+            "truncate table notice, determination_trace, eligibility_determination, "
+            "verification_response, verification, benefit_month, case_assignment, "
+            "program_request, application, household_member, household, person, "
+            "worker, audit_event "
+            "restart identity cascade"
+        )
+        cur.execute(
+            "insert into person (id, first_name, last_name, date_of_birth, ssn_token, sex) "
+            "values (%s, 'DataQuality', 'Fixture', date '1990-01-01', %s, 'X')",
+            (person_id, f"tok-{person_id}"),
+        )
+        cur.execute(
+            "insert into household "
+            "(id, head_person_id, county, address_line1, city, state, zip_code) "
+            "values (%s, %s, 'Test County', '1 Main St', 'Testville', 'WY', '82001')",
+            (household_id, person_id),
+        )
+        cur.execute(
+            "insert into household_member "
+            "(id, household_id, person_id, relationship, effective_from) "
+            "values (%s, %s, %s, 'SELF', date '2026-01-01')",
+            (str(uuid.uuid4()), household_id, person_id),
+        )
+        cur.execute(
+            "insert into application (id, household_id, submitted_at, channel) "
+            "values (%s, %s, %s, 'ONLINE')",
+            (application_id, household_id, submitted_at),
+        )
+        cur.execute(
+            "insert into program_request (id, application_id, program_code, status, requested_on) "
+            "values (%s, %s, 'SNAP', 'DETERMINED', %s)",
+            (program_request_id, application_id, submitted_at.date()),
+        )
+        cur.execute(
+            "insert into eligibility_determination "
+            "(id, program_request_id, benefit_month, as_of_date, eligible, benefit_amount, "
+            "reason_code, policy_parameter_set_id, policy_parameter_version, decided_by, "
+            "decided_at) "
+            "values (%s, %s, date '2026-01-01', date '2026-01-01', true, 292, 'ELIGIBLE', "
+            "%s, 'SNAP-FY2025', 'test-fixture', %s)",
+            (str(uuid.uuid4()), program_request_id, SNAP_FY2025_PARAMETER_SET_ID, decided_at),
+        )
 
     yield migrated_dsn
 

@@ -76,9 +76,14 @@ def tokenize() -> None:
 @task(task_id="materialize")
 def materialize() -> None:
     from canopica_data.config import Settings
-    from canopica_data.serving.materialize import materialize_gold
+    from canopica_data.serving.materialize import ensure_data_quality_incident_table, materialize_gold
 
     settings = Settings()
+    # Idempotent DDL, run every pipeline invocation (cheap, no-op after the
+    # first) rather than as a one-time migration -- reporting.
+    # data_quality_incident is data-platform-owned serving-layer state
+    # (design doc §2.8), not an api/ Flyway-managed table.
+    ensure_data_quality_incident_table(settings.serving_dsn)
     mart_counts = materialize_gold(settings.duckdb_path, settings.serving_dsn)
     for mart, count in mart_counts.items():
         print(f"materialized {mart}: {count} rows", file=sys.stderr)
@@ -89,8 +94,9 @@ def provision_metabase() -> None:
     from canopica_data.config import Settings
     from canopica_data.reporting.provision_metabase import provision
 
-    dashboard_id = provision(Settings())
-    print(f"Metabase dashboard ready: {dashboard_id}", file=sys.stderr)
+    dashboard_ids = provision(Settings())
+    for name, dashboard_id in dashboard_ids.items():
+        print(f"Metabase dashboard ready: {name} ({dashboard_id})", file=sys.stderr)
 
 
 @task(task_id="run_qc_sample")
@@ -156,7 +162,27 @@ with DAG(
         bash_command="/opt/canopica-ai/.venv/bin/python -m canopica_ai.sla_monitor.cli refresh",
     )
 
-    extract() >> tokenize() >> dbt_build >> materialize() >> provision_metabase()
+    # Phase 4 Task 9: same isolated-venv shape as refresh_sla_stall_reasons
+    # above. Reads dbt_build's own just-written run_results.json for this
+    # invocation's real invocation_id, rather than Airflow passing it
+    # through XCom -- dbt_build is a BashOperator, not a @task, so the
+    # artifact file dbt already writes to disk is the natural handoff.
+    refresh_data_quality_incidents = BashOperator(
+        task_id="refresh_data_quality_incidents",
+        bash_command=(
+            "/opt/canopica-ai/.venv/bin/python -m canopica_ai.data_quality.cli refresh "
+            f"--run-results {DBT_PROJECT_DIR}/target/run_results.json"
+        ),
+    )
+
+    (
+        extract()
+        >> tokenize()
+        >> dbt_build
+        >> materialize()
+        >> refresh_data_quality_incidents
+        >> provision_metabase()
+    )
 
     # Independent of the chain above -- run_qc_sample writes to the operational database directly
     # (through the API), not the warehouse, so it has nothing to wait on and nothing waits on it.

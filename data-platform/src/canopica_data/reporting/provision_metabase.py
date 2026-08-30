@@ -31,6 +31,21 @@ CARD_QUERY = (
     "order by benefit_month"
 )
 
+# Phase 4 Task 9 (design doc §2.7): same "a gate proves it's enforced, a
+# report proves it's visible" pattern -- reporting.data_quality_incident's
+# own rows (materialize.py's ensure_data_quality_incident_table) get a
+# second, independent dashboard rather than a second dashcard on "SNAP
+# determinations", since it's a different audience (data-platform
+# engineers, not caseworker-facing reporting).
+DATA_QUALITY_CARD_NAME = "Recent data-quality incidents"
+DATA_QUALITY_DASHBOARD_NAME = "Data quality"
+DATA_QUALITY_CARD_QUERY = (
+    "select detected_at, source, model_name, test_or_check_name, summary "
+    "from reporting.data_quality_incident "
+    "order by detected_at desc "
+    "limit 50"
+)
+
 
 def _serving_connection_details(serving_dsn: str) -> dict[str, object]:
     """serving_dsn's host must be resolvable by Metabase's own container,
@@ -104,19 +119,19 @@ def _find_or_create_database(client: httpx.Client, serving_dsn: str) -> int:
     return database_id
 
 
-def _find_or_create_card(client: httpx.Client, database_id: int) -> int:
+def _find_or_create_card(client: httpx.Client, database_id: int, *, name: str, query: str) -> int:
     existing = client.get("/api/card").raise_for_status().json()
     for card in existing:
-        if card["name"] == CARD_NAME:
+        if card["name"] == name:
             return int(card["id"])
 
     response = client.post(
         "/api/card",
         json={
-            "name": CARD_NAME,
+            "name": name,
             "dataset_query": {
                 "type": "native",
-                "native": {"query": CARD_QUERY},
+                "native": {"query": query},
                 "database": database_id,
             },
             "display": "table",
@@ -128,18 +143,18 @@ def _find_or_create_card(client: httpx.Client, database_id: int) -> int:
     return card_id
 
 
-def _find_or_create_dashboard_with_card(client: httpx.Client, card_id: int) -> int:
+def _find_or_create_dashboard_with_card(client: httpx.Client, card_id: int, *, name: str) -> int:
     existing = client.get("/api/dashboard").raise_for_status().json()
     dashboard_id: int
     for dashboard in existing:
-        if dashboard["name"] == DASHBOARD_NAME:
+        if dashboard["name"] == name:
             dashboard_id = int(dashboard["id"])
             detail = client.get(f"/api/dashboard/{dashboard_id}").raise_for_status().json()
             if any(dashcard["card_id"] == card_id for dashcard in detail["dashcards"]):
                 return dashboard_id
             break
     else:
-        response = client.post("/api/dashboard", json={"name": DASHBOARD_NAME})
+        response = client.post("/api/dashboard", json={"name": name})
         response.raise_for_status()
         dashboard_id = int(response.json()["id"])
 
@@ -154,9 +169,10 @@ def _find_or_create_dashboard_with_card(client: httpx.Client, card_id: int) -> i
     return dashboard_id
 
 
-def provision(settings: Settings) -> int:
+def provision(settings: Settings) -> dict[str, int]:
     """Runs the full idempotent provisioning flow against a running Metabase
-    instance. Returns the "SNAP determinations" dashboard's id."""
+    instance. Returns {dashboard_name: dashboard_id} for every dashboard
+    this function provisions."""
     with (
         traced("provision_metabase"),
         httpx.Client(base_url=settings.metabase_url, timeout=30.0) as client,
@@ -169,10 +185,21 @@ def provision(settings: Settings) -> int:
         client.headers["X-Metabase-Session"] = session_id
 
         database_id = _find_or_create_database(client, settings.serving_dsn)
-        card_id = _find_or_create_card(client, database_id)
-        return _find_or_create_dashboard_with_card(client, card_id)
+
+        card_id = _find_or_create_card(client, database_id, name=CARD_NAME, query=CARD_QUERY)
+        dashboard_id = _find_or_create_dashboard_with_card(client, card_id, name=DASHBOARD_NAME)
+
+        dq_card_id = _find_or_create_card(
+            client, database_id, name=DATA_QUALITY_CARD_NAME, query=DATA_QUALITY_CARD_QUERY
+        )
+        dq_dashboard_id = _find_or_create_dashboard_with_card(
+            client, dq_card_id, name=DATA_QUALITY_DASHBOARD_NAME
+        )
+
+        return {DASHBOARD_NAME: dashboard_id, DATA_QUALITY_DASHBOARD_NAME: dq_dashboard_id}
 
 
 if __name__ == "__main__":
-    dashboard_id = provision(Settings())
-    print(f"Dashboard ready: {dashboard_id}")
+    dashboard_ids = provision(Settings())
+    for name, dashboard_id in dashboard_ids.items():
+        print(f"Dashboard ready: {name} ({dashboard_id})")

@@ -18,7 +18,7 @@ from canopica_data.governance.tokenize import tokenize_person_names
 from canopica_data.ingestion.extract import ALL_TABLES, extract_to_bronze
 from canopica_data.observability.tracing import traced
 from canopica_data.reporting.provision_metabase import provision
-from canopica_data.serving.materialize import materialize_gold
+from canopica_data.serving.materialize import ensure_data_quality_incident_table, materialize_gold
 
 DATA_PLATFORM_ROOT = Path(__file__).resolve().parents[2]
 DBT_PROJECT_DIR = DATA_PLATFORM_ROOT / "dbt" / "canopica_warehouse"
@@ -59,12 +59,23 @@ def main() -> None:
             check=True,
         )
 
+    # Idempotent DDL -- reporting.data_quality_incident is data-platform-
+    # owned serving-layer state (Phase 4 Task 9, design doc §2.8). This
+    # one-shot pipeline doesn't itself write rows into it: that's
+    # canopica_ai.data_quality's own job, wired only into the Airflow DAG
+    # (ai/'s isolated venv isn't available in this Compose service), same
+    # "ai/-dependent steps are Airflow-DAG-only" precedent Task 6's own
+    # refresh_stall_reasons already established -- this pipeline just
+    # ensures the table exists so a later Airflow run always has it.
+    ensure_data_quality_incident_table(settings.serving_dsn)
+
     mart_counts = materialize_gold(settings.duckdb_path, settings.serving_dsn)
     for mart, count in mart_counts.items():
         print(f"materialized {mart}: {count} rows", file=sys.stderr)
 
-    dashboard_id = provision(settings)
-    print(f"Metabase dashboard ready: {dashboard_id}", file=sys.stderr)
+    dashboard_ids = provision(settings)
+    for name, dashboard_id in dashboard_ids.items():
+        print(f"Metabase dashboard ready: {name} ({dashboard_id})", file=sys.stderr)
 
 
 if __name__ == "__main__":

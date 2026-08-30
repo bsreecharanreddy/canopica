@@ -170,6 +170,13 @@ class Settings(BaseSettings):
     mf_binary_path: Path = Path("../data-platform/.venv/bin/mf")
     duckdb_path: Path = Path("../data-platform/warehouse/canopica.duckdb")
 
+    # Data-quality anomaly detection (Phase 4 Task 9). Same serving Postgres
+    # canopica_data.config.Settings.serving_dsn already writes reporting.*
+    # gold-mart copies into -- reporting.data_quality_incident is data-
+    # platform-owned serving-layer state (design doc §2.8), so this reuses
+    # that instance rather than standing up a second database.
+    serving_dsn: str = "postgresql://canopica_app:canopica_app@localhost:5432/canopica_serving"
+
     # Dashboard-authoring copilot (Phase 2 Task 6). The TMDL files are this
     # service's only source of truth for what tables/columns/measures
     # already exist -- read-only, same sibling-project relative-path

@@ -210,6 +210,17 @@ def _build_probe_warehouse(tmp_path: Path) -> Settings:
         duckdb_path=duckdb_path,
     )
 
+    # See test_analytics_copilot.py's own identical step for why this is
+    # needed: dbt does not auto-install packages.yml's own dependencies.
+    deps = subprocess.run(
+        [str(DBT_BINARY), "deps", "--project-dir", str(DBT_PROJECT_DIR),
+         "--profiles-dir", str(DBT_PROJECT_DIR)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert deps.returncode == 0, deps.stdout + deps.stderr
+
     parse = subprocess.run(
         [str(DBT_BINARY), "parse", "--project-dir", str(DBT_PROJECT_DIR),
          "--profiles-dir", str(DBT_PROJECT_DIR), "--quiet"],

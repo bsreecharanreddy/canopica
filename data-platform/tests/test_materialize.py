@@ -64,6 +64,8 @@ def test_gold_mart_materializes_into_the_serving_database(
     # mart_fairness_audit correctly produces zero slices rather than a fabricated one (Phase 4
     # Task 1) -- still has to materialize as a real, present, empty table.
     assert counts["mart_fairness_audit"] == 0
+    # 0, not missing: seeded_operational_dsn seeds no notice rows.
+    assert counts["mart_notice_outcomes"] == 0
 
     with psycopg.connect(serving_dsn) as conn:
         gold_total = conn.execute(
@@ -128,3 +130,4 @@ def test_materialize_is_rerunnable(
     # mart_fairness_audit correctly produces zero slices rather than a fabricated one (Phase 4
     # Task 1) -- still has to materialize as a real, present, empty table.
     assert counts["mart_fairness_audit"] == 0
+    assert counts["mart_notice_outcomes"] == 0

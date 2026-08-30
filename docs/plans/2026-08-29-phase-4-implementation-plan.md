@@ -965,31 +965,31 @@ operational table this warehouse reports on.
   pipeline step after `dbt build`/Elementary run whenever a test fails or
   an anomaly fires, writing the result to `data_quality_incident`.
 
-- [ ] **Step 1: Elementary setup.** Add the package, configure its dbt
+- [x] **Step 1: Elementary setup.** Add the package, configure its dbt
       models/macros per its own current setup docs (checked at
       implementation time, per the prerequisite above), enable anomaly
       detection and schema-change alerts on this project's existing
       silver/gold models.
-- [ ] **Step 2: `data_quality_incident` table.** Per design doc §2.8:
+- [x] **Step 2: `data_quality_incident` table.** Per design doc §2.8:
       `id`, `source` (`dbt_test`/`elementary`), `model_name`, `test_or_
       check_name`, `detected_at`, `summary`, `raw_context` (jsonb).
-- [ ] **Step 3: Failure→summary pipeline step.** On a `dbt test` failure
+- [x] **Step 3: Failure→summary pipeline step.** On a `dbt test` failure
       or an Elementary anomaly, gather structured context (model, test,
       a failing-row sample, Elementary's own historical baseline) and call
       `service.summarize`; insert the resulting row. Human reads and
       investigates — nothing auto-remediates a pipeline failure
       (constraint 19's spirit, applied to this component too).
-- [ ] **Step 4: Reporting page.** `data_quality_incident` rendered as a
+- [x] **Step 4: Reporting page.** `data_quality_incident` rendered as a
       small Metabase/Power BI page — same "gate proves enforcement, report
       proves visibility" pattern as Task 1's fairness page.
-- [ ] **Step 5: CI wiring.** Elementary's own check run added to the
+- [x] **Step 5: CI wiring.** Elementary's own check run added to the
       existing dbt/data-platform CI job — a genuine anomaly-detection
       failure should be visible in CI output, not just locally.
-- [ ] **Step 6: Tests.** A deliberately broken fixture model triggers a
+- [x] **Step 6: Tests.** A deliberately broken fixture model triggers a
       dbt test failure and a `data_quality_incident` row with a summary
       that references the real failing test/model names, not invented
       ones.
-- [ ] **Step 7: Full suite + commit.**
+- [x] **Step 7: Full suite + commit.**
 
 ---
 
