@@ -10,23 +10,30 @@ import {
   LogOut,
   Mail,
   MessageCircleQuestion,
+  ShieldAlert,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import type { Role } from '@/auth/AuthContext';
 
+const WORKER_LINKS = [
+  { to: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/cases', labelKey: 'nav.cases', icon: Briefcase },
+  { to: '/documents/review', labelKey: 'nav.documentReview', icon: FileSearch },
+  { to: '/notices/review', labelKey: 'nav.noticeReview', icon: Mail },
+];
+
 const LINKS_FOR: Record<Role, { to: string; labelKey: string; icon: LucideIcon }[]> = {
   CUSTOMER: [
     { to: '/apply', labelKey: 'nav.apply', icon: FileText },
     { to: '/ask', labelKey: 'nav.askAboutPolicy', icon: MessageCircleQuestion },
   ],
-  WORKER: [
-    { to: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
-    { to: '/cases', labelKey: 'nav.cases', icon: Briefcase },
-    { to: '/documents/review', labelKey: 'nav.documentReview', icon: FileSearch },
-    { to: '/notices/review', labelKey: 'nav.noticeReview', icon: Mail },
-  ],
+  WORKER: WORKER_LINKS,
+  // A strict superset of WORKER's own links (SecurityConfig's own hasAnyRole("WORKER",
+  // "SUPERVISOR") pattern on most case endpoints), plus the SUPERVISOR-only fraud review queue
+  // (Phase 4 Task 3, design doc §2.9 -- reuses this role, no new Keycloak role).
+  SUPERVISOR: [...WORKER_LINKS, { to: '/fraud/review', labelKey: 'nav.fraudReview', icon: ShieldAlert }],
   ADMIN: [{ to: '/rule-authoring', labelKey: 'nav.ruleAuthoring', icon: FileCog }],
 };
 

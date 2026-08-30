@@ -26,3 +26,4 @@ sources:
       - name: benefit_month
       - name: audit_event
       - name: person_pii_tokens
+      - name: fraud_risk_score

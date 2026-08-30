@@ -2,9 +2,9 @@
 
 -- Disparate-impact ratio (EEOC's four-fifths rule shape: a slice's own favorable-outcome rate
 -- divided by whichever slice has the HIGHEST rate, not an assumed majority reference group) per
--- (model, demographic_axis, demographic_slice, outcome_axis). This task (Phase 4 Task 1) builds
--- the rules_engine axis only, sliced by the applicant's own (SELF household_member) race and
--- hispanic_origin; Task 3 adds model = 'fraud_triage' once fraud_risk_score exists.
+-- (model, demographic_axis, demographic_slice, outcome_axis). Phase 4 Task 1 built the
+-- rules_engine axis, sliced by the applicant's own (SELF household_member) race and
+-- hispanic_origin; Task 3 adds model = 'fraud_triage', sliced the same way.
 --
 -- Grain is one refinement past the design doc's literal "(model, demographic_slice,
 -- outcome_axis)" wording: race and hispanic_origin are different axes with different slice
@@ -37,6 +37,26 @@ rules_engine_base as (
     inner join applicant a on a.household_key = app.household_key
 ),
 
+-- Task 3: the fraud-triage axis. "favorable" here means NOT flagged high-risk (score below the
+-- same threshold worker/src/canopica_worker/fraud_scoring_consumer.py's own _REVIEW_THRESHOLD
+-- constant uses to decide whether FRAUD_FLAG_RAISED fires) -- kept as "the good outcome for the
+-- person", the same polarity rules_engine's own "favorable = eligible" already uses, so a low
+-- disparate_impact_ratio means the same thing (a protected group getting less of the good outcome)
+-- on both axes. Duplicated here rather than shared with the Python constant since dbt SQL and
+-- ai/'s Python have no shared config mechanism in this project -- if the threshold changes, this
+-- comment is the pointer back to keep both in sync.
+fraud_triage_base as (
+    select
+        f.fraud_risk_score_key,
+        f.score < 0.75 as not_flagged,
+        a.race,
+        a.hispanic_origin
+    from {{ ref('fct_fraud_risk_score') }} f
+    inner join {{ ref('fct_program_request') }} r on r.program_request_key = f.program_request_key
+    inner join {{ ref('fct_application') }} app on app.application_key = r.application_key
+    inner join applicant a on a.household_key = app.household_key
+),
+
 race_slices as (
     select
         'rules_engine'                                  as model,
@@ -63,10 +83,40 @@ hispanic_origin_slices as (
     group by hispanic_origin
 ),
 
+fraud_triage_race_slices as (
+    select
+        'fraud_triage'                                    as model,
+        'race'                                             as demographic_axis,
+        race                                               as demographic_slice,
+        'not_flagged'                                      as outcome_axis,
+        count(*)                                           as total_count,
+        sum(case when not_flagged then 1 else 0 end)       as favorable_count
+    from fraud_triage_base
+    where race is not null
+    group by race
+),
+
+fraud_triage_hispanic_origin_slices as (
+    select
+        'fraud_triage'                                                        as model,
+        'hispanic_origin'                                                     as demographic_axis,
+        case when hispanic_origin then 'HISPANIC_OR_LATINO' else 'NOT_HISPANIC_OR_LATINO' end as demographic_slice,
+        'not_flagged'                                                         as outcome_axis,
+        count(*)                                                              as total_count,
+        sum(case when not_flagged then 1 else 0 end)                          as favorable_count
+    from fraud_triage_base
+    where hispanic_origin is not null
+    group by hispanic_origin
+),
+
 combined as (
     select * from race_slices
     union all
     select * from hispanic_origin_slices
+    union all
+    select * from fraud_triage_race_slices
+    union all
+    select * from fraud_triage_hispanic_origin_slices
 ),
 
 rates as (

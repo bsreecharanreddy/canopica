@@ -259,6 +259,31 @@ export type NoticeReviewItem = {
   createdAt: string;
 };
 
+// Mirrors canopica.api.fraud.score.FeatureContribution (ai/) as persisted into
+// fraud_risk_score.top_contributing_features -- z_score kept as returned (a magnitude, not a
+// percentage), same "pass the real judge-model number through" reasoning citation-style outputs
+// elsewhere in this app already follow.
+export type FraudFeatureContribution = {
+  feature: string;
+  value: number;
+  z_score: number;
+};
+
+// Mirrors canopica.api.api.dto.FraudRiskScoreResponse -- one review-queue row or a confirm/clear
+// response (Phase 4 Task 3).
+export type FraudRiskScoreItem = {
+  id: string;
+  programRequestId: string;
+  determinationId: string;
+  score: number;
+  topContributingFeatures: FraudFeatureContribution[];
+  modelVersion: string;
+  scoredAt: string;
+  reviewOutcome: 'CONFIRMED_RISK' | 'CLEARED' | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+};
+
 // Mirrors canopica.api.api.dto.NoticeResponse.
 export type NoticeResponse = {
   id: string;

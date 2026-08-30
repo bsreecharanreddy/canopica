@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from 'react-oidc-context';
 import { setAccessToken } from '../api/client';
 import { authConfigFor, clearRealmChoice, readRealmChoice, storeRealmChoice, type Realm } from './oidc-config';
 
-export type Role = 'CUSTOMER' | 'WORKER' | 'ADMIN';
+export type Role = 'CUSTOMER' | 'WORKER' | 'SUPERVISOR' | 'ADMIN';
 
 /**
  * Reads Keycloak's `realm_access.roles` out of the access token, unverified.
@@ -35,7 +35,15 @@ function roleFor(realm: Realm, accessToken: string | undefined): Role {
   if (realm !== 'worker') return 'CUSTOMER';
   // ADMIN is a distinct realm role, not a superset of WORKER -- an admin holds no caseload and would be
   // refused by /api/worker/**, so the nav must not offer it to them.
-  return realmRolesOf(accessToken).includes('ADMIN') ? 'ADMIN' : 'WORKER';
+  const roles = realmRolesOf(accessToken);
+  if (roles.includes('ADMIN')) return 'ADMIN';
+  // SUPERVISOR is a real, distinct realm role too (Phase 1b's SupervisorController, Phase 4 Task 3's
+  // fraud review) -- previously collapsed into WORKER here, which made it impossible for the nav to ever
+  // offer a supervisor-only link. Unlike ADMIN, a supervisor keeps every WORKER capability too
+  // (SecurityConfig's own hasAnyRole("WORKER", "SUPERVISOR") pattern on most case endpoints), so
+  // NavRail's own LINKS_FOR gives SUPERVISOR a strict superset of WORKER's links, not a replacement set.
+  if (roles.includes('SUPERVISOR')) return 'SUPERVISOR';
+  return 'WORKER';
 }
 
 type CanopicaAuthValue =

@@ -37,6 +37,10 @@ ALL_TABLES = (
     "verification_response",
     "benefit_month",
     "audit_event",
+    # Phase 4 Task 3: mart_fairness_audit's own fraud_triage axis needs the
+    # real scored population, not just document/notice-adjacent tables
+    # (which never got a bronze landing, since no mart ever needed them).
+    "fraud_risk_score",
 )
 
 

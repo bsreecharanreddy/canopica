@@ -350,6 +350,11 @@ def seeded_fairness_dsn(migrated_dsn: str) -> Iterator[str]:
     (guaranteed 1.0/1.0 here, i.e. never itself the failure) still gets
     sample_size_adequate=false, so the gate would withhold judgment on it
     regardless of what its ratio happened to be.
+
+    Phase 4 Task 3 extends this same fixture with a fraud_risk_score row per determination,
+    inducing the identical 0.3/0.9 disparity on the fraud_triage axis too -- "not_flagged" is the
+    favorable outcome there (mart_fairness_audit.sql's own polarity), so WHITE's 27/30
+    not-flagged mirrors its 27/30 eligible, and BLACK_OR_AFRICAN_AMERICAN's 9/30 mirrors the same.
     """
     scenarios: list[tuple[str, bool]] = (
         [("WHITE", i < 27) for i in range(30)]
@@ -365,7 +370,7 @@ def seeded_fairness_dsn(migrated_dsn: str) -> Iterator[str]:
             "truncate table determination_trace, eligibility_determination, "
             "verification_response, verification, benefit_month, case_assignment, "
             "program_request, application, household_member, household, person, "
-            "worker, audit_event "
+            "worker, audit_event, fraud_risk_score "
             "restart identity cascade"
         )
         for i, (race, eligible) in enumerate(scenarios):
@@ -373,6 +378,7 @@ def seeded_fairness_dsn(migrated_dsn: str) -> Iterator[str]:
             household_id = str(uuid.uuid4())
             application_id = str(uuid.uuid4())
             program_request_id = str(uuid.uuid4())
+            determination_id = str(uuid.uuid4())
             cur.execute(
                 "insert into person "
                 "(id, first_name, last_name, date_of_birth, ssn_token, sex, race, hispanic_origin) "
@@ -410,8 +416,19 @@ def seeded_fairness_dsn(migrated_dsn: str) -> Iterator[str]:
                 "reason_code, policy_parameter_set_id, policy_parameter_version, decided_by) "
                 "values (%s, %s, date '2026-01-01', date '2026-01-01', %s, %s, %s, "
                 "%s, 'SNAP-FY2025', 'test-fixture')",
-                (str(uuid.uuid4()), program_request_id, eligible, benefit_amount, reason_code,
+                (determination_id, program_request_id, eligible, benefit_amount, reason_code,
                  SNAP_FY2025_PARAMETER_SET_ID),
+            )
+            # Mirrors `eligible` on the score's own polarity: not_flagged (score < the worker's
+            # own 0.75 _REVIEW_THRESHOLD) for the same rows that were also made eligible, so this
+            # one fixture induces the identical disparity on both axes at once.
+            score = 0.1 if eligible else 0.9
+            cur.execute(
+                "insert into fraud_risk_score "
+                "(id, program_request_id, determination_id, score, top_contributing_features, "
+                "model_version) "
+                "values (%s, %s, %s, %s, '[]'::jsonb, 'isolation-forest-v1')",
+                (str(uuid.uuid4()), program_request_id, determination_id, score),
             )
 
     yield migrated_dsn

@@ -10,12 +10,14 @@
     "cases": "Cases",
     "documentReview": "Document review",
     "noticeReview": "Notice review",
+    "fraudReview": "Fraud review",
     "ruleAuthoring": "Rule authoring",
     "signOut": "Sign out"
   },
   "role": {
     "CUSTOMER": "Applicant",
     "WORKER": "Caseworker",
+    "SUPERVISOR": "Supervisor",
     "ADMIN": "Administrator"
   },
   "language": {

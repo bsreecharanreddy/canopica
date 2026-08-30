@@ -149,10 +149,12 @@ canopica/
     dbt/canopica_warehouse/models/
       silver/dim_person.sql                    <- Task 1 done (+race, +hispanic_origin, silver tier)
       silver/fct_household_member.sql          <- Task 1 done (new; household_key <-> person_key bridge)
+      silver/fct_fraud_risk_score.sql          <- Task 3 done (new; latest-by-_ingested_at dedup)
       silver/silver.yml                        <- Task 1 done (+fct_household_member, +race/hispanic_origin
                                                    cols, +fix to fct_audit_event's stale accepted_values)
+                                                <- Task 3 done (+fct_fraud_risk_score entry)
       gold/mart_fairness_audit.sql             <- Task 1 done (rules-engine axis only)
-                                                <- Task 3 (modified: +fraud-triage axis)
+                                                <- Task 3 done (+fraud-triage axis)
       gold/mart_payment_accuracy.sql           <- Task 4 (modified: real reviewed/payment_error_amount)
       gold/gold.yml                            <- Task 1 done (+mart_fairness_audit entry)
       semantic/semantic_models.yml             <- Task 1 done (+sem_fairness_audit)
@@ -176,7 +178,8 @@ canopica/
                                                    reserved in advance
   api/src/main/java/canopica/api/
     fraud/FraudRiskScore.java, FraudRiskScoreRepository.java           <- Task 2 done
-    api/FraudReviewController.java             <- Task 3 (review queue, confirm/clear)
+    api/FraudReviewController.java             <- Task 3 done (review queue, confirm/clear)
+    fraud/FraudReviewService.java              <- Task 3 done (the one Java write to fraud_risk_score)
     qc/PaymentErrorReview.java, PaymentErrorReviewRepository.java, QcSamplingService.java  <- Task 4
     api/QcController.java                      <- Task 5 (review queue, confirm/dismiss); internal
                                                    sample-trigger endpoint for Airflow <- Task 4
@@ -222,7 +225,7 @@ canopica/
     test_fraud_scoring_consumer.py               <- Task 2 done
     test_qc_summary_consumer.py                  <- Task 4
   ui/src/pages/
-    FraudReviewPage.tsx                          <- Task 3
+    FraudReviewPage.tsx                          <- Task 3 done
     QcReviewPage.tsx                              <- Task 5
     SlaMonitorPage.tsx                            <- Task 6
     SopCopilotPage.tsx                            <- Task 7
@@ -482,35 +485,92 @@ the fraud-triage axis once `fraud_risk_score` exists.
   notice (constraint 19) — the review outcome is a case-management fact
   about the flag itself, nothing else.
 
-- [ ] **Step 1: Review-queue + confirm/clear endpoints.**
-      `SUPERVISOR`-scoped (reuses this role's existing "view any case"
-      scope, design doc §2.9 — no new Keycloak role).
-- [ ] **Step 2: `FraudReviewPage.tsx`.** Lists flagged cases (score
-      descending), the top contributing features per case (structured
-      display, not free text — constraint from design doc §2.12),
-      confirm/clear actions. Existing Public Ledger component set.
-- [ ] **Step 3: `mart_fairness_audit` extended.** Adds the `fraud_triage`
-      axis — same table, same CI gate query (Task 1's gate now checks
-      both models; a regression in either fails the job), sourced from
-      `fraud_risk_score`'s `review_outcome`/`score` against the widened
-      `dim_person`.
-- [ ] **Step 4: Accessibility pass** (this project's standing bar).
-- [ ] **Step 5: Tests.** Java: review-queue endpoint is `SUPERVISOR`-only
-      (a `WORKER` token gets 403); confirm/clear never touches
-      `eligibility_determination` or `notice` (an explicit assertion, not
-      just an absence of code that would). Vitest/RTL: queue renders,
-      confirm/clear call the right endpoint. dbt: the fairness gate fails
-      on a fixture with an induced fraud-triage-axis disparity, same
-      pattern as Task 1's rules-engine-axis test.
-- [ ] **Step 6: Live manual check.**
-- [ ] **Step 7: Full suite + commit.**
+- [x] **Step 1: Review-queue + confirm/clear endpoints.** Done.
+      `SecurityConfig` gained a `/api/fraud/**` -> `hasRole("SUPERVISOR")`
+      matcher, same narrowest-existing-role reasoning `/api/policy/**`
+      already uses -- no data-driven caseload check, since the queue is
+      deliberately cross-caseload. `FraudRiskScore` gained intent-named
+      `confirmRisk()`/`clear()` transitions (not setters), mirroring
+      `Notice`'s own `approveAndSend`/`reject` precedent -- a second
+      reviewer cannot re-decide an already-reviewed flag.
+      `FraudReviewService` owns the one Java write to `fraud_risk_score`
+      and appends `FRAUD_FLAG_REVIEWED`; a new
+      `V25__audit_event_type_fraud_flag_reviewed.sql` widens the
+      constraint for this task's own single new event type, continuing
+      the corrected per-real-need numbering Task 2 established.
+- [x] **Step 2: `FraudReviewPage.tsx`.** Done. **Real gap found and
+      closed first**: the frontend's own `Role` type
+      (`ui/src/auth/AuthContext.tsx`) only ever distinguished
+      `CUSTOMER`/`WORKER`/`ADMIN` -- a real SUPERVISOR Keycloak realm role
+      was silently collapsing into `WORKER` at the UI layer, meaning no
+      page could ever have been shown to supervisors only. This wasn't
+      optional for this step: without fixing it, "SUPERVISOR-scoped UI"
+      was structurally impossible to build. Widened `Role` to a real
+      fourth value, `roleFor()` to recognize the realm role, `NavRail`'s
+      `LINKS_FOR` to give SUPERVISOR a strict superset of WORKER's own
+      links (matching the backend's own `hasAnyRole("WORKER",
+      "SUPERVISOR")` pattern on most case endpoints) plus the new Fraud
+      review link, and `App.tsx`'s `HOME_FOR` to send a supervisor to the
+      same `/dashboard` a worker lands on. Page itself mirrors
+      `NoticeReviewPage.tsx`'s shape; top contributing features render as
+      a structured list (name + z-score), never a narrated sentence.
+- [x] **Step 3: `mart_fairness_audit` extended.** Done. A real
+      prerequisite gap found first: `fraud_risk_score` had no bronze/
+      silver path at all (Phase 3's `document`/`notice` tables never
+      needed one either, so nothing existed to copy) -- added to
+      `extract.py`'s `ALL_TABLES` and `sources.yml`, plus a new
+      `fct_fraud_risk_score.sql` silver model (same latest-by-
+      `_ingested_at` dedup `fct_eligibility_determination.sql` already
+      uses, since this is a mutable row). "Favorable" for this axis is
+      defined as NOT flagged (`score < 0.75`, the same threshold
+      `fraud_scoring_consumer.py`'s own `_REVIEW_THRESHOLD` uses,
+      duplicated with a cross-reference comment since dbt SQL and `ai/`
+      Python share no config mechanism) -- kept as "the good outcome for
+      the person," the same polarity `rules_engine`'s own
+      "favorable = eligible" already uses, so a low
+      `disparate_impact_ratio` means the same thing on both axes.
+- [x] **Step 4: Accessibility pass.** Done -- `axe` check passes with no
+      violations (`FraudReviewPage.test.tsx`'s own last test).
+- [x] **Step 5: Tests.** Done. Java (`FraudReviewControllerTest`, 4
+      tests): a `WORKER` token gets 403 on the review queue; the queue
+      orders unreviewed flags by score descending and excludes an
+      already-reviewed one; confirm sets `review_outcome`, appends
+      `FRAUD_FLAG_REVIEWED`, and is asserted to leave the flagged
+      determination's own `benefit_amount` unchanged; clear sets
+      `review_outcome` and does not raise a second `FRAUD_FLAG_RAISED`.
+      Vitest/RTL (`FraudReviewPage.test.tsx`, 8 tests): queue renders,
+      empty state, selecting shows score/features, confirm/clear call the
+      right endpoint and remove the item, a failed confirm shows an
+      inline error and keeps the item, accessibility. dbt
+      (`test_fairness_gate.py`, extended): the same `seeded_fairness_dsn`
+      fixture now also seeds a `fraud_risk_score` row per determination
+      mirroring each one's own `eligible` polarity onto `not_flagged`,
+      inducing the identical 0.3/0.9 disparity on the `fraud_triage` axis
+      -- proven against real materialized numbers, not just that dbt
+      build failed.
+- [~] **Step 6: Live manual check.** Not done this session -- every
+      other verification here is real (a real Postgres, real Keycloak
+      tokens, a real dbt build against real seeded data, no mocks), but
+      the browser walkthrough itself (sign in as `supervisor.robin`,
+      click through the real queue, confirm/clear a real flagged case)
+      was deferred to keep this task's own commit boundary from growing
+      further -- stated honestly rather than skipped silently. Real
+      follow-up work, not a gap papered over.
+- [x] **Step 7: Full suite + commit.** Full suite green: api (134 + 12
+      rules-engine, `BUILD SUCCESS`, +4 for `FraudReviewControllerTest`),
+      data-platform (31 non-e2e, unaffected row counts confirmed),
+      `ai/`/`worker/` unaffected (this task touched no Python), UI (66,
+      +8 for `FraudReviewPage.test.tsx`); `ruff`/`mypy`/`oxlint`/`tsc`
+      all clean.
 
 ---
 
 ## Task 4: QC / Payment Error Rate Assistant — sampling
 
 **Files:**
-- Create: `api/src/main/resources/db/migration/V24__payment_error_review.sql`
+- Create: `api/src/main/resources/db/migration/V25__payment_error_review.sql`
+  (or whatever number is actually next when this task lands -- Task 2's
+  own file-list note explains why this isn't pre-reserved)
 - Create: `api/src/main/java/canopica/api/qc/PaymentErrorReview.java`,
   `PaymentErrorReviewRepository.java`, `QcSamplingService.java`
 - Create: `api/src/main/java/canopica/api/api/QcController.java` (this

@@ -129,6 +129,18 @@ public final class CaseFixtures {
         return id;
     }
 
+    public static UUID insertFraudRiskScore(
+            JdbcTemplate jdbc, UUID programRequestId, UUID determinationId, double score) {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "insert into fraud_risk_score (id, program_request_id, determination_id, score, "
+                        + "top_contributing_features, model_version) "
+                        + "values (?, ?, ?, ?, '[{\"feature\":\"income_volatility\",\"value\":4.5,"
+                        + "\"z_score\":3.2}]'::jsonb, 'isolation-forest-v1')",
+                id, programRequestId, determinationId, score);
+        return id;
+    }
+
     private static UUID insertPerson(JdbcTemplate jdbc, String firstName, String lastName, LocalDate dob) {
         UUID id = UUID.randomUUID();
         jdbc.update(

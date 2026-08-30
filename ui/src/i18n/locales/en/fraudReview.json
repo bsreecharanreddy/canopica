@@ -1,0 +1,16 @@
+{
+  "heading": "Fraud risk review",
+  "description": "Determinations whose fraud-risk score cleared the review threshold, highest risk first. Confirming or clearing records your decision about the flag only -- neither ever changes the determination or its benefit amount.",
+  "loadError": "Could not load the fraud review queue.",
+  "loading": "Loading the review queue…",
+  "empty": "No flags are waiting for review.",
+  "scoreHeading": "Risk score {{score}}",
+  "scoredBy": "Scored by {{model}}.",
+  "topFeatures": "Top contributing signals",
+  "featureZScore": "{{feature}}: {{zScore}} standard deviations from typical",
+  "confirmRisk": "Confirm risk",
+  "clear": "Clear",
+  "working": "Working…",
+  "confirmError": "Could not confirm this flag. Please try again.",
+  "clearError": "Could not clear this flag. Please try again."
+}

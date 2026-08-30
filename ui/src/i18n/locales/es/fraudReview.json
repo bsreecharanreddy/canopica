@@ -1,0 +1,16 @@
+{
+  "heading": "Revisión de riesgo de fraude",
+  "description": "Determinaciones cuya puntuación de riesgo de fraude superó el umbral de revisión, de mayor a menor riesgo. Confirmar o descartar registra su decisión sobre la señal únicamente -- ninguna de las dos acciones cambia nunca la determinación ni el monto del beneficio.",
+  "loadError": "No se pudo cargar la cola de revisión de fraude.",
+  "loading": "Cargando la cola de revisión…",
+  "empty": "No hay señales pendientes de revisión.",
+  "scoreHeading": "Puntuación de riesgo {{score}}",
+  "scoredBy": "Puntuado por {{model}}.",
+  "topFeatures": "Principales señales contribuyentes",
+  "featureZScore": "{{feature}}: {{zScore}} desviaciones estándar de lo típico",
+  "confirmRisk": "Confirmar riesgo",
+  "clear": "Descartar",
+  "working": "Procesando…",
+  "confirmError": "No se pudo confirmar esta señal. Inténtelo de nuevo.",
+  "clearError": "No se pudo descartar esta señal. Inténtelo de nuevo."
+}

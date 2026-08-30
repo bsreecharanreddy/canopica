@@ -3,6 +3,8 @@
 real induced disparity, and genuinely withholds judgment on a slice too
 small to say anything from, not just that the mart computes a number.
 Mirrors test_mart_processing_timeliness.py's own real-dbt-build shape.
+Task 3 extends the same fixture/test to prove the gate fires on the
+fraud_triage axis too, not just rules_engine.
 """
 
 import os
@@ -98,3 +100,27 @@ def test_gate_fires_on_a_real_disparate_impact_and_withholds_on_a_tiny_slice(
     asian = by_slice["ASIAN"]
     assert asian[1] == 1
     assert asian[5] is False
+
+    # Phase 4 Task 3: the identical disparity, induced the same way, on the fraud_triage axis --
+    # proves the gate fires on either model, not just rules_engine.
+    con = duckdb.connect(str(duckdb_path), read_only=True)
+    try:
+        fraud_rows = con.execute(
+            "select demographic_slice, total_count, favorable_count, disparate_impact_ratio, "
+            "sample_size_adequate "
+            "from main_gold.mart_fairness_audit "
+            "where model = 'fraud_triage' and demographic_axis = 'race' "
+            "order by demographic_slice"
+        ).fetchall()
+    finally:
+        con.close()
+
+    fraud_by_slice = {r[0]: r for r in fraud_rows}
+    fraud_white = fraud_by_slice["WHITE"]
+    assert fraud_white[1] == 30
+    assert fraud_white[2] == 27  # not_flagged count
+    fraud_black = fraud_by_slice["BLACK_OR_AFRICAN_AMERICAN"]
+    assert fraud_black[1] == 30
+    assert fraud_black[2] == 9
+    assert fraud_black[3] == pytest.approx(0.3333, abs=0.001)
+    assert fraud_black[3] < 0.8

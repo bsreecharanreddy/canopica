@@ -16,6 +16,7 @@ import enIntake from './locales/en/intake.json';
 import enPolicyQa from './locales/en/policyQa.json';
 import enDocumentReview from './locales/en/documentReview.json';
 import enNoticeReview from './locales/en/noticeReview.json';
+import enFraudReview from './locales/en/fraudReview.json';
 import enRuleAuthoring from './locales/en/ruleAuthoring.json';
 
 import esCommon from './locales/es/common.json';
@@ -26,6 +27,7 @@ import esIntake from './locales/es/intake.json';
 import esPolicyQa from './locales/es/policyQa.json';
 import esDocumentReview from './locales/es/documentReview.json';
 import esNoticeReview from './locales/es/noticeReview.json';
+import esFraudReview from './locales/es/fraudReview.json';
 import esRuleAuthoring from './locales/es/ruleAuthoring.json';
 
 export const SUPPORTED_LANGUAGES = ['en', 'es'] as const;
@@ -46,6 +48,7 @@ void i18n
       'policyQa',
       'documentReview',
       'noticeReview',
+      'fraudReview',
       'ruleAuthoring',
     ],
     resources: {
@@ -58,6 +61,7 @@ void i18n
         policyQa: enPolicyQa,
         documentReview: enDocumentReview,
         noticeReview: enNoticeReview,
+        fraudReview: enFraudReview,
         ruleAuthoring: enRuleAuthoring,
       },
       es: {
@@ -69,6 +73,7 @@ void i18n
         policyQa: esPolicyQa,
         documentReview: esDocumentReview,
         noticeReview: esNoticeReview,
+        fraudReview: esFraudReview,
         ruleAuthoring: esRuleAuthoring,
       },
     },

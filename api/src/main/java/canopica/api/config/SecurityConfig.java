@@ -96,6 +96,11 @@ class SecurityConfig {
                         .hasAnyRole("WORKER", "SUPERVISOR")
                         .requestMatchers("/api/supervisor/**")
                         .hasRole("SUPERVISOR")
+                        // Fraud-risk review (Phase 4 Task 3). SUPERVISOR only, same narrowest-existing-role
+                        // reasoning as /api/policy/** above -- no data-driven caseload check follows this one
+                        // either, since the review queue is deliberately cross-caseload (design doc §2.9).
+                        .requestMatchers("/api/fraud/**")
+                        .hasRole("SUPERVISOR")
                         // Rule-authoring review (Phase 2 Task 3). ADMIN, not SUPERVISOR: publishing a
                         // parameter version changes the figures *every future determination* resolves
                         // against, which is a categorically bigger blast radius than the per-case work a

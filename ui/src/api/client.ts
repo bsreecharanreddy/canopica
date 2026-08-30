@@ -8,6 +8,7 @@ import type {
   DeterminationResponse,
   DocumentResponse,
   DocumentReviewItem,
+  FraudRiskScoreItem,
   IntakeRequest,
   IntakeResponse,
   NoticeResponse,
@@ -134,6 +135,18 @@ export function approveNotice(noticeId: string): Promise<NoticeResponse> {
 
 export function rejectNotice(noticeId: string): Promise<NoticeResponse> {
   return request<NoticeResponse>(`/api/cases/notices/${noticeId}/reject`, { method: 'POST' });
+}
+
+export function getFraudReviewQueue(): Promise<FraudRiskScoreItem[]> {
+  return request<FraudRiskScoreItem[]>('/api/fraud/review-queue');
+}
+
+export function confirmFraudRisk(scoreId: string): Promise<FraudRiskScoreItem> {
+  return request<FraudRiskScoreItem>(`/api/fraud/${scoreId}/confirm`, { method: 'POST' });
+}
+
+export function clearFraudRisk(scoreId: string): Promise<FraudRiskScoreItem> {
+  return request<FraudRiskScoreItem>(`/api/fraud/${scoreId}/clear`, { method: 'POST' });
 }
 
 export function askPolicyQuestion(question: string): Promise<QaAnswer> {

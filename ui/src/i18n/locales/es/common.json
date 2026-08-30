@@ -10,12 +10,14 @@
     "cases": "Casos",
     "documentReview": "Revisión de documentos",
     "noticeReview": "Revisión de avisos",
+    "fraudReview": "Revisión de fraude",
     "ruleAuthoring": "Redacción de reglas",
     "signOut": "Cerrar sesión"
   },
   "role": {
     "CUSTOMER": "Solicitante",
     "WORKER": "Trabajador social",
+    "SUPERVISOR": "Supervisor",
     "ADMIN": "Administrador"
   },
   "language": {

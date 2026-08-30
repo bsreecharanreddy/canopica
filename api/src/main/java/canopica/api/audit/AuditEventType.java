@@ -52,5 +52,12 @@ public enum AuditEventType {
      * JdbcAuditService#findBySubject} deserializes {@code event_type} back into this enum on every read, and
      * a below-threshold score is still recorded in {@code fraud_risk_score} but never raises this event.
      */
-    FRAUD_FLAG_RAISED
+    FRAUD_FLAG_RAISED,
+    /**
+     * A supervisor decided a raised fraud flag (Phase 4 Task 3) -- {@code CONFIRMED_RISK} or {@code CLEARED}
+     * in the payload. Written by {@link canopica.api.fraud.FraudReviewService}, this module's own {@link
+     * AuditService}, unlike {@link #FRAUD_FLAG_RAISED}: the review decision is Java's own write, not the
+     * worker's.
+     */
+    FRAUD_FLAG_REVIEWED
 }

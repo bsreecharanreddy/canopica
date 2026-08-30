@@ -279,6 +279,47 @@ models:
         tests: [not_null]
         meta: { classification: PUBLIC }
 
+  - name: fct_fraud_risk_score
+    description: >
+      One row per scored determination, deduplicated to the latest bronze landing (a mutable row --
+      Task 3's own review fields update in place). Built in Phase 4 Task 3 for mart_fairness_audit's
+      own fraud_triage axis.
+    columns:
+      - name: fraud_risk_score_key
+        tests: [not_null, unique]
+        meta: { classification: PUBLIC }
+      - name: determination_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('fct_eligibility_determination'), field: determination_key }
+        meta: { classification: PUBLIC }
+      - name: program_request_key
+        tests:
+          - not_null
+          - relationships:
+              arguments: { to: ref('fct_program_request'), field: program_request_key }
+        meta: { classification: PUBLIC }
+      - name: score
+        tests: [not_null]
+        meta: { classification: SENSITIVE }
+      - name: model_version
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: scored_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+      - name: review_outcome
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['CONFIRMED_RISK', 'CLEARED']
+              config: { where: "review_outcome is not null" }
+        meta: { classification: SENSITIVE }
+      - name: loaded_at
+        tests: [not_null]
+        meta: { classification: PUBLIC }
+
   - name: fct_verification
     description: One row per verification checklist item, deduplicated to the latest bronze landing.
     columns:

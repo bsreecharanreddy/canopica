@@ -11,12 +11,15 @@ import RuleAuthoringPage from './pages/RuleAuthoringPage';
 import DashboardPage from './pages/DashboardPage';
 import DocumentReviewPage from './pages/DocumentReviewPage';
 import NoticeReviewPage from './pages/NoticeReviewPage';
+import FraudReviewPage from './pages/FraudReviewPage';
 
 // Where each role lands with no path of its own. ADMIN is deliberately not sent
 // to /cases: an admin holds no caseload and /api/worker/** would refuse them.
+// SUPERVISOR lands on the same dashboard as WORKER -- it's a superset role, not a separate track.
 const HOME_FOR: Record<Role, string> = {
   CUSTOMER: '/apply',
   WORKER: '/dashboard',
+  SUPERVISOR: '/dashboard',
   ADMIN: '/rule-authoring',
 };
 
@@ -38,6 +41,7 @@ function AuthedAppShell({ role, signOut }: { role: Role; signOut: () => void }) 
                 <Route path="/cases/:programRequestId" element={<CaseDetailPage />} />
                 <Route path="/documents/review" element={<DocumentReviewPage />} />
                 <Route path="/notices/review" element={<NoticeReviewPage />} />
+                <Route path="/fraud/review" element={<FraudReviewPage />} />
                 <Route path="/rule-authoring" element={<RuleAuthoringPage />} />
               </Routes>
             </div>

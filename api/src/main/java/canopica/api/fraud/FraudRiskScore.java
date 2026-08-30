@@ -67,6 +67,33 @@ public class FraudRiskScore {
         this.modelVersion = modelVersion;
     }
 
+    /**
+     * Phase 4 Task 3: a supervisor confirmed this flag reflects a real risk worth further, out-of-band
+     * investigation. Never touches the determination, the benefit amount, or any notice (constraint 19) --
+     * this is a case-management fact about the flag itself, nothing else.
+     */
+    public void confirmRisk(String reviewedBy, Instant now) {
+        requireUnreviewed();
+        this.reviewOutcome = "CONFIRMED_RISK";
+        this.reviewedBy = reviewedBy;
+        this.reviewedAt = now;
+    }
+
+    /** A supervisor reviewed the flag and found nothing warranting further action. */
+    public void clear(String reviewedBy, Instant now) {
+        requireUnreviewed();
+        this.reviewOutcome = "CLEARED";
+        this.reviewedBy = reviewedBy;
+        this.reviewedAt = now;
+    }
+
+    /** A second reviewer must not be able to re-decide an already-reviewed flag. */
+    private void requireUnreviewed() {
+        if (reviewOutcome != null) {
+            throw new IllegalStateException("fraud_risk_score " + id + " was already reviewed (" + reviewOutcome + ")");
+        }
+    }
+
     public UUID getId() {
         return id;
     }
