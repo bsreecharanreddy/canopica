@@ -858,39 +858,50 @@ operational table this warehouse reports on.
   (or similarly named) following that exact pattern, not a new
   Java-to-Python integration mechanism.
 
-- [ ] **Step 1: Author the SOP corpus.** Realistic but explicitly
+- [x] **Step 1: Author the SOP corpus.** Realistic but explicitly
       fictional procedure documents for new application / reported change
       / renewal, stated as authored (not sourced) the same way this
       project's synthetic applicant data already is — a code comment or
       corpus README saying so plainly, matching design doc §2.5's own
       framing.
-- [ ] **Step 2: Index into a separate OpenSearch index.** Same hybrid
+- [x] **Step 2: Index into a separate OpenSearch index.** Same hybrid
       BM25+k-NN, RRF-fused, cross-encoder-reranked pipeline `policy_
       intelligence`'s corpus already uses — reused, not reimplemented —
       pointed at a distinct index name so SOP and policy retrieval never
       cross-contaminate.
-- [ ] **Step 3: Retrieve→generate service.** Same abstention discipline as
+- [x] **Step 3: Retrieve→generate service.** Same abstention discipline as
       Policy Q&A: a weak corpus match returns "insufficient information,"
       never an improvised procedure (design doc §2.5's stated failure
       mode: a wrong SOP answer is a caseworker doing the wrong next step
       on a real case).
-- [ ] **Step 4: `HttpSopCopilotClient` + Java endpoint.** Worker- (not
+- [x] **Step 4: `HttpSopCopilotClient` + Java endpoint.** Worker- (not
       only supervisor-) facing, since this is a caseworker tool per the
       roadmap's own framing — confirm the intended role scope at
       implementation time against `SecurityConfig.java`'s existing
       `WORKER`/`SUPERVISOR` pattern.
-- [ ] **Step 5: `SopCopilotPage.tsx`.** A simple ask/answer UI, citations
+- [x] **Step 5: `SopCopilotPage.tsx`.** A simple ask/answer UI, citations
       to the specific SOP document/section retrieved, same provenance
       display Policy Q&A's own UI already established.
-- [ ] **Step 6: Accessibility pass.**
-- [ ] **Step 7: Tests.** `ai/`: a question matching real corpus content
+- [x] **Step 6: Accessibility pass.**
+- [x] **Step 7: Tests.** `ai/`: a question matching real corpus content
       retrieves and answers correctly with citations; a question outside
       the corpus's scope abstains rather than improvising (same shape as
-      Policy Q&A's own eval-style tests). Java: the HTTP client integration
-      test (same pattern `HttpRuleAuthoringClient`'s own tests already
-      use). Vitest/RTL: ask/answer flow renders citations.
-- [ ] **Step 8: Live manual check.**
-- [ ] **Step 9: Full suite + commit.**
+      Policy Q&A's own eval-style tests, done as non-e2e unit tests here
+      since a live OpenSearch wasn't stably available -- see Step 8).
+      Java: **done differently from the plan's own assumption** --
+      `HttpRuleAuthoringClient` turns out to have no dedicated test of its
+      own at all, only the `@TestConfiguration`/`@Primary`-stub-bean
+      pattern at its caller's test layer, which is the real precedent
+      `SopCopilotControllerTest` follows instead. Vitest/RTL: ask/answer
+      flow renders citations.
+- [~] **Step 8: Live manual check.** One real e2e case (grounded answer,
+      real corpus indexed, real citation) passed against a live
+      OpenSearch/Ollama; its abstention sibling and a browser walkthrough
+      of `SopCopilotPage.tsx` did not complete this session -- OpenSearch
+      was OOM-killed on this dev machine partway through (`OOMKilled:
+      true`, confirmed via `docker inspect`, hit twice). Stated plainly,
+      not silently skipped -- see this task's own verification-log row.
+- [x] **Step 9: Full suite + commit.**
 
 ---
 

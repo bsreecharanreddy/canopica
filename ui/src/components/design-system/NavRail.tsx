@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   AlarmClock,
+  BookOpenText,
   Briefcase,
   FileCog,
   FileSearch,
@@ -24,6 +25,9 @@ const WORKER_LINKS = [
   { to: '/cases', labelKey: 'nav.cases', icon: Briefcase },
   { to: '/documents/review', labelKey: 'nav.documentReview', icon: FileSearch },
   { to: '/notices/review', labelKey: 'nav.noticeReview', icon: Mail },
+  // Caseworker SOP Copilot (Phase 4 Task 7) -- worker-facing, not supervisor-only, so it lives
+  // on the shared WORKER_LINKS array rather than SUPERVISOR's own additions below.
+  { to: '/sop-copilot', labelKey: 'nav.sopCopilot', icon: BookOpenText },
 ];
 
 const LINKS_FOR: Record<Role, { to: string; labelKey: string; icon: LucideIcon }[]> = {

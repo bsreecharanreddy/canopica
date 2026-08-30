@@ -114,6 +114,17 @@ class Settings(BaseSettings):
     cfr_search_pipeline: str = "cfr-hybrid-rerank"
     embedding_dimension: int = 768
 
+    # Caseworker SOP Copilot (Phase 4 Task 7, design doc §2.5): a separate
+    # index so SOP and policy retrieval never cross-contaminate, but the
+    # *same* cfr_search_pipeline above -- a search pipeline is a named,
+    # cluster-level set of processors (RRF fusion + cross-encoder rerank),
+    # invoked per-request via a query param, not bound to one index at
+    # creation, so reusing it here means Task 7 doesn't need a second
+    # ml-commons model deployment doubling the JVM-heap circuit-breaker
+    # risk search_pipeline.py's own extensive comments already document
+    # fighting once.
+    sop_corpus_index: str = "canopica-sop"
+
     # Same shared Postgres canopica_data.config.Settings already writes to (e.g.
     # the pii_token vault) -- ai.policy_qa_answer reuses that instance
     # rather than standing up a second database, per design doc §2.2.

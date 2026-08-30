@@ -88,6 +88,13 @@ canopica:
     # canopica_ai.config.Settings.ollama_timeout_seconds for the measurements this
     # matches (successful generations at 1m10s-1m44s on a loaded host).
     rule-authoring-timeout-seconds: ${CANOPICA_AI_RULE_AUTHORING_TIMEOUT_SECONDS:240}
+    # Caseworker SOP Copilot (Phase 4 Task 7) -- same "nothing serves it
+    # yet, matches uvicorn run locally" posture as rule-authoring-url
+    # above: `uvicorn canopica_ai.sop_copilot.api:app --port 8001` (a
+    # different port, since both AI FastAPI apps can run side by side
+    # locally during development).
+    sop-copilot-url: ${CANOPICA_AI_SOP_COPILOT_URL:http://localhost:8001}
+    sop-copilot-timeout-seconds: ${CANOPICA_AI_SOP_COPILOT_TIMEOUT_SECONDS:240}
   minio:
     # Local (non-Docker) dev default -- infra/docker-compose.yml overrides
     # this to the container-network hostname for api's own container, same

@@ -135,6 +135,10 @@ class SecurityConfig {
                         .hasRole("SUPERVISOR")
                         .requestMatchers("/api/worker/**")
                         .hasAnyRole("WORKER", "SUPERVISOR")
+                        // Caseworker SOP Copilot (Phase 4 Task 7). Worker-facing, not
+                        // supervisor-only -- same role pair /api/worker/** above already uses.
+                        .requestMatchers("/api/sop-copilot/**")
+                        .hasAnyRole("WORKER", "SUPERVISOR")
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(

@@ -1,0 +1,11 @@
+{
+  "heading": "SOP Copilot",
+  "description": "Ask a question about case-processing procedure. Answers are drafted from the authored SOP corpus and are advisory only -- always verify against the case itself before acting.",
+  "question": {
+    "label": "Your question",
+    "submit": "Ask",
+    "asking": "Asking…"
+  },
+  "citations": "Citations",
+  "error": "Could not get an answer right now. Please try again."
+}

@@ -1,0 +1,11 @@
+{
+  "heading": "Copiloto de procedimientos",
+  "description": "Haga una pregunta sobre el procedimiento de tramitación de casos. Las respuestas se redactan a partir del corpus de procedimientos autorizado y son solo asesoras -- siempre verifique con el caso mismo antes de actuar.",
+  "question": {
+    "label": "Su pregunta",
+    "submit": "Preguntar",
+    "asking": "Preguntando…"
+  },
+  "citations": "Citas",
+  "error": "No se pudo obtener una respuesta en este momento. Inténtelo de nuevo."
+}

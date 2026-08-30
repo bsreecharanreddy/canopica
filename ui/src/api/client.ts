@@ -19,6 +19,7 @@ import type {
   ProposalStatus,
   PublicationDetails,
   QaAnswer,
+  SopAnswer,
   TraceResponse,
   ApiFieldError,
 } from './types';
@@ -165,6 +166,13 @@ export function dismissQcReview(reviewId: string): Promise<PaymentErrorReviewIte
 
 export function getAtRiskQueue(): Promise<AtRiskCaseItem[]> {
   return request<AtRiskCaseItem[]>('/api/sla/at-risk-queue');
+}
+
+export function askSopCopilot(question: string): Promise<SopAnswer> {
+  return request<SopAnswer>('/api/sop-copilot/ask', {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  });
 }
 
 export function askPolicyQuestion(question: string): Promise<QaAnswer> {

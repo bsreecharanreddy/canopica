@@ -314,6 +314,13 @@ export type AtRiskCaseItem = {
   stallReasonGeneratedAt: string | null;
 };
 
+// Mirrors canopica.api.sop.SopAnswer (Phase 4 Task 7).
+export type SopAnswer = {
+  answer: string;
+  citations: string[];
+  abstained: boolean;
+};
+
 // Mirrors canopica.api.api.dto.NoticeResponse.
 export type NoticeResponse = {
   id: string;
