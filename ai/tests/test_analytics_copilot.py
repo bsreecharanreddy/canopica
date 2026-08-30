@@ -138,7 +138,9 @@ class TestMetricCatalog:
 
         assert "avg_processing_days" in names
         assert "active_case_count" in names
-        assert len(names) == 13
+        # Phase 4 Task 8 added 5: rejected_determinations, notices,
+        # rejected_notices, reviewed_notices, notice_rejection_rate.
+        assert len(names) == 18
 
     def test_every_metric_has_a_non_empty_description(self) -> None:
         for metric in load_known_metrics():

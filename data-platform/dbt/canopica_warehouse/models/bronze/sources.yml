@@ -28,3 +28,4 @@ sources:
       - name: person_pii_tokens
       - name: fraud_risk_score
       - name: payment_error_review
+      - name: notice

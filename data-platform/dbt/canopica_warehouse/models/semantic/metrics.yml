@@ -94,3 +94,58 @@ metrics:
     label: Active Case Count
     type_params:
       measure: active_case_count
+
+  # Phase 4 Task 8 (SOP Process-Improvement Mining) -- avg_processing_days
+  # above already supports "by case type" via its own new program_code
+  # dimension (semantic_models.yml), so no new metric was needed for that
+  # half of the plan's ask; these four are the other two halves
+  # (rejection-reason frequency, notice-rejection rate), each a governed,
+  # pre-filtered metric rather than leaving the LLM to compose its own
+  # outcome/status filter -- tools.py's own RedundantGroupByFilterError
+  # docstring already records real, observed small-model filter mistakes,
+  # so baking the filter into the metric removes a whole class of them.
+  - name: rejected_determinations
+    description: >
+      Count of denied determinations. Group by reason_code for
+      rejection-reason frequency.
+    type: simple
+    label: Rejected Determinations
+    type_params:
+      measure: determinations
+    filter: |
+      {{ Dimension('determination_outcome__outcome') }} = 'DENIED'
+
+  - name: notices
+    description: Count of notices.
+    type: simple
+    label: Notices
+    type_params:
+      measure: notice_count
+
+  - name: rejected_notices
+    description: Count of rejected notices.
+    type: simple
+    label: Rejected Notices
+    type_params:
+      measure: notice_count
+    filter: |
+      {{ Dimension('notice_outcome__status') }} = 'REJECTED'
+
+  - name: reviewed_notices
+    description: >
+      Count of notices that have already been reviewed (approved,
+      rejected, or sent) -- excludes drafts still awaiting review.
+    type: simple
+    label: Reviewed Notices
+    type_params:
+      measure: notice_count
+    filter: |
+      {{ Dimension('notice_outcome__status') }} != 'DRAFT'
+
+  - name: notice_rejection_rate
+    description: Share of reviewed notices that were rejected.
+    type: ratio
+    label: Notice Rejection Rate
+    type_params:
+      numerator: rejected_notices
+      denominator: reviewed_notices

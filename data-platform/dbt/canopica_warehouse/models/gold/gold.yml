@@ -180,6 +180,11 @@ models:
           - not_null
           - relationships:
               arguments: { to: ref('fct_program_request'), field: program_request_key }
+      - name: program_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["SNAP"] }
       - name: is_expedited
         tests: [not_null]
       - name: submitted_at
@@ -194,4 +199,28 @@ models:
           - accepted_values:
               arguments: { values: [7, 30] }
       - name: missed_standard
+        tests: [not_null]
+
+  - name: mart_notice_outcomes
+    description: >
+      Notice counts grouped by notice month, notice type, and status
+      (Phase 4 Task 8) -- feeds the notice-rejection-rate metric. No
+      notice content/validation/approver columns reach this mart; only
+      the counts a rejection-rate ratio needs.
+    tests:
+      - no_pii_in_gold
+    columns:
+      - name: notice_month
+        tests: [not_null]
+      - name: notice_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["APPROVAL", "DENIAL", "PENDING_VERIFICATION"] }
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: { values: ["DRAFT", "APPROVED", "REJECTED", "SENT"] }
+      - name: notice_count
         tests: [not_null]

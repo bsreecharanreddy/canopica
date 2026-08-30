@@ -5,9 +5,13 @@
 -- can finally compute something meaningful: SNAP's real processing-time
 -- standards (30 days normal, 7 days expedited, roadmap §3.4.2) instead of
 -- the always-false column Task 5 would have had to build against.
+-- Phase 4 Task 8: program_code added for "time-to-resolution by case
+-- type" -- the join to fct_program_request already existed for
+-- is_expedited, so this is a free column, not a new join.
 select
     d.determination_key,
     d.program_request_key,
+    r.program_code,
     r.is_expedited,
     a.submitted_at,
     d.decided_at,

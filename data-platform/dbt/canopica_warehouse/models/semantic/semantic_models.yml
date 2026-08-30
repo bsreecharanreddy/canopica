@@ -40,6 +40,13 @@ semantic_models:
     model: ref('mart_payment_accuracy')
     defaults:
       agg_time_dimension: benefit_month
+    # No program_code dimension here even though mart_payment_accuracy carries
+    # the column -- Task 8 needed program_code on the same `determination`
+    # entity from sem_processing_timeliness, and MetricFlow rejects the same
+    # (entity, dimension) pair declared on two models ("pairings must be
+    # unique"). sem_processing_timeliness is the authoritative source: this
+    # mart's own grain is eligible-only, so a query joined through it would
+    # silently drop every denied determination's program_code.
     entities:
       - name: determination
         type: primary
@@ -49,8 +56,6 @@ semantic_models:
         type: time
         type_params:
           time_granularity: month
-      - name: program_code
-        type: categorical
     measures:
       - name: paid_amount
         agg: sum
@@ -103,6 +108,12 @@ semantic_models:
         type: time
         type_params:
           time_granularity: day
+      # Phase 4 Task 8 ("time-to-resolution by case type"). Declared here,
+      # not on sem_payment_accuracy (see that model's own comment) --
+      # this model covers every determination regardless of outcome,
+      # which "by case type" timeliness reporting needs.
+      - name: program_code
+        type: categorical
       - name: is_expedited
         type: categorical
       - name: standard_days
@@ -178,3 +189,27 @@ semantic_models:
       - name: disparate_impact_ratio_avg
         agg: average
         expr: disparate_impact_ratio
+
+  - name: sem_notice_outcomes
+    description: >
+      Notice counts grouped by notice month, notice type, and status --
+      already pre-aggregated at that grain, so it has no natural
+      single-row entity (same shape sem_determination_outcomes takes).
+      Built in Phase 4 Task 8 for the notice-rejection-rate metric.
+    model: ref('mart_notice_outcomes')
+    defaults:
+      agg_time_dimension: notice_month
+    primary_entity: notice_outcome
+    dimensions:
+      - name: notice_month
+        type: time
+        type_params:
+          time_granularity: month
+      - name: notice_type
+        type: categorical
+      - name: status
+        type: categorical
+    measures:
+      - name: notice_count
+        agg: sum
+        expr: notice_count

@@ -924,20 +924,20 @@ operational table this warehouse reports on.
   tool-exposure time, before query compilation, exactly as the roadmap's
   existing Analytics Copilot decision already states.
 
-- [ ] **Step 1: New metrics in `metric_catalog.py`.** Named, governed
+- [x] **Step 1: New metrics in `metric_catalog.py`.** Named, governed
       MetricFlow metrics — not raw SQL the LLM writes itself, same
       grounding discipline the whole Analytics Copilot mechanism already
       enforces.
-- [ ] **Step 2: Narrative-synthesis extension.** The LLM's job stays
+- [x] **Step 2: Narrative-synthesis extension.** The LLM's job stays
       "synthesize a narrative suggestion from metrics it queried through
       the existing tool-calling path" — no new tool-calling loop, no
       write path (constraint 22).
-- [ ] **Step 3: Tests.** A copilot query naming one of the new metrics
+- [x] **Step 3: Tests.** A copilot query naming one of the new metrics
       resolves through the existing tool-exposure/authorization path
       unchanged; the resulting narrative references only values the tool
       call actually returned (grounding check, same shape as every other
       AI capability's own test in this repo).
-- [ ] **Step 4: Full suite + commit.**
+- [x] **Step 4: Full suite + commit.**
 
 ---
 

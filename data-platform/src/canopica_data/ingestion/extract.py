@@ -42,6 +42,10 @@ ALL_TABLES = (
     # (which never got a bronze landing, since no mart ever needed them).
     "fraud_risk_score",
     "payment_error_review",
+    # Phase 4 Task 8: mart_notice_outcomes needs it now, for the
+    # notice-rejection-rate metric -- the gap the comment above described
+    # is filled for notice; document still has no mart consumer.
+    "notice",
 )
 
 

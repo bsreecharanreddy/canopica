@@ -335,6 +335,113 @@ def seeded_timeliness_dsn(migrated_dsn: str) -> Iterator[str]:
 
 
 @pytest.fixture
+def seeded_mining_dsn(migrated_dsn: str) -> Iterator[str]:
+    """migrated_dsn with one ELIGIBLE and one DENIED determination chain,
+    plus four notices at different statuses -- Phase 4 Task 8's own
+    mart_notice_outcomes/rejected_determinations fixture. Notice statuses:
+    two SENT, one REJECTED, one DRAFT, so reviewed_notices (SENT+REJECTED,
+    DRAFT excluded as not-yet-reviewed) = 3 and rejected_notices = 1,
+    giving notice_rejection_rate = 1/3.
+    """
+    person_id = str(uuid.uuid4())
+    household_id = str(uuid.uuid4())
+    now = datetime.now(UTC)
+
+    with psycopg.connect(migrated_dsn, autocommit=True) as conn, conn.cursor() as cur:
+        # Same full-truncate reasoning as seeded_timeliness_dsn's own
+        # comment -- migrated_dsn's container is a session-wide singleton.
+        # notice is included here (Task 8's own new table) for the same
+        # reason audit_event already was: a stale row from an earlier
+        # fixture can otherwise dangle against a program_request_id this
+        # fixture's own truncate just deleted.
+        cur.execute(
+            "truncate table notice, determination_trace, eligibility_determination, "
+            "verification_response, verification, benefit_month, case_assignment, "
+            "program_request, application, household_member, household, person, "
+            "worker, audit_event "
+            "restart identity cascade"
+        )
+        cur.execute(
+            "insert into person (id, first_name, last_name, date_of_birth, ssn_token, sex) "
+            "values (%s, 'Mining', 'Fixture', date '1990-01-01', %s, 'X')",
+            (person_id, f"tok-{person_id}"),
+        )
+        cur.execute(
+            "insert into household "
+            "(id, head_person_id, county, address_line1, city, state, zip_code) "
+            "values (%s, %s, 'Test County', '1 Main St', 'Testville', 'WY', '82001')",
+            (household_id, person_id),
+        )
+        cur.execute(
+            "insert into household_member "
+            "(id, household_id, person_id, relationship, effective_from) "
+            "values (%s, %s, %s, 'SELF', date '2026-01-01')",
+            (str(uuid.uuid4()), household_id, person_id),
+        )
+
+        determination_ids: list[tuple[str, str]] = []
+        for eligible, benefit_amount, reason_code in [
+            (True, 292, "ELIGIBLE"),
+            (False, 0, "GROSS_INCOME_EXCEEDS_LIMIT"),
+        ]:
+            application_id = str(uuid.uuid4())
+            program_request_id = str(uuid.uuid4())
+            determination_id = str(uuid.uuid4())
+            cur.execute(
+                "insert into application (id, household_id, submitted_at, channel) "
+                "values (%s, %s, %s, 'ONLINE')",
+                (application_id, household_id, now - timedelta(days=5)),
+            )
+            cur.execute(
+                "insert into program_request "
+                "(id, application_id, program_code, status, requested_on) "
+                "values (%s, %s, 'SNAP', 'DETERMINED', %s)",
+                (program_request_id, application_id, (now - timedelta(days=5)).date()),
+            )
+            cur.execute(
+                "insert into eligibility_determination "
+                "(id, program_request_id, benefit_month, as_of_date, eligible, benefit_amount, "
+                "reason_code, policy_parameter_set_id, policy_parameter_version, decided_by) "
+                "values (%s, %s, date '2026-01-01', date '2026-01-01', %s, %s, %s, "
+                "%s, 'SNAP-FY2025', 'test-fixture')",
+                (determination_id, program_request_id, eligible, benefit_amount, reason_code,
+                 SNAP_FY2025_PARAMETER_SET_ID),
+            )
+            determination_ids.append((program_request_id, determination_id))
+
+        eligible_pr_id, eligible_det_id = determination_ids[0]
+        denied_pr_id, denied_det_id = determination_ids[1]
+
+        # Two SENT (approved+sent), one REJECTED, one DRAFT -- program_request_id
+        # is reused across notices freely, same as a real case can carry more
+        # than one notice over its lifetime.
+        notice_rows = [
+            (eligible_pr_id, eligible_det_id, "APPROVAL", "SENT", True),
+            (eligible_pr_id, eligible_det_id, "APPROVAL", "SENT", True),
+            (denied_pr_id, denied_det_id, "DENIAL", "REJECTED", False),
+            (denied_pr_id, denied_det_id, "DENIAL", "DRAFT", False),
+        ]
+        for program_request_id, determination_id, notice_type, status, sent in notice_rows:
+            approved_by = "fixture-approver" if status in ("APPROVED", "SENT") else None
+            approved_at = now if status in ("APPROVED", "SENT") else None
+            sent_at = now if sent else None
+            rejected_by = "fixture-approver" if status == "REJECTED" else None
+            rejected_at = now if status == "REJECTED" else None
+            cur.execute(
+                "insert into notice "
+                "(id, program_request_id, determination_id, notice_type, status, content, "
+                "template_version, language, validation_result, generation_model, "
+                "prompt_version, approved_by, approved_at, sent_at, rejected_by, rejected_at) "
+                "values (%s, %s, %s, %s, %s, 'fixture notice content', 'v1', 'en', '{}'::jsonb, "
+                "'fixture-model', 'v1', %s, %s, %s, %s, %s)",
+                (str(uuid.uuid4()), program_request_id, determination_id, notice_type, status,
+                 approved_by, approved_at, sent_at, rejected_by, rejected_at),
+            )
+
+    yield migrated_dsn
+
+
+@pytest.fixture
 def seeded_fairness_dsn(migrated_dsn: str) -> Iterator[str]:
     """migrated_dsn with 60 determination chains seeded directly via SQL: 30
     applicants race='WHITE' with a 90% approval rate, 30 race='BLACK_OR_
