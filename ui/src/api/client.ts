@@ -14,6 +14,7 @@ import type {
   NoticeResponse,
   NoticeReviewItem,
   ParameterProposal,
+  PaymentErrorReviewItem,
   ProposalStatus,
   PublicationDetails,
   QaAnswer,
@@ -147,6 +148,18 @@ export function confirmFraudRisk(scoreId: string): Promise<FraudRiskScoreItem> {
 
 export function clearFraudRisk(scoreId: string): Promise<FraudRiskScoreItem> {
   return request<FraudRiskScoreItem>(`/api/fraud/${scoreId}/clear`, { method: 'POST' });
+}
+
+export function getQcReviewQueue(): Promise<PaymentErrorReviewItem[]> {
+  return request<PaymentErrorReviewItem[]>('/api/qc/review-queue');
+}
+
+export function confirmQcReview(reviewId: string): Promise<PaymentErrorReviewItem> {
+  return request<PaymentErrorReviewItem>(`/api/qc/${reviewId}/confirm`, { method: 'POST' });
+}
+
+export function dismissQcReview(reviewId: string): Promise<PaymentErrorReviewItem> {
+  return request<PaymentErrorReviewItem>(`/api/qc/${reviewId}/dismiss`, { method: 'POST' });
 }
 
 export function askPolicyQuestion(question: string): Promise<QaAnswer> {

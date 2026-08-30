@@ -15,8 +15,9 @@ import org.hibernate.type.SqlTypes;
  * fraud_risk_score}, this row is written by Java itself ({@link QcSamplingService}) -- {@code reproduce()}
  * only runs in the JVM (DMN evaluation is Java-only) -- and {@code ai_summary} is what the Python worker's
  * {@code qc_summary_consumer.py} fills in afterward via a raw update, the reverse split {@link
- * canopica.api.fraud.FraudRiskScore}'s own doc comment describes for that table. Task 5 adds the human review
- * decision as intent-named transitions, same reasoning as that class.
+ * canopica.api.fraud.FraudRiskScore}'s own doc comment describes for that table. The human review decision
+ * (Task 5) is an intent-named transition, same reasoning as that class -- no code path can mark a discrepancy
+ * reviewed twice or set an outcome with no reviewer attribution.
  */
 @Entity
 @Table(name = "payment_error_review")
@@ -68,6 +69,34 @@ public class PaymentErrorReview {
         this.reproducedAmount = reproducedAmount;
         this.errorAmount = errorAmount;
         this.reproducedTrace = reproducedTrace;
+    }
+
+    /**
+     * Phase 4 Task 5: a supervisor confirmed this sampled discrepancy reflects a real payment error worth
+     * further, out-of-band correction. Never touches the original determination or its benefit amount
+     * (constraint 19) -- QC flags an estimate of error, it does not fix one.
+     */
+    public void confirmError(String reviewedBy, Instant now) {
+        requireUnreviewed();
+        this.reviewOutcome = "CONFIRMED_ERROR";
+        this.reviewedBy = reviewedBy;
+        this.reviewedAt = now;
+    }
+
+    /** A supervisor reviewed the discrepancy and found nothing warranting further action. */
+    public void dismiss(String reviewedBy, Instant now) {
+        requireUnreviewed();
+        this.reviewOutcome = "DISMISSED";
+        this.reviewedBy = reviewedBy;
+        this.reviewedAt = now;
+    }
+
+    /** A second reviewer must not be able to re-decide an already-reviewed discrepancy. */
+    private void requireUnreviewed() {
+        if (reviewOutcome != null) {
+            throw new IllegalStateException(
+                    "payment_error_review " + id + " was already reviewed (" + reviewOutcome + ")");
+        }
     }
 
     public UUID getId() {

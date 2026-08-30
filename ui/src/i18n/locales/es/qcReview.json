@@ -1,0 +1,15 @@
+{
+  "heading": "Revisión de discrepancias de control de calidad",
+  "description": "Determinaciones muestreadas cuyo monto recalculado difirió del original, mayor discrepancia primero. Confirmar o descartar registra su decisión sobre la señal únicamente -- ninguna de las dos acciones corrige nunca la determinación original ni su monto de beneficio.",
+  "loadError": "No se pudo cargar la cola de revisión de control de calidad.",
+  "loading": "Cargando la cola de revisión…",
+  "empty": "No hay discrepancias pendientes de revisión.",
+  "amounts": "Original {{original}} -- recalculado {{reproduced}} -- diferencia {{diff}}",
+  "aiSummary": "Resumen redactado por IA",
+  "noSummaryYet": "Aún no hay resumen.",
+  "confirmDiscrepancy": "Confirmar error",
+  "dismiss": "Descartar",
+  "working": "Procesando…",
+  "confirmError": "No se pudo confirmar esta discrepancia. Inténtelo de nuevo.",
+  "dismissError": "No se pudo descartar esta discrepancia. Inténtelo de nuevo."
+}

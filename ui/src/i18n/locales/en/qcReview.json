@@ -1,0 +1,15 @@
+{
+  "heading": "QC discrepancy review",
+  "description": "Sampled determinations whose re-derived amount differed from the original, largest discrepancy first. Confirming or dismissing records your decision about the flag only -- neither ever corrects the original determination or its benefit amount.",
+  "loadError": "Could not load the QC review queue.",
+  "loading": "Loading the review queue…",
+  "empty": "No discrepancies are waiting for review.",
+  "amounts": "Original {{original}} -- reproduced {{reproduced}} -- diff {{diff}}",
+  "aiSummary": "AI-drafted summary",
+  "noSummaryYet": "No summary yet.",
+  "confirmDiscrepancy": "Confirm error",
+  "dismiss": "Dismiss",
+  "working": "Working…",
+  "confirmError": "Could not confirm this discrepancy. Please try again.",
+  "dismissError": "Could not dismiss this discrepancy. Please try again."
+}

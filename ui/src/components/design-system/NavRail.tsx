@@ -10,6 +10,7 @@ import {
   LogOut,
   Mail,
   MessageCircleQuestion,
+  ScanSearch,
   ShieldAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -32,8 +33,13 @@ const LINKS_FOR: Record<Role, { to: string; labelKey: string; icon: LucideIcon }
   WORKER: WORKER_LINKS,
   // A strict superset of WORKER's own links (SecurityConfig's own hasAnyRole("WORKER",
   // "SUPERVISOR") pattern on most case endpoints), plus the SUPERVISOR-only fraud review queue
-  // (Phase 4 Task 3, design doc §2.9 -- reuses this role, no new Keycloak role).
-  SUPERVISOR: [...WORKER_LINKS, { to: '/fraud/review', labelKey: 'nav.fraudReview', icon: ShieldAlert }],
+  // (Phase 4 Task 3, design doc §2.9 -- reuses this role, no new Keycloak role) and QC review
+  // queue (Phase 4 Task 5, same role/reasoning).
+  SUPERVISOR: [
+    ...WORKER_LINKS,
+    { to: '/fraud/review', labelKey: 'nav.fraudReview', icon: ShieldAlert },
+    { to: '/qc/review', labelKey: 'nav.qcReview', icon: ScanSearch },
+  ],
   ADMIN: [{ to: '/rule-authoring', labelKey: 'nav.ruleAuthoring', icon: FileCog }],
 };
 

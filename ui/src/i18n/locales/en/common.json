@@ -11,6 +11,7 @@
     "documentReview": "Document review",
     "noticeReview": "Notice review",
     "fraudReview": "Fraud review",
+    "qcReview": "QC review",
     "ruleAuthoring": "Rule authoring",
     "signOut": "Sign out"
   },

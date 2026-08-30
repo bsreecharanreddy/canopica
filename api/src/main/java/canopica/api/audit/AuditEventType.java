@@ -68,5 +68,12 @@ public enum AuditEventType {
      * {@code event_type} back into this enum on every read, and a zero-diff sampled case is still recorded in
      * {@code payment_error_review} but never raises this event.
      */
-    QC_DISCREPANCY_FLAGGED
+    QC_DISCREPANCY_FLAGGED,
+    /**
+     * A supervisor decided a flagged QC discrepancy (Phase 4 Task 5) -- {@code CONFIRMED_ERROR} or
+     * {@code DISMISSED} in the payload. Written by {@link canopica.api.qc.QcReviewService}, this module's own
+     * {@link AuditService}, unlike {@link #QC_DISCREPANCY_FLAGGED}: the review decision is Java's own write,
+     * not the worker's -- same split {@link #FRAUD_FLAG_REVIEWED}'s own doc comment describes.
+     */
+    QC_REVIEW_COMPLETED
 }

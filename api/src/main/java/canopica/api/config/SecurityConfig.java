@@ -115,6 +115,11 @@ class SecurityConfig {
                         // /api/qc/** instead, a separate SUPERVISOR-scoped surface.
                         .requestMatchers("/api/internal/qc/**")
                         .hasRole("ADMIN")
+                        // QC review queue (Phase 4 Task 5). SUPERVISOR, same role and "cross-caseload
+                        // triage queue" reasoning as /api/fraud/** above -- no data-driven caseload check
+                        // follows this one either.
+                        .requestMatchers("/api/qc/**")
+                        .hasRole("SUPERVISOR")
                         .requestMatchers("/api/worker/**")
                         .hasAnyRole("WORKER", "SUPERVISOR")
                         .anyRequest()

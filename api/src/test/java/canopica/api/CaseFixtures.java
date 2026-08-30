@@ -141,6 +141,17 @@ public final class CaseFixtures {
         return id;
     }
 
+    public static UUID insertPaymentErrorReview(
+            JdbcTemplate jdbc, UUID determinationId, BigDecimal originalAmount, BigDecimal reproducedAmount) {
+        UUID id = UUID.randomUUID();
+        BigDecimal errorAmount = reproducedAmount.subtract(originalAmount);
+        jdbc.update(
+                "insert into payment_error_review (id, determination_id, original_amount, reproduced_amount, "
+                        + "error_amount, reproduced_trace) values (?, ?, ?, ?, ?, '{}'::jsonb)",
+                id, determinationId, originalAmount, reproducedAmount, errorAmount);
+        return id;
+    }
+
     private static UUID insertPerson(JdbcTemplate jdbc, String firstName, String lastName, LocalDate dob) {
         UUID id = UUID.randomUUID();
         jdbc.update(

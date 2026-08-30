@@ -284,6 +284,22 @@ export type FraudRiskScoreItem = {
   reviewedAt: string | null;
 };
 
+// Mirrors canopica.api.api.dto.PaymentErrorReviewResponse -- one review-queue row or a confirm/dismiss
+// response (Phase 4 Task 5). reproducedTrace is deliberately not part of this shape -- it exists only for
+// ai/qc_assistant's own grounding check, not for a human reviewer to read raw DMN trace JSON.
+export type PaymentErrorReviewItem = {
+  id: string;
+  determinationId: string;
+  originalAmount: number;
+  reproducedAmount: number;
+  errorAmount: number;
+  aiSummary: string | null;
+  sampledAt: string;
+  reviewOutcome: 'CONFIRMED_ERROR' | 'DISMISSED' | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+};
+
 // Mirrors canopica.api.api.dto.NoticeResponse.
 export type NoticeResponse = {
   id: string;
