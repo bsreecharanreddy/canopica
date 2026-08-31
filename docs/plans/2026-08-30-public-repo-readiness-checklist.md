@@ -81,12 +81,19 @@ documentation wrap-up, not new capability.
 
 ## 2. Public demo — the actual live deploy
 
-- [ ] **`fly deploy` for real** (Task 9 Step 5's remaining piece) — the
-      Dockerfile/`fly.toml` are already written and locally verified;
-      only the live deploy (~$22/mo starts billing) and Step 7's live
-      smoke check are still deliberately held back.
-- [ ] Confirm the deployed demo actually answers a real question end to
-      end once live (the smoke check itself).
+- [x] **`fly deploy` for real — done 2026-08-31.** Deployed against a
+      live Fly.io account; found and fixed three real bugs only visible
+      on real infrastructure (a `fly.toml` dockerfile-path bug, a
+      two-layer OpenSearch lock-file bug, and the reranker model never
+      redeploying at runtime) before it worked end to end. See
+      `docs/STATUS.md`'s verification log for the full story.
+- [x] **Confirm the deployed demo actually answers a real question end
+      to end once live — done 2026-08-31.** A real `POST /demo/ask`
+      against `canopica-policy-demo.fly.dev` returned a grounded, cited
+      answer (SNAP gross income test, citing `273.9(a)`). Machine then
+      stopped (`fly scale count 0`) to control cost between demos, per
+      the user's explicit request — see `infra/fly/fly.toml`'s own
+      header comment for the stop/start commands.
 
 ## 3. GitHub account/profile
 

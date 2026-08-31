@@ -1,9 +1,33 @@
 # Task 9 Step 5 (docs/plans/2026-08-23-phase-2-implementation-plan.md).
-# Built and locally reasoned-through today per the user's 2026-08-26
-# sequencing decision; the actual `fly deploy` is deliberately deferred
-# until the repo is close to going public (docs/STATUS.md's Open
-# Questions). Nothing here has been applied against a real Fly.io
-# account yet.
+# Deployed for real 2026-08-31 against a live Fly.io account
+# (canopica-policy-demo.fly.dev) and live-smoke-tested end to end -- a
+# real `POST /demo/ask` returned a grounded, cited answer against the
+# real deployed infrastructure, not a local stand-in. See
+# docs/STATUS.md's verification log for the full deploy history,
+# including three real bugs found only once running on real Fly.io
+# infrastructure (a reranker model that never re-deployed at runtime,
+# a persisted-state check that skipped redeploying it anyway).
+#
+# COST / STOP-START: this bills per-second compute at the shared-cpu-2x
+# rate below (~$22/mo if left running continuously) -- confirmed live
+# against Fly's own billing model, not a flat subscription.
+# `auto_stop_machines = "off"` below only disables Fly's own
+# *automatic* idle-based scaling; it does not prevent a manual stop.
+# Per the user's explicit 2026-08-31 request -- more projects planned
+# before job-hunting starts, so this only needs to be up when actually
+# being shown to someone -- the machine defaults to STOPPED between
+# uses:
+#
+#   fly scale count 0 --app canopica-policy-demo   # stop (compute -> ~$0)
+#   fly scale count 1 --app canopica-policy-demo   # start before demoing
+#
+# A stopped machine still bills the small persisted volume continuously
+# regardless of run-state (~$0.15/mo, see [[mounts]] below) -- that part
+# can't be turned off without destroying the volume. Boot from stopped
+# takes up to ~2 minutes (the OpenSearch+Ollama sequence
+# public-demo-entrypoint.sh waits on before uvicorn starts listening),
+# so start it a couple of minutes ahead of sharing the link rather than
+# at the moment someone clicks it.
 #
 # Deploy command, run from the REPO ROOT (not this directory) -- the
 # Dockerfile's COPY instructions resolve `ai/` and `infra/opensearch/`
