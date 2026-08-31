@@ -53,7 +53,13 @@ diff, and there's nowhere in this repo's toolchain to open one anyway.
 
 ## Screenshots
 
-_Not yet captured -- requires an actual Power BI Service import, which
-needs a live serving database to point at. Capture and add here once
-Task 12's Compose stack (`make up`) is available to provide one; until
-then this file documents the exact steps a manual walkthrough will follow._
+`../../docs/cloud-demo/powerbi-service-report.png` -- captured for real
+against a live Azure Postgres Flexible Server (Phase 5 Task 2 Step 5, not
+local Compose), via the classic **`PostgreSQL database`** connector under
+**Create -> Report -> Get data** rather than the folder-based TMDL import
+above: that path requires an on-premises data gateway even for a local
+file, and the gateway is Windows-only (no macOS support) -- see
+`docs/STATUS.md`'s verification log for the full story. The model was
+recreated directly against the live connection instead, using the exact
+same three measures `canopica.tmdl` declares. Real numbers: 43
+determinations, 39.53% eligible rate, $105.53 average benefit.

@@ -154,11 +154,92 @@ this plan, not assumed:**
       Postgres Flexible Server and Container Apps both bill continuously
       with no deallocate state, unlike a VM. Done — confirmed via
       `az group exists` (`false`) and `terraform state list` (empty).
-- [ ] **Step 5: Separately, sign up for the Microsoft Fabric free trial**
+- [x] **Step 5: Separately, sign up for the Microsoft Fabric free trial**
       (60 days, no credit card — a distinct signup from the Azure trial,
       per "Starting point" item 5) and capture one real screenshot of the
       existing TMDL semantic model (`reporting/semantic-model/`) published
-      to / viewed in Fabric.
+      to / viewed in Fabric. Worked out live against this repo's own code
+      (`data-platform/src/canopica_data/serving/materialize.py`,
+      `config.py`, `infra/postgres/init/01-databases.sql`) rather than
+      assumed, because two real constraints surfaced during research:
+      Fabric's trial requires a work/school (Entra ID) identity, not a
+      bare personal email (Microsoft's own documented workaround reuses
+      an existing Azure account — see
+      [free-trial-account-personal-email](https://learn.microsoft.com/en-us/fabric/fundamentals/free-trial-account-personal-email));
+      and the On-premises Data Gateway (the normal way Fabric reaches a
+      local Postgres) is Windows-only, confirmed no macOS support, so
+      pointing Fabric at `make up`'s local Compose Postgres isn't viable
+      from this dev machine. Sub-steps:
+      - **5a. Scoped Terraform apply — Postgres only, not the full Task 2
+        stack.** This demo needs a reachable serving database, not a
+        running API/UI/Airflow, so `-target` is scoped to
+        `azurerm_postgresql_flexible_server_firewall_rule.azure_services`
+        and `azurerm_postgresql_flexible_server_database.serving` (pulls
+        in their dependencies: the server, the resource group, the
+        generated admin password). Deliberately excludes Key Vault — the
+        server's `administrator_password` reads directly from
+        `random_password.postgres_admin.result`, never through the
+        vault, so Key Vault isn't a dependency of this target set and
+        skipping it avoids repeating Task 2's Key Vault RBAC
+        data-plane/management-plane teardown gap for a resource this
+        demo doesn't need. Also excludes ACR, Container Apps, Log
+        Analytics, and the `pgcrypto` extension config (serving-layer
+        tables don't need it — only the operational database's audit
+        chain does). `api_image`/`ui_image`/`airflow_image` have no
+        defaults and Terraform resolves all variables before honoring
+        `-target`, so the apply needs placeholder `-var` values for
+        those three even though their resources aren't targeted.
+      - **5b. One more firewall rule, for the local dev machine's public
+        IP**, via `az postgres flexible-server firewall-rule create`
+        (not Terraform — machine-specific, added and removed outside the
+        committed config, same posture as every other live-only fix this
+        task found). Needed so `psql`/the materialize step below can
+        reach the server directly from this laptop.
+      - **5c. Bootstrap SQL against the new server**, as the admin login,
+        creating `canopica_app` and a read-only `canopica_analytics_ro`
+        role — mirroring exactly what `infra/postgres/init/
+        01-databases.sql` already does locally for the serving layer
+        (schema ownership, `select`-only default privileges), not a new
+        design.
+      - **5d. Run the existing local pipeline unchanged** — `make up`,
+        `make seed`, a real determination, `make pipeline` through the
+        DuckDB gold build — then re-run only the materialize step with
+        `CANOPICA_SERVING_DSN` pointed at the Azure Postgres FQDN instead
+        of `localhost`. `materialize_gold()` already takes `serving_dsn`
+        as a plain argument, so this is a one-env-var swap, not a code
+        change.
+      - **5e. Import the semantic model in Fabric** via its direct cloud
+        PostgreSQL connector (no gateway needed for a publicly-reachable
+        Azure PaaS host) using `canopica_analytics_ro`, `ServingHost` =
+        the Azure FQDN — the same steps `reporting/powerbi/README.md`
+        already documents, run in a Fabric workspace instead of plain
+        Power BI Service. Build one report card against `Determinations`
+        / `Eligible Rate` / `Average Benefit` so the screenshot shows
+        real numbers, not an empty model shell.
+      - **5f. Screenshot, PII-redact the same way as the other 7, save to
+        `docs/cloud-demo/fabric-*.png`.**
+      - **5g. Teardown**: delete the temporary local-IP firewall rule,
+        `terraform destroy` this scoped deployment, confirm
+        `az group exists` → `false`. The Fabric trial capacity itself
+        needs no teardown — it's Microsoft's own trial allocation, not
+        billed against the Azure subscription.
+
+      **Real outcome, done for real, one honest scope correction along
+      the way**: Fabric trial *activation* itself failed —
+      `"A Fabric trial isn't available for your account"` — root-caused
+      to Microsoft's own documented ~90-day new-tenant restriction on
+      trial capacity, a structural block no retry fixes. What the trial
+      granted instead (a Power BI Individual trial) was already
+      documented as sufficient for this exact import
+      (`reporting/powerbi/README.md`: "no Premium/Fabric capacity
+      required"), so 5e ran against Power BI Service instead of Fabric
+      proper — same real data, same real screenshot requirement, one
+      real screenshot short of literally saying "Fabric" on the
+      Microsoft-product-branding level. 5a–5d and 5g ran exactly as
+      planned. Full story, including the two further gateway-shaped
+      gaps found in 5e (a Fabric-capacity-gated Mirroring item, and the
+      TMDL folder import's own on-prem-gateway requirement), in
+      `docs/STATUS.md`'s verification log.
 - [x] **Step 6: Record the real result.** `docs/STATUS.md`'s verification
       log, the tradeoffs doc, and the README — screenshots plus what was
       actually observed, including any real gap the live apply found
@@ -167,21 +248,22 @@ this plan, not assumed:**
       described, don't silently overstate what the demo proves). Full
       suite still green. Done for Steps 1-4's real gaps (region capacity,
       firewall, extension allow-list, nginx DNS, Airflow init, Key Vault
-      RBAC teardown) — this row will be revisited once Step 5 (Fabric)
-      also has a real result to record.
+      RBAC teardown) and now Step 5's (Fabric trial capacity blocked by
+      the 90-day new-tenant restriction, Power BI Service completed
+      instead) — all recorded in `docs/STATUS.md`'s verification log.
 
 ---
 
 ## Phase 5 definition of done
 
-- [ ] Both tasks committed, each with its own real screenshot evidence and
+- [x] Both tasks committed, each with its own real screenshot evidence and
       a green full-suite run.
-- [ ] `docs/STATUS.md` reflects Phase 5 as done, at the same task
+- [x] `docs/STATUS.md` reflects Phase 5 as done, at the same task
       granularity every earlier phase already uses.
-- [ ] README's "Honest limitations" and tech-stack sections updated with
+- [x] README's "Honest limitations" and tech-stack sections updated with
       the real screenshots and an accurate statement of what's now proven
       versus what's still a documented limitation — no overstatement.
-- [ ] No continuously-billed Azure resource left running after Task 2 —
+- [x] No continuously-billed Azure resource left running after Task 2 —
       verified in the portal, not assumed from the `terraform destroy`
       exit code alone.
 

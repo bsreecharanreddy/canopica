@@ -153,17 +153,23 @@ orchestration, full medallion coverage, widened reporting, governance
 (PII tokenization, `docs/design/compliance-mapping.md`), accessibility
 (axe-clean UI pages, `jsx-a11y` lint in CI), observability
 (OpenTelemetry traces in Jaeger, Prometheus/Grafana metrics), and
-reference Terraform for Azure (`infra/azure/`, validated in CI, never
-applied) are all in place.
+reference Terraform for Azure (`infra/azure/`) are all in place. **Phases
+2, 3, and 4** (Policy Intelligence & Analytics AI, Case Intake &
+Communication AI, and Compliance & Integrity AI) **are done. Phase 5**
+(real cloud deployment demos) **is done** — the Terraform above was
+actually applied against a live Azure subscription, not just validated,
+and the existing dbt project and TMDL semantic model were proven against
+real Databricks and Power BI Service targets; see "Honest limitations"
+below for what each demo found and how it was resolved.
 
 | Phase | Focus | Status |
 |---|---|---|
 | 1a | Walking skeleton — intake → rules-engine determination → audit trail → warehouse → report page, end to end | Done |
 | 1b | Hardening — identity, caseload-scoped authorization, external interface, orchestration, governance mapping, accessibility, observability, reference Terraform | Done |
-| 2 | Policy Intelligence & Analytics AI — RAG-based policy Q&A, rule-authoring copilot, natural-language analytics | Planned |
-| 3 | Case Intake & Communication AI — document classification/extraction, AI-drafted correspondence, localization | Planned |
-| 4 | Compliance & Integrity AI — fraud risk triage, SLA/QC monitoring, caseworker SOP copilot | Planned |
-| 5 | Real cloud deployment demos; domain expansion (TANF, Medicaid) stated as a deliberately-not-built extension point | Planned |
+| 2 | Policy Intelligence & Analytics AI — RAG-based policy Q&A, rule-authoring copilot, natural-language analytics | Done |
+| 3 | Case Intake & Communication AI — document classification/extraction, AI-drafted correspondence, localization | Done |
+| 4 | Compliance & Integrity AI — fraud risk triage, SLA/QC monitoring, caseworker SOP copilot | Done |
+| 5 | Real cloud deployment demos (Databricks, Azure, Power BI/Fabric); domain expansion (TANF, Medicaid) stated as a deliberately-not-built extension point | Done |
 
 See `docs/design/2026-08-21-full-system-and-phased-roadmap.md` for the
 full breakdown of every phase, and [`docs/STATUS.md`](docs/STATUS.md) for
@@ -217,8 +223,16 @@ plainly rather than leaving a reader to discover:
   [`docs/cloud-demo/azure-resource-group.png`](docs/cloud-demo/azure-resource-group.png),
   [`docs/cloud-demo/azure-container-apps-environment.png`](docs/cloud-demo/azure-container-apps-environment.png).
   Torn down immediately after screenshots, same session — nothing from
-  this apply is left running. Fabric's own trial signup (Task 2 Step 5)
-  is still outstanding.
+  this apply is left running. Task 2 Step 5 attempted a Microsoft Fabric
+  screenshot of the real TMDL semantic model specifically; Fabric trial
+  *activation* failed with Microsoft's own documented restriction — new
+  tenants are blocked from trial capacity for roughly 90 days, a
+  structural limit, not a retry-able error. What the trial granted
+  instead (Power BI Individual) was already documented as sufficient for
+  this exact import, so the semantic model was published there instead,
+  against the same live Azure Postgres data: 43 real determinations,
+  39.53% eligible rate, $105.53 average benefit. Screenshot:
+  [`docs/cloud-demo/powerbi-service-report.png`](docs/cloud-demo/powerbi-service-report.png).
 
 Every one of these is a scoping decision, not an oversight — see the plan's
 own "Deferred out of Phase 1a, on purpose" list
@@ -240,7 +254,7 @@ production deployment.
 | Search / RAG | OpenSearch (hybrid lexical + vector) |
 | AI runtime | Local, self-hosted (Ollama) by default — $0 to clone and run |
 | Local infra | Docker Compose |
-| Cloud target | **Databricks Free Edition and Azure Container Apps both proven for real** (Phase 5 Tasks 1-2) — documented path to Microsoft Fabric remains (trial signup outstanding), and to **Azure Government** specifically, given the FTI-style income data and Phase 5 health data (see below) |
+| Cloud target | **Databricks Free Edition, Azure Container Apps, and a live TMDL semantic model on Power BI Service all proven for real** (Phase 5 Tasks 1-2) — true Microsoft Fabric capacity specifically is blocked on this tenant by Microsoft's own 90-day new-tenant trial restriction, not attempted further; documented path to **Azure Government** remains, given the FTI-style income data and Phase 5 health data (see below) |
 
 ## Compliance & governance
 
