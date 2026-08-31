@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Any
 
 import httpx
 from deepeval.models.base_model import DeepEvalBaseLLM
@@ -134,6 +135,35 @@ def _should_give_up(is_last_attempt: bool, retryable: bool) -> bool:
     """True once further retries can't help: attempts are exhausted, or this
     failure was never retryable to begin with."""
     return is_last_attempt or not retryable
+
+
+def _extract_content(
+    payload: Any, schema: type[BaseModel] | None, is_last_attempt: bool
+) -> str | None:
+    """Interprets a 200 response's own JSON body -- OpenRouter's
+    200-with-error-body shape, or the real success/malformed-JSON content --
+    once `generate` already knows the HTTP exchange itself succeeded.
+    Returns the judge's content string, or `None` if this attempt should be
+    retried; raises once retries are exhausted, same as `generate`'s other
+    give-up paths."""
+    if "error" not in payload:
+        content: str = payload["choices"][0]["message"]["content"]
+        if schema is None or _parses_as_json_object(content):
+            return content
+        if is_last_attempt:
+            # The body verbatim: which provider ignored the schema, and
+            # whether it returned prose, a refusal, or truncated JSON, is
+            # the whole diagnosis, and is not recoverable from the CI log
+            # otherwise.
+            raise RuntimeError(
+                f"OpenRouter judge returned no loadable JSON for schema "
+                f"{schema.__name__} after {_MAX_ATTEMPTS} attempts: {content!r}"
+            )
+        return None
+    error = payload["error"]
+    if _should_give_up(is_last_attempt, error.get("code") in _RETRYABLE_ERROR_CODES):
+        raise RuntimeError(f"OpenRouter judge call failed: {error}")
+    return None
 
 
 class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
@@ -245,46 +275,32 @@ class OpenRouterJudgeModel(DeepEvalBaseLLM):  # type: ignore[no-untyped-call]
                 time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
                 continue
             payload = response.json()
-            if "error" not in payload:
-                content: str = payload["choices"][0]["message"]["content"]
-                # A *third* shape of "the upstream provider returned
-                # garbage", after the 200-with-error-body and the real
-                # non-2xx above -- and the one that reads least like an
-                # error, because everything about the HTTP exchange
-                # succeeded. Hit for real in run `32935635062`: all 8
-                # questions answered, then a judge call for
-                # `contextual_precision` came back 200 with a body that
-                # was not JSON, and DeepEval's `trimAndLoadJson` raised
-                # `ValueError: Evaluation LLM outputted an invalid JSON`
-                # -- discarding 19 minutes of completed work over one bad
-                # response out of roughly a dozen.
-                #
-                # Retrying is the right response for the same reason it is
-                # for the 404 documented above, not merely by analogy to
-                # it: `response_format: json_schema` with `strict: true` is
-                # already being sent, so a non-JSON body means the
-                # free-tier provider that served *this* attempt ignored it.
-                # OpenRouter routes `:free` requests to whichever provider
-                # endpoint is available at that instant, so the next
-                # attempt is a genuinely different roll rather than a
-                # deterministic repeat of the same one -- which is also why
-                # `temperature: 0` does not make this pointless.
-                if schema is None or _parses_as_json_object(content):
-                    return content
-                if is_last_attempt:
-                    # The body verbatim: which provider ignored the schema,
-                    # and whether it returned prose, a refusal, or truncated
-                    # JSON, is the whole diagnosis, and is not recoverable
-                    # from the CI log otherwise.
-                    raise RuntimeError(
-                        f"OpenRouter judge returned no loadable JSON for schema "
-                        f"{schema.__name__} after {_MAX_ATTEMPTS} attempts: {content!r}"
-                    )
-                time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
-                continue
-            error = payload["error"]
-            if _should_give_up(is_last_attempt, error.get("code") in _RETRYABLE_ERROR_CODES):
-                raise RuntimeError(f"OpenRouter judge call failed: {error}")
+            # A *third* shape of "the upstream provider returned garbage",
+            # after the 200-with-error-body and the real non-2xx above --
+            # and the one that reads least like an error, because
+            # everything about the HTTP exchange succeeded. Hit for real in
+            # run `32935635062`: all 8 questions answered, then a judge
+            # call for `contextual_precision` came back 200 with a body
+            # that was not JSON, and DeepEval's `trimAndLoadJson` raised
+            # `ValueError: Evaluation LLM outputted an invalid JSON` --
+            # discarding 19 minutes of completed work over one bad response
+            # out of roughly a dozen.
+            #
+            # Retrying is the right response for the same reason it is for
+            # the 404 documented above, not merely by analogy to it:
+            # `response_format: json_schema` with `strict: true` is already
+            # being sent, so a non-JSON body means the free-tier provider
+            # that served *this* attempt ignored it. OpenRouter routes
+            # `:free` requests to whichever provider endpoint is available
+            # at that instant, so the next attempt is a genuinely different
+            # roll rather than a deterministic repeat of the same one --
+            # which is also why `temperature: 0` does not make this
+            # pointless. `_extract_content` carries this interpretation
+            # (and the 200-with-error-body case) as its own function so
+            # this loop's own decision-point count stays legible.
+            content = _extract_content(payload, schema, is_last_attempt)
+            if content is not None:
+                return content
             time.sleep(_RETRY_BACKOFF_SECONDS * (attempt + 1))
         raise AssertionError("unreachable: the loop above always returns or raises")
 

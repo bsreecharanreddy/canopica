@@ -57,5 +57,33 @@
         </plugin>
       </plugins>
     </pluginManagement>
+    <plugins>
+      <!-- Cyclomatic-complexity gate (docs/STATUS.md, 2026-08-27 decision:
+           "yes, before Phase 4 wrap", folded in 2026-08-31 during the
+           public-repo-readiness pass, once Phase 4 had already wrapped
+           without it). Bound to verify, which ./mvnw -B verify (make
+           test, CI's java job) already runs, so no separate lint step or
+           CI change is needed. ${maven.multiModuleProjectDirectory} (a
+           Maven-3.3.1+ builtin) resolves to this root regardless of which
+           module (api, rules-engine) is actually building. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-pmd-plugin</artifactId>
+        <version>3.28.0</version>
+        <configuration>
+          <rulesets>
+            <ruleset>${maven.multiModuleProjectDirectory}/pmd-ruleset.xml</ruleset>
+          </rulesets>
+          <printFailingErrors>true</printFailingErrors>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 </project>

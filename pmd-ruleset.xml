@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="canopica"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>
+    Cyclomatic complexity only -- matches the manual audit's own McCabe
+    threshold (docs/STATUS.md, 2026-08-27: "above 10," not "at 10") and
+    ruff's C901/mccabe config on the Python side (ai/data-platform/worker
+    pyproject.toml). Deliberately narrow: PMD's full "design" category
+    covers many rules this project hasn't evaluated or agreed to yet, and
+    adding all of them silently along with this one would be undisclosed
+    scope creep, not the change this ruleset is for.
+  </description>
+
+  <rule ref="category/java/design.xml/CyclomaticComplexity">
+    <properties>
+      <!-- 11, not 10: PMD reports at complexity >= methodReportLevel, while
+           ruff's max-complexity (the Python side of this same gate) reports
+           at complexity > max-complexity. Confirmed live: PMD flagged a
+           real method at exactly 10 that ruff's equivalent semantics would
+           not have. 11 makes both tools agree on the manual audit's own
+           stated rule (docs/STATUS.md, 2026-08-27): "above 10," not "at
+           10." -->
+      <property name="methodReportLevel" value="11" />
+      <property name="classReportLevel" value="80" />
+    </properties>
+  </rule>
+
+</ruleset>

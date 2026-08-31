@@ -46,7 +46,12 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "SIM", "PL", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PL", "RUF", "C90"]
+
+[tool.ruff.lint.mccabe]
+# Matches the manual audit's own threshold (docs/STATUS.md, 2026-08-27):
+# "above 10," not "at 10" -- 11+ fails.
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["PLR2004"]
