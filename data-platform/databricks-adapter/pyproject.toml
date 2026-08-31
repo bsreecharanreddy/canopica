@@ -1,0 +1,30 @@
+# Isolated from data-platform/pyproject.toml on purpose: dbt-databricks
+# (every release checked, up to and including the 2.0.0rc1 prerelease)
+# caps dbt-core below 1.12.1, while the main project pins dbt-core>=1.12.3
+# for the DuckDB `local` target. The two adapters cannot share one lockfile
+# without downgrading dbt-core project-wide, which would touch the `local`
+# target and its tests -- something Phase 5's own implementation plan says
+# to leave untouched. Same isolated-venv-by-directory shape this repo
+# already uses for ai/'s Airflow BashOperator invocations.
+#
+# This project has no source of its own -- it exists only to give
+# `dbt build --target databricks` a compatible dbt-core + dbt-databricks
+# pair. It points at the *same* dbt project files as the main `local`
+# target (`../dbt/canopica_warehouse/`), not a copy:
+#
+#   cd databricks-adapter
+#   uv run dbt build --target databricks \
+#     --project-dir ../dbt/canopica_warehouse \
+#     --profiles-dir ../dbt/canopica_warehouse
+[project]
+name = "canopica-databricks-adapter"
+version = "0.1.0"
+description = "Isolated dbt-core/dbt-databricks pair for Phase 5's real Databricks dbt run"
+requires-python = ">=3.12"
+dependencies = [
+    "dbt-core==1.12.0",
+    "dbt-databricks==1.12.4",
+]
+
+[tool.uv]
+package = false

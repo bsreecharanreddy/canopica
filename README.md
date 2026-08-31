@@ -163,13 +163,25 @@ plainly rather than leaving a reader to discover:
   deductions/rules (asset test, child-support-paid deduction, homeless
   shelter deduction, ABAWD work requirements, broad-based categorical
   eligibility) aren't modeled, and household size is capped at 8.
-- **No real cloud deployment.** `infra/azure/` is reference Terraform
-  only — `validate`/`fmt`-clean in CI, never applied against a live
+- **Databricks now proven for real** (Phase 5 Task 1) — the existing dbt
+  project runs unmodified-in-logic against a real Databricks Free Edition
+  serverless SQL warehouse: `data-platform/databricks-adapter/` gives it
+  an isolated `dbt-core`/`dbt-databricks` pair (the two can't share this
+  project's main lockfile — every `dbt-databricks` release caps `dbt-core`
+  below what the DuckDB target needs), a small seeded bronze slice proves
+  the silver/gold chain end to end, and one real dialect gap
+  (`SIMILAR TO` isn't valid Databricks SQL; the shared PII-guard macro now
+  dispatches to `RLIKE` there) was found and fixed. Screenshots:
+  [`docs/cloud-demo/databricks-unity-catalog.png`](docs/cloud-demo/databricks-unity-catalog.png),
+  [`docs/cloud-demo/databricks-sql-result.png`](docs/cloud-demo/databricks-sql-result.png).
+- **Azure/Fabric still reference-only.** `infra/azure/` is reference
+  Terraform — `validate`/`fmt`-clean in CI, never applied against a live
   subscription; no state backend, no real secrets. See
   [`infra/azure/README.md`](infra/azure/README.md) for exactly what's
   modeled, what's deliberately absent (Keycloak/Metabase/the observability
   stack among them), and the `usgovcloud` swap this project can't
-  actually exercise itself (§ Compliance & governance below).
+  actually exercise itself (§ Compliance & governance below). A real
+  apply is Phase 5 Task 2, not yet done.
 
 Every one of these is a scoping decision, not an oversight — see the plan's
 own "Deferred out of Phase 1a, on purpose" list
@@ -191,7 +203,7 @@ production deployment.
 | Search / RAG | OpenSearch (hybrid lexical + vector) |
 | AI runtime | Local, self-hosted (Ollama) by default — $0 to clone and run |
 | Local infra | Docker Compose |
-| Cloud target | Documented path to Databricks / Azure Synapse / Microsoft Fabric — and to **Azure Government** specifically, given the FTI-style income data and Phase 5 health data (see below) |
+| Cloud target | **Databricks Free Edition proven for real** (Phase 5 Task 1) — documented path to Azure Synapse / Microsoft Fabric remains, and to **Azure Government** specifically, given the FTI-style income data and Phase 5 health data (see below) |
 
 ## Compliance & governance
 

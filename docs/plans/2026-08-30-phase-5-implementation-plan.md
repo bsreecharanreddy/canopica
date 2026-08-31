@@ -72,42 +72,57 @@ this plan, not assumed:**
 
 **Files:**
 - Modify: `data-platform/dbt/canopica_warehouse/profiles.yml` (+ a
-  `databricks` target)
-- Modify: `data-platform/pyproject.toml` (+ `dbt-databricks` adapter)
-- New: `docs/cloud-demo/databricks-*.png` (real screenshots)
+  `databricks` target), `dbt_project.yml` (+ target-gated seeds config),
+  `models/bronze/sources.yml` (+ per-target schema override),
+  `macros/is_pii_column.sql` (+ adapter dispatch)
+- New: `data-platform/databricks-adapter/` (isolated `dbt-core`/
+  `dbt-databricks` pair — **not** `data-platform/pyproject.toml` as
+  originally planned; see Step 2's note), `data-platform/dbt/
+  canopica_warehouse/seeds/bronze/*.csv`, `docs/cloud-demo/databricks-*.png`
+  (real screenshots)
 - Modify: `README.md` (the "Honest limitations" / tech-stack sections —
   from "documented, never applied" to "applied for real, screenshots
   below"), `docs/design/2026-08-21-tech-stack-and-production-tradeoffs.md`
   (record what actually ported and what didn't, honestly)
 
-- [ ] **Step 1: Sign up for Databricks Free Edition.** Portal-only, no
-      code — **needs the user directly**, not something to automate. While
-      there, confirm live what the serverless SQL warehouse / Unity
-      Catalog experience actually looks like — this resolves the one
-      unverified claim in "Starting point" item 4 above.
-- [ ] **Step 2: Add a `databricks` dbt profile target.** `dbt-databricks`
-      adapter, pointed at the Free Edition serverless SQL warehouse's HTTP
-      path + a real personal access token — the token lives in `.env`
-      (gitignored), same pattern every other credential in this project
-      already uses, never committed. Catalog/schema naming matches this
-      project's existing conventions.
-- [ ] **Step 3: Run `dbt build --target databricks` for real**, against a
-      small seeded slice (reuse the existing synthetic-data seed path, not
-      the full local warehouse — this is a proof of portability, not a
-      second production copy). Resolve whatever DuckDB → Databricks
-      SQL/Delta dialect differences actually surface; if something
-      genuinely doesn't port cleanly, that's a real, honestly-recorded
-      finding for Step 5, not something to paper over.
-- [ ] **Step 4: Capture real screenshots.** Unity Catalog showing the
-      built tables, and a query result against one real gold mart (e.g.
-      `mart_determination_outcomes`) run from the Databricks SQL editor.
-- [ ] **Step 5: Record the real result.** `docs/STATUS.md`'s verification
-      log, the tradeoffs doc (a `≈`/`~` fidelity mark for "runs on the
-      real target platform, under free-tier limits" is now backed by
-      evidence, not aspiration), and the README screenshot section — all
-      including anything that needed a workaround, not just the success
-      path. `make test`/`make lint` still fully green (this task is
-      additive; the `local` target's own behavior doesn't change).
+- [x] **Step 1: Sign up for Databricks Free Edition.** Done by the user
+      directly. Resolved the plan's own flagged unknown: the serverless SQL
+      warehouse works, but only with an isolated dbt-core/dbt-databricks
+      pair — see Step 2.
+- [x] **Step 2: Add a `databricks` dbt profile target.** Done, but not as
+      planned: adding `dbt-databricks` to `data-platform/pyproject.toml`
+      directly is impossible — every `dbt-databricks` release (checked
+      through the `2.0.0rc1` prerelease) caps `dbt-core` below `1.12.1`,
+      while this project's DuckDB `local` target already pins `1.12.3`. A
+      real, unresolvable version conflict, not a dialect issue. Fixed with
+      a dedicated `data-platform/databricks-adapter/` project (isolated
+      venv, `dbt-core==1.12.0` + `dbt-databricks==1.12.4`), the same
+      isolated-venv-by-directory shape already used for `ai/`'s Airflow
+      `BashOperator`s. Token lives in `.env` (gitignored), as planned.
+- [x] **Step 3: Run `dbt build --target databricks` for real.** Done, with
+      one further real correction: bronze's `source()` sourcing depends on
+      a `dbt-duckdb`-only feature (`meta.external_location`/`delta_scan`)
+      with no cross-adapter equivalent — "reuse the existing synthetic-data
+      seed path" became a real, small, hand-built `dbt seed` slice
+      (target-gated so `local` is provably untouched), not the synthetic
+      generator itself. One genuine dialect gap found and fixed:
+      `is_pii_column`'s `SIMILAR TO` isn't valid Databricks SQL at all
+      (parser syntax error, not a behavior difference) — dispatches to
+      `RLIKE` there now, `local`'s output verified byte-identical.
+      **Result**: 4 tables, 45 tests, PASS=51 ERROR=0, real numbers
+      matching the seed exactly. See STATUS.md's verification log for the
+      full account.
+- [x] **Step 4: Capture real screenshots.** Done —
+      `docs/cloud-demo/databricks-unity-catalog.png`,
+      `databricks-sql-result.png`, `databricks-sql-result-scrolled-right.png`.
+- [x] **Step 5: Record the real result.** Done — STATUS.md, the tradeoffs
+      doc (Transformation and Compute-engine rows), and README all updated
+      in this task's commit with the real, verified result, including both
+      real workarounds (isolated adapter env, seeded bronze) — not just the
+      success path. `make test`/`make lint` confirmed still green (this
+      task is additive; the `local` target's own behavior is unchanged,
+      proven via `dbt list --resource-type seed --target local` returning
+      zero nodes and a byte-identical PII-macro compile).
 
 ## Task 2: Azure free trial + Microsoft Fabric — a real Terraform apply
 

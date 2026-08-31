@@ -7,6 +7,7 @@ profile: canopica_warehouse
 model-paths: ["models"]
 macro-paths: ["macros"]
 test-paths: ["tests"]
+seed-paths: ["seeds"]
 
 clean-targets:
   - "target"
@@ -32,3 +33,62 @@ models:
     semantic:
       +materialized: table
       +schema: semantic
+
+# Phase 5 Task 1: a small representative bronze slice, run only via
+# `dbt seed --target databricks`, never against `local` -- the local
+# DuckDB target's own bronze resolution stays exactly as it is
+# (sources.yml's meta.external_location/delta_scan, untouched by this
+# block). Since source('bronze', 'x') resolves by schema/table name alone,
+# seeding real tables named and shaped like the bronze ones is enough for
+# every existing silver model to work unmodified against the databricks
+# target -- no model file needed to change. column_types are explicit to
+# avoid Spark CSV-inference surprises (a numeric read as a string, a
+# timestamp misparsed).
+#
+# +enabled is target-conditional on purpose: adding seed-paths makes a
+# plain `dbt build` (what CI/Airflow's `local` target actually runs)
+# execute seeds by default too, which would otherwise try to materialize
+# a real `bronze.*` table right where dbt-duckdb's own external_location
+# mechanism already creates its own bronze objects for `local` -- a
+# collision this project's "the local target stays untouched" starting
+# point (Phase 5's implementation plan) rules out.
+seeds:
+  canopica_warehouse:
+    +enabled: "{{ target.name == 'databricks' }}"
+    +schema: bronze
+    bronze:
+      policy_parameter_set:
+        +column_types:
+          id: string
+          program_code: string
+          version_label: string
+          effective_from: date
+          effective_to: date
+          source_citation: string
+          retrieved_on: date
+          published_at: timestamp
+          _ingested_at: timestamp
+      program_request:
+        +column_types:
+          id: string
+          application_id: string
+          program_code: string
+          status: string
+          requested_on: date
+          is_expedited: boolean
+          created_at: timestamp
+          _ingested_at: timestamp
+      eligibility_determination:
+        +column_types:
+          id: string
+          program_request_id: string
+          benefit_month: date
+          as_of_date: date
+          eligible: boolean
+          benefit_amount: "decimal(12,2)"
+          reason_code: string
+          policy_parameter_set_id: string
+          policy_parameter_version: string
+          decided_at: timestamp
+          decided_by: string
+          _ingested_at: timestamp

@@ -8,6 +8,17 @@ sources:
       here (roadmap §3.4.2) -- duplicates across ingestion batches are
       expected; silver deduplicates on the natural key and the latest
       _ingested_at.
+    # Phase 5 Task 1: sources aren't schema-prefixed by generate_schema_name
+    # the way models are, so they resolve to this literal value -- for
+    # `local` that's the unchanged default (this source's own name,
+    # "bronze"). For `databricks`, dbt_project.yml's seeds config sets
+    # +schema: bronze on a `+schema: canopica_warehouse` target, and
+    # dbt's default generate_schema_name concatenates the two
+    # ("canopica_warehouse_bronze", confirmed against the real seed run's
+    # own log) -- this override points source() at that same literal
+    # schema so every existing silver model resolves correctly with no
+    # change to the model files themselves.
+    schema: "{{ 'canopica_warehouse_bronze' if target.name == 'databricks' else 'bronze' }}"
     meta:
       external_location: "delta_scan('{{ env_var('CANOPICA_WAREHOUSE_ROOT', '../../warehouse') }}/bronze/{name}')"
     tables:

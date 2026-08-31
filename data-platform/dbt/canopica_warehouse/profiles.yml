@@ -4,6 +4,12 @@
 # dbt/canopica_warehouse && dbt build`); the ingestion CLI and CI both set
 # CANOPICA_WAREHOUSE_ROOT/CANOPICA_DUCKDB_PATH explicitly so they aren't sensitive to
 # the caller's own working directory.
+#
+# `databricks` (Phase 5 Task 1): a real free-tier serverless SQL warehouse,
+# run only from data-platform/databricks-adapter/'s isolated dbt-core +
+# dbt-databricks venv (see that directory's own pyproject.toml comment for
+# why it's isolated). Credentials come from .env (gitignored, same pattern
+# every other credential in this project uses), never committed here.
 canopica_warehouse:
   target: local
   outputs:
@@ -12,4 +18,12 @@ canopica_warehouse:
       path: "{{ env_var('CANOPICA_DUCKDB_PATH', '../../warehouse/canopica.duckdb') }}"
       schema: main
       extensions: [delta]
+      threads: 4
+    databricks:
+      type: databricks
+      host: "{{ env_var('CANOPICA_DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('CANOPICA_DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('CANOPICA_DATABRICKS_TOKEN') }}"
+      catalog: "{{ env_var('CANOPICA_DATABRICKS_CATALOG', 'canopica') }}"
+      schema: "{{ env_var('CANOPICA_DATABRICKS_SCHEMA', 'canopica_warehouse') }}"
       threads: 4
