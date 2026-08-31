@@ -135,33 +135,40 @@ this plan, not assumed:**
 - Modify: `README.md`, `docs/STATUS.md`,
   `docs/design/2026-08-21-tech-stack-and-production-tradeoffs.md`
 
-- [ ] **Step 1: Confirm the real subscription state first.** Portal check
+- [x] **Step 1: Confirm the real subscription state first.** Portal check
       — a fresh free-trial signup or the existing CI-runner subscription's
       remaining credit/days — don't assume either. **Needs the user's
-      direct confirmation before anything is applied.**
-- [ ] **Step 2: `terraform plan`, reviewed, then `terraform apply` for
+      direct confirmation before anything is applied.** Done — confirmed
+      via `az account subscription show` (`quotaId: FreeTrial_2014-09-01`).
+- [x] **Step 2: `terraform plan`, reviewed, then `terraform apply` for
       real.** This is the plan's one real-money step — explicit go-ahead
-      required at execution time, per this doc's own header.
-- [ ] **Step 3: Capture real screenshots.** The resource group overview,
+      required at execution time, per this doc's own header. Done, staged
+      (resource group/ACR first, then images, then full apply).
+- [x] **Step 3: Capture real screenshots.** The resource group overview,
       the running Container Apps, the Postgres Flexible Server — proof the
       infra genuinely provisions, not just `validate`/`fmt`-clean in CI.
-- [ ] **Step 4: Destroy immediately after capturing screenshots, same
+      Done — `docs/cloud-demo/azure-*.png` (7 images), PII-redacted.
+- [x] **Step 4: Destroy immediately after capturing screenshots, same
       session.** `terraform destroy`, then confirm in the portal that
       nothing continuously-billed remains. **Not deferred, not "later" —**
       Postgres Flexible Server and Container Apps both bill continuously
-      with no deallocate state, unlike a VM.
+      with no deallocate state, unlike a VM. Done — confirmed via
+      `az group exists` (`false`) and `terraform state list` (empty).
 - [ ] **Step 5: Separately, sign up for the Microsoft Fabric free trial**
       (60 days, no credit card — a distinct signup from the Azure trial,
       per "Starting point" item 5) and capture one real screenshot of the
       existing TMDL semantic model (`reporting/semantic-model/`) published
       to / viewed in Fabric.
-- [ ] **Step 6: Record the real result.** `docs/STATUS.md`'s verification
+- [x] **Step 6: Record the real result.** `docs/STATUS.md`'s verification
       log, the tradeoffs doc, and the README — screenshots plus what was
       actually observed, including any real gap the live apply found
       (e.g. anything that doesn't work without Keycloak/Metabase, already
       an accepted, documented limitation — confirm it stays accurately
       described, don't silently overstate what the demo proves). Full
-      suite still green.
+      suite still green. Done for Steps 1-4's real gaps (region capacity,
+      firewall, extension allow-list, nginx DNS, Airflow init, Key Vault
+      RBAC teardown) — this row will be revisited once Step 5 (Fabric)
+      also has a real result to record.
 
 ---
 

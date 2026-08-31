@@ -62,7 +62,7 @@ resource "azurerm_key_vault_secret" "postgres_admin_password" {
 resource "azurerm_postgresql_flexible_server" "this" {
   name                = "${local.name_prefix}-psql"
   resource_group_name = azurerm_resource_group.this.name
-  location            = azurerm_resource_group.this.location
+  location            = coalesce(var.postgres_location, azurerm_resource_group.this.location)
   version             = "16"
 
   # Public access, no delegated subnet/private DNS zone -- a real
@@ -80,6 +80,43 @@ resource "azurerm_postgresql_flexible_server" "this" {
   sku_name     = "B_Standard_B1ms"
 
   tags = var.tags
+
+  # Azure auto-assigns an availability zone at create time; this config
+  # never sets one, but the provider still surfaces it as drift on every
+  # later plan and rejects the resulting "change" outright (found live,
+  # Phase 5 Task 2's real apply: "`zone` can only be changed when
+  # exchanged with... `standby_availability_zone`") since a zone-only
+  # change isn't actually a valid operation without also touching HA.
+  lifecycle {
+    ignore_changes = [zone]
+  }
+}
+
+# `public_network_access_enabled` above only turns the *feature* on --
+# found live, Phase 5 Task 2's real apply: with zero firewall rules, the
+# Container Apps below could not reach Postgres at all (HikariCP hung on
+# every connection attempt, Spring Boot's startup timed out, the JVM
+# exited, Container Apps reported the revision as crash-looping). This
+# rule is Azure's documented convention for "allow any Azure service" --
+# the same shape a real deployment would tighten into VNet integration +
+# private endpoints (already-documented absent, see README.md), not a
+# new gap this fix introduces.
+resource "azurerm_postgresql_flexible_server_firewall_rule" "azure_services" {
+  name             = "allow-azure-services"
+  server_id        = azurerm_postgresql_flexible_server.this.id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "0.0.0.0"
+}
+
+# Found live, same apply: `V6__audit_event.sql`'s real Flyway migration
+# runs `create extension if not exists pgcrypto` (the audit chain's
+# hashing) -- Azure Postgres Flexible Server rejects any extension not
+# explicitly allow-listed on the server first, even for the admin login,
+# a platform-specific gate self-hosted Postgres has no equivalent of.
+resource "azurerm_postgresql_flexible_server_configuration" "allowed_extensions" {
+  name      = "azure.extensions"
+  server_id = azurerm_postgresql_flexible_server.this.id
+  value     = "pgcrypto"
 }
 
 # One server, three databases -- same shape as postgres/init's real
@@ -245,6 +282,17 @@ resource "azurerm_container_app" "ui" {
       image  = var.ui_image
       cpu    = 0.25
       memory = "0.5Gi"
+
+      # Found live, Phase 5 Task 2's real apply: nginx.conf.template's
+      # default (Docker Compose's "api:8080") doesn't resolve here --
+      # Container Apps addresses a sibling app by its own resource name
+      # (no port; ingress already knows the target port). Without this,
+      # nginx fails its own config parse at startup and the container
+      # never comes up at all (`host not found in upstream "api"`).
+      env {
+        name  = "API_UPSTREAM"
+        value = azurerm_container_app.api.name
+      }
     }
   }
 

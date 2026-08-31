@@ -16,6 +16,12 @@ variable "location" {
   default     = "eastus"
 }
 
+variable "postgres_location" {
+  description = "Region for the Postgres Flexible Server specifically, separate from var.location. Found live during Phase 5 Task 2's real apply: a fresh Azure Free Trial subscription can have zero Postgres Flexible Server SKU capacity in an otherwise-normal region (confirmed via `az postgres flexible-server list-skus --location eastus` returning an empty list, a 400 ParameterOutOfRange at apply time, not a config mistake) while neighboring regions (centralus, westus3, northeurope, checked live) have it -- a subscription-level capacity quirk, not something a real production subscription would hit. Defaults to var.location so this config's normal behavior is unchanged; override only if the same gap resurfaces."
+  type        = string
+  default     = null
+}
+
 variable "postgres_admin_login" {
   description = "Administrator login for the Postgres Flexible Server. The password is generated (random_password.postgres_admin in main.tf), never a literal here."
   type        = string

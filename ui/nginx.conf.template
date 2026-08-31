@@ -1,0 +1,34 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # No path rewrite: proxy_pass with no URI component of its own forwards
+    # the original request path unchanged, and every api endpoint
+    # already lives under /api (see IntakeController/WorkerCaseController's
+    # own @RequestMapping paths), so /api/... in stays /api/... out.
+    #
+    # ${API_UPSTREAM} rather than a literal host:port -- this file is a
+    # `.template` (nginx:alpine's own docker-entrypoint.d/20-envsubst-on-
+    # templates.sh substitutes it at container start, restricted to
+    # currently-set env vars, so nginx's own $host/$remote_addr below are
+    # untouched). Found live, Phase 5 Task 2's real Azure apply: Docker
+    # Compose's own DNS resolves the literal name "api", but Azure
+    # Container Apps has no such alias -- apps in the same environment
+    # address each other by the container app's own resource name
+    # instead (Microsoft Learn, "Communicate between container apps").
+    # Dockerfile's own ENV default keeps Compose's "api:8080" unchanged.
+    location /api/ {
+        proxy_pass http://${API_UPSTREAM};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Client-side routed SPA (react-router-dom) -- unknown paths fall back
+    # to index.html rather than 404ing.
+    location / {
+        try_files $uri /index.html;
+    }
+}

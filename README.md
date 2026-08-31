@@ -4,9 +4,13 @@
 
 A portfolio project demonstrating a deterministic, auditable decision
 system — the kind where every dollar amount has to be explainable and
-reproducible — with an AI capability layer built on top of that core.
-Applied here to benefits eligibility: a Java/Spring API + React UI, a
-business-rules engine, a governed data platform, BI reporting.
+reproducible — with an AI capability layer built on top of that core: a
+Java/Spring API + React UI, a DMN rules engine (Drools/KIE), a governed
+bronze/silver/gold data platform (dbt, Airflow, Delta Lake, real cloud
+deployments on Databricks and Azure), BI reporting as code, and an AI
+layer built as fixed, auditable pipelines rather than an open-ended
+agent. Applied to benefits eligibility as the vehicle for exercising
+that architecture end to end, not as the point of the project.
 
 > Independent project inspired by publicly documented patterns in how
 > state health & human services eligibility systems generally work. Not
@@ -18,11 +22,12 @@ business-rules engine, a governed data platform, BI reporting.
 
 Most portfolio projects are a CRUD app and a README. This one is an
 attempt at something closer to what an actual senior/staff engineering
-hire looks like on this kind of system: real (public) policy parameters
-instead of invented ones, a rules engine instead of nested conditionals,
-a governed lakehouse-style data platform instead of a raw dump into
-Postgres, and an AI layer that is explicit and disciplined about where AI
-belongs in a high-stakes decision system — and where it very much doesn't.
+hire looks like: real (public) source data instead of invented fixtures,
+a rules engine instead of nested conditionals, a governed lakehouse-style
+data platform instead of a raw dump into Postgres, real deployments to
+two different clouds instead of Terraform nobody ever ran, and an AI
+layer that is explicit and disciplined about where AI belongs in a
+decision system — and where it very much doesn't.
 
 **Built to be read by hiring managers/engineers for**: senior Data
 Scientist, Forward Deployed Engineer, Data/Analytics Engineering, BI &
@@ -36,17 +41,17 @@ rules engine, scheduled pipeline jobs — and human reviewers own every
 binding decision, every scheduled operation, and every dollar amount.**
 
 This isn't a slogan. It's the direct answer to a well-documented failure
-mode in exactly this domain: automated systems that auto-adjudicated
-fraud or eligibility with no human in the loop have caused real harm and
-real litigation in more than one real government benefits system. Every
-AI feature in this repo is scoped to stay on the "assists" side of that
-line — see the design docs for how that plays out component by component.
+mode in automated decision systems generally: letting a model own a
+binding, high-stakes decision with no human in the loop is a real,
+litigated failure pattern, not a hypothetical one. Every AI feature in
+this repo is scoped to stay on the "assists" side of that line — see the
+design docs for how that plays out component by component.
 
 ## Architecture, at a glance
 
 ```mermaid
 flowchart TB
-    A["React UI\n(citizen · worker)"]
+    A["React UI\n(role-based access)"]
 
     subgraph core["System of record — deterministic, auditable"]
         direction LR
@@ -104,9 +109,9 @@ Then:
 
 | | |
 |---|---|
-| Web UI (citizen/worker) | <http://localhost:3000> |
+| Web UI (role-based access) | <http://localhost:3000> |
 | API health | <http://localhost:8080/actuator/health> |
-| Metabase ("SNAP determinations" dashboard) | <http://localhost:3001> |
+| Metabase (determinations dashboard) | <http://localhost:3001> |
 
 `make seed` only exercises the customer-facing intake path (submitting an
 application) — it deliberately never runs a determination, since that's a
@@ -159,10 +164,11 @@ metrics), and reference Terraform for Azure — has already closed several
 of its original gaps. What's still deliberately thin is worth stating
 plainly rather than leaving a reader to discover:
 
-- **A narrow rules-engine scope.** SNAP only, one program; several real
-  deductions/rules (asset test, child-support-paid deduction, homeless
-  shelter deduction, ABAWD work requirements, broad-based categorical
-  eligibility) aren't modeled, and household size is capped at 8.
+- **A narrow rules-engine scope.** One program modeled end to end, not
+  the full breadth of real-world eligibility rules a production system
+  would carry, and household size is capped at 8 — the point of this
+  repo is the rules-engine/audit/pipeline architecture underneath, not
+  exhaustive policy coverage (see Phase 5's scope note below).
 - **Databricks now proven for real** (Phase 5 Task 1) — the existing dbt
   project runs unmodified-in-logic against a real Databricks Free Edition
   serverless SQL warehouse: `data-platform/databricks-adapter/` gives it
@@ -174,14 +180,29 @@ plainly rather than leaving a reader to discover:
   dispatches to `RLIKE` there) was found and fixed. Screenshots:
   [`docs/cloud-demo/databricks-unity-catalog.png`](docs/cloud-demo/databricks-unity-catalog.png),
   [`docs/cloud-demo/databricks-sql-result.png`](docs/cloud-demo/databricks-sql-result.png).
-- **Azure/Fabric still reference-only.** `infra/azure/` is reference
-  Terraform — `validate`/`fmt`-clean in CI, never applied against a live
-  subscription; no state backend, no real secrets. See
-  [`infra/azure/README.md`](infra/azure/README.md) for exactly what's
-  modeled, what's deliberately absent (Keycloak/Metabase/the observability
-  stack among them), and the `usgovcloud` swap this project can't
-  actually exercise itself (§ Compliance & governance below). A real
-  apply is Phase 5 Task 2, not yet done.
+- **Azure now proven for real too** (Phase 5 Task 2) — `infra/azure/`'s
+  reference Terraform was applied for real against a live Free Trial
+  subscription: resource group, Key Vault, Postgres Flexible Server,
+  Log Analytics, a Container Registry, and all four Container Apps
+  (`api`, `ui`, `airflow-webserver`, `airflow-scheduler`), every one
+  confirmed genuinely `Running`/healthy by hitting its real public
+  health endpoint, not just "created." Five real gaps the `validate`-only
+  history never exercised were found and fixed live: Postgres SKU
+  capacity missing in the default region, a Postgres server with no
+  firewall rule at all (public access enabled ≠ reachable), an
+  unlisted database extension Azure's managed Postgres gates that
+  self-hosted Postgres doesn't, `ui`'s nginx config hardcoding Docker
+  Compose's own service DNS name, and Airflow's metadata database never
+  being initialized (no init job in this reference config). See
+  [`infra/azure/README.md`](infra/azure/README.md) for what's modeled and
+  what's deliberately absent (Keycloak/Metabase/the observability stack
+  among them) and the `usgovcloud` swap this project can't actually
+  exercise itself (§ Compliance & governance below). Screenshots:
+  [`docs/cloud-demo/azure-resource-group.png`](docs/cloud-demo/azure-resource-group.png),
+  [`docs/cloud-demo/azure-container-apps-environment.png`](docs/cloud-demo/azure-container-apps-environment.png).
+  Torn down immediately after screenshots, same session — nothing from
+  this apply is left running. Fabric's own trial signup (Task 2 Step 5)
+  is still outstanding.
 
 Every one of these is a scoping decision, not an oversight — see the plan's
 own "Deferred out of Phase 1a, on purpose" list
@@ -203,7 +224,7 @@ production deployment.
 | Search / RAG | OpenSearch (hybrid lexical + vector) |
 | AI runtime | Local, self-hosted (Ollama) by default — $0 to clone and run |
 | Local infra | Docker Compose |
-| Cloud target | **Databricks Free Edition proven for real** (Phase 5 Task 1) — documented path to Azure Synapse / Microsoft Fabric remains, and to **Azure Government** specifically, given the FTI-style income data and Phase 5 health data (see below) |
+| Cloud target | **Databricks Free Edition and Azure Container Apps both proven for real** (Phase 5 Tasks 1-2) — documented path to Microsoft Fabric remains (trial signup outstanding), and to **Azure Government** specifically, given the FTI-style income data and Phase 5 health data (see below) |
 
 ## Compliance & governance
 
