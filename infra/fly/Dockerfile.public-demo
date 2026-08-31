@@ -22,30 +22,50 @@
 # only links libc/libstdc++/libm/libpthread/libdl/libresolv, all
 # present; uv successfully installs a managed Python 3.12 here too.
 #
-# **Known local-verification gap, root-caused not guessed (2026-08-26)**:
-# `docker build` succeeds reliably (real corpus indexing, real reranker
-# model deployment, confirmed across multiple builds), but a fresh
-# `docker run` of the *built* image fails at OpenSearch startup on this
-# Docker-Desktop-for-Mac host with `AlreadyClosedException: Underlying
-# file changed by an external force` on `node.lock`. Isolated to the
-# environment, not this Dockerfile: reproduced identically using the
-# 100% vanilla, unmodified `opensearchproject/opensearch:2.19.6` image
-# with zero customization -- `docker run` it, let it index anything,
-# `docker commit` it, then `docker run` a fresh container from that
-# image hits the exact same exception. This is a documented Lucene
-# `NativeFSLockFactory` incompatibility with certain virtualized/
-# networked filesystems (NFS, GlusterFS, and Docker Desktop for Mac's
-# own file-sharing backend all have open reports of this exact message);
-# it does not reproduce on a genuinely new container from a genuinely
-# fresh image (only on baked-in-then-rerun data), and Fly.io machines
-# run real Linux (Firecracker microVMs, native block storage), not this
-# virtualization layer -- the same class of gap CLAUDE.md already
-# accepts for `TESTCONTAINERS_RYUK_DISABLED` (a Docker-Desktop-for-macOS-
-# specific bug unrelated to what actually runs in CI/production).
-# **Not yet verified**: a real `docker run` end-to-end request against
-# this image, on this machine. Real verification happens at Step 7's
-# live Fly.io smoke check, on real infrastructure -- see
-# `docs/STATUS.md`'s verification log for this same finding.
+# **Corrected 2026-08-31 -- the 2026-08-26 diagnosis below was wrong
+# about *why*, even though its own negative-control test was real.**
+# That test (100% vanilla `opensearchproject/opensearch:2.19.6`,
+# `docker run` -> index -> `docker commit` -> fresh `docker run`, same
+# crash) correctly proved this Dockerfile's own customizations weren't
+# the cause -- but it only ever ran on one host (Docker Desktop for Mac),
+# so "environment-specific" was an inference the test never actually
+# isolated, not a finding it demonstrated. Re-run for real on a genuine
+# Linux Docker host (this repo's own sandboxed dev environment,
+# `docker version --format '{{.Server.Os}}'` = `linux`, not Docker
+# Desktop virtualization) as part of the real Fly deploy's own
+# pre-deploy verification: **identical crash**, same exception. The real
+# root cause was always the build-time RUN step below silently
+# no-op'ing: it deletes `node.lock` with `find ... -delete`, but this
+# image's Amazon Linux 2023 base has no `find` binary at all (confirmed
+# via `docker run --entrypoint sh ... which find` -> not found) -- so no
+# lock file was ever actually removed, on any host, the whole time. A
+# stale lock file baked into an image and then opened by a *new*
+# OpenSearch process trips Lucene's `NativeFSLockFactory` tamper check
+# regardless of the underlying filesystem; it was never a virtualized/
+# networked-filesystem incompatibility (NFS/GlusterFS/Docker-Desktop-for-
+# Mac), that framing fit the one data point available at the time but
+# wasn't re-tested before being written down as the conclusion. **A
+# second, independent gap found the same way, not guessed at**: even a
+# working `find -name node.lock -delete` would only have caught the one
+# top-level `node.lock` -- the real data directory also carries a
+# `write.lock` per Lucene index/shard directory (7+ of them for this
+# corpus) plus one under `_state/`, all left over from the same
+# build-time indexing run, and any *one* of them left behind reproduces
+# the identical exception. Fixed by replacing the `find` command with
+# `uv run --no-dev python -c "..."` (Python is already proven working in
+# this exact RUN step two lines above -- reusing it instead of adding a
+# new system package dependency) doing a recursive
+# `pathlib.Path(...).rglob('*.lock')` delete, catching every lock file
+# by pattern rather than one hardcoded name. **Fully verified locally
+# before trusting it**: rebuilt on the same Linux Docker host, confirmed
+# zero `*.lock` files remain, then a real `docker run` against port
+# 8000 -- OpenSearch reaches `started`/cluster health `YELLOW` cleanly
+# (no `AlreadyClosedException`), Uvicorn serves, and a real
+# `POST /demo/ask` against the real OpenRouter API (not a fake key)
+# returned a correct, grounded, cited answer end to end. Real
+# verification against actual Fly.io infrastructure still happens at
+# Step 7's live smoke check -- see `docs/STATUS.md`'s verification log
+# for the full record of the original misdiagnosis and both fixes.
 
 # A separate stage, not a direct COPY --from=ollama/ollama, so the
 # ~3.5GB of GPU runtime libraries (cuda_jetpack5/6, cuda_v12/v13) never
@@ -174,7 +194,7 @@ RUN /usr/local/bin/ollama serve & \
     INDEX_EXIT=$? ; \
     kill "$OLLAMA_PID" "$OPENSEARCH_PID" ; \
     wait "$OLLAMA_PID" "$OPENSEARCH_PID" 2>/dev/null ; \
-    find /usr/share/opensearch/data -name node.lock -delete ; \
+    uv run --no-dev python -c "import pathlib; [p.unlink() for p in pathlib.Path('/usr/share/opensearch/data').rglob('*.lock')]" ; \
     exit "$INDEX_EXIT"
 
 COPY --chown=opensearch:opensearch infra/fly/public-demo-entrypoint.sh /usr/local/bin/public-demo-entrypoint.sh

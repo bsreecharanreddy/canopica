@@ -12,12 +12,23 @@
 #
 #   fly deploy --config infra/fly/fly.toml
 #
-# `[build].dockerfile` below is resolved relative to that same build
-# context (the working directory `fly deploy` is run from), not relative
-# to this file's own location -- verified against Fly's docs and
-# community reports before relying on it, since the opposite assumption
-# is a documented, easy-to-hit mistake for a Dockerfile that isn't at
-# the fly.toml's own path.
+# `[build].dockerfile` below is a bare filename, resolved relative to
+# THIS file's own directory -- the opposite of what an earlier version of
+# this comment claimed (that it resolves relative to the build context).
+# Live-verified wrong on flyctl v0.4.95 (2026-08-31, first real deploy
+# attempt): a context-relative path here doubles into a nonexistent
+# `infra/fly/infra/fly/Dockerfile.public-demo`, reproduced with the
+# dockerfile value set every way flyctl allows (relative/absolute
+# `--config`, `--dockerfile` flag, an explicit `WORKING_DIRECTORY`
+# positional) -- all of them still resolved the dockerfile path against
+# this file's own directory. The build *context* (what `COPY` sees) is
+# still the repo root regardless -- confirmed live: a `--build-only` run
+# right after this fix reported the correct 264MB repo-root context
+# (`ai/`, `data-platform/`, `worker/` listed) and the build actually
+# reached and ran the Dockerfile's own `COPY` instructions, not just
+# past the "file not found" error. Dockerfile location and build context
+# are independent settings in this flyctl version, unlike what the
+# original comment assumed.
 #
 # Before the first real deploy: `fly secrets set
 # CANOPICA_OPENROUTER_API_KEY=...` -- never put that key in this file,
@@ -27,7 +38,7 @@ app = "canopica-policy-demo"
 primary_region = "iad"
 
 [build]
-  dockerfile = "infra/fly/Dockerfile.public-demo"
+  dockerfile = "Dockerfile.public-demo"
 
 [http_service]
   internal_port = 8000
