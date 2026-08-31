@@ -133,8 +133,7 @@ def ensure_model_group(client: OpenSearch) -> str:
 
 def ensure_reranker_model(client: OpenSearch, model_group_id: str) -> str:
     """Returns the pinned cross-encoder's model_id, registering it first if
-    this group has no copy of it yet and deploying it if the copy it has
-    isn't loaded.
+    this group has no copy of it yet, and always (re)deploying it.
 
     Registration and deployment are deliberately two separate decisions.
     An earlier version asked one question -- "is there a DEPLOYED copy?" --
@@ -146,7 +145,25 @@ def ensure_reranker_model(client: OpenSearch, model_group_id: str) -> str:
     copy of a ~90MB model rather than redeploying the one already there,
     adding heap pressure to a cluster that just ran out of it. CI cannot
     catch this -- its OpenSearch volume is created fresh every run, so
-    there is never a second run to be wrong about."""
+    there is never a second run to be wrong about.
+
+    Deploying is unconditional, not gated on the persisted `model_state`
+    field, for a real, live-found reason (2026-08-31, first Fly.io smoke
+    test): `model_state` is written into the model's metadata document,
+    which -- like the rest of the OpenSearch data directory -- is baked
+    into this image at build time and persists across a fresh process
+    start. "DEPLOYED" is exactly what it reads after the build-time
+    indexing run deployed the model, and it stays "DEPLOYED" forever
+    after, regardless of whether the *current* process has actually
+    loaded the model into its own memory -- which a brand new process
+    never has. Trusting that field skipped the real `_deploy()` call
+    entirely on every fresh container start, so the very first real
+    request failed with "Model not ready yet." `_deploy()` on a model
+    already loaded in the current process is cheap and safe to call
+    every time -- confirmed live (a second real `_deploy` call against an
+    already-deployed model completed in ~30ms, versus ~40s for the first
+    real deploy), so there is no meaningful cost to calling it
+    unconditionally instead of trying to predict whether it's needed."""
     search_response = _request(
         client,
         "POST",
@@ -164,10 +181,7 @@ def ensure_reranker_model(client: OpenSearch, model_group_id: str) -> str:
     )
     hits = search_response.get("hits", {}).get("hits", [])
     if hits:
-        model_id = str(hits[0]["_id"])
-        if hits[0].get("_source", {}).get("model_state") == "DEPLOYED":
-            return model_id
-        return _deploy(client, model_id)
+        return _deploy(client, str(hits[0]["_id"]))
 
     register_task = _request(
         client,

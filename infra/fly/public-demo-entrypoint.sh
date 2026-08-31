@@ -25,4 +25,19 @@ for _ in $(seq 1 60); do
 done
 
 cd /usr/share/opensearch/public-demo/ai
+
+# Live-found gap (2026-08-31, first real Fly.io smoke test): the reranker
+# model's *registration* survives into this image (baked in at build
+# time, persisted as documents in .plugins-ml-model), but ml-commons
+# "deployed" state is a live JVM in-memory allocation with no on-disk
+# representation at all -- it cannot survive the build-time OpenSearch
+# process being killed and a fresh one starting here. Without this call,
+# the first real request fails with "Model not ready yet. Please deploy
+# the model first." search_pipeline.py's setup() is already written to
+# be idempotent ("safe to re-run against an already-configured
+# cluster") -- it detects the model is already registered and only
+# (re)deploys it, so this costs a few seconds on every boot rather than
+# repeating the indexing work.
+uv run --no-dev python -m canopica_ai.policy_intelligence.corpus.search_pipeline
+
 exec uv run --no-dev --frozen uvicorn canopica_ai.public_demo.app:app --host 0.0.0.0 --port 8000

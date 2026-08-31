@@ -99,13 +99,28 @@ class TestMlCommonsSettings:
 
 
 class TestReRankerModelIsRegisteredOnce:
-    def test_an_already_deployed_reranker_is_reused(self) -> None:
+    def test_a_reranker_marked_deployed_is_reused_not_re_registered_but_still_redeployed(
+        self,
+    ) -> None:
+        """The real bug this test was added for (2026-08-31, first Fly.io
+        smoke test): `model_state: DEPLOYED` is read from a document that
+        is itself baked into the image at build time and persists across
+        a fresh process start -- it reflects whatever the *previous*
+        process left behind, not whether the *current* process has the
+        model loaded in its own memory. A brand new process never does.
+        Skipping `_deploy()` because the persisted field already says
+        DEPLOYED left every fresh container's first real request failing
+        with "Model not ready yet. Please deploy the model first." --
+        `_deploy()` must be called every time regardless of this field;
+        it's cheap and safe against a model already loaded in the current
+        process (confirmed live: ~30ms versus ~40s for a real deploy)."""
         client = _FakeOpenSearch([_model_hit("deployed-model", "DEPLOYED")])
 
         model_id = search_pipeline.ensure_reranker_model(client, _MODEL_GROUP_ID)  # type: ignore[arg-type]
 
         assert model_id == "deployed-model"
         assert "/_plugins/_ml/models/_register" not in client.paths()
+        assert "/_plugins/_ml/models/deployed-model/_deploy" in client.paths()
 
     def test_a_registered_but_undeployed_reranker_is_deployed_not_re_registered(self) -> None:
         """The real bug this file was written for: the lookup only matched
