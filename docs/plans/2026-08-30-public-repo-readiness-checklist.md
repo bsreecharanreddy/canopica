@@ -134,19 +134,17 @@ documentation wrap-up, not new capability.
       so both tools agree on the same "above 10" rule rather than forcing
       an artificial split of three clean, independent guard clauses. Full
       `make lint`/`make test` verified clean after.
+- [x] **CI-runner flip + Azure teardown — done 2026-08-31.**
+      `CI_LIGHT_RUNNER`/`CI_HEAVY_RUNNER` cleared, confirmed green on
+      GitHub-hosted `ubuntu-24.04` runners (run `33415354007`, all 14
+      jobs), then untargeted `terraform destroy` in
+      `infra/azure/ci-runner/` — 17 resources destroyed, verified gone
+      (`az group exists` → `false`, empty `terraform state list`, no
+      leftover Entra ID app). See `docs/STATUS.md`'s verification log.
 - [ ] **Repo visibility itself.** Once every item above is done: flip to
       public, and turn on branch-ruleset protection at the same time
       (free again once the repo is public, per the same decision row —
       today it's a personal-account Free-plan limit on a private repo).
-      **Bundled into this same step (decided 2026-08-31, see §0):**
-      clear the `CI_LIGHT_RUNNER`/`CI_HEAVY_RUNNER` repo variables (an
-      unset value already means `ubuntu-latest` per `ci.yml`'s own
-      header comment — zero workflow edits needed), then run an
-      untargeted `terraform destroy` in `infra/azure/ci-runner/` to tear
-      down the VM/NAT Gateway/etc. for real. Order matters: clear the
-      variables first and confirm one green run on GitHub-hosted runners
-      before destroying the VM, so there's a working fallback if the
-      newly-public repo's Actions minutes behave unexpectedly.
 
 ---
 
