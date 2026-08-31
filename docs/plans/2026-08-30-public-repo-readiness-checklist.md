@@ -99,12 +99,23 @@ documentation wrap-up, not new capability.
 
 ## 4. Interview material
 
-- [ ] **Final regeneration of the interview-story-bank Artifact** from the
-      secret Gist's accumulated content (28 stories as of 2026-08-30,
-      plus 3 pitches and the tradeoff quick-reference) — one-time, right
-      before the flip.
+- [x] **Final regeneration of the interview-story-bank Artifact — done
+      2026-08-31.** Rebuilt from the Gist's full 30-story content (up from
+      28 as of 2026-08-30 — two more landed the same day). Published as a
+      new artifact rather than updated in place, since the user had
+      switched claude.ai accounts and an `url`-targeted update to the old
+      artifact was blocked by the auto-mode permission classifier:
+      <https://claude.ai/code/artifact/f956d495-1a7e-492c-981b-4de1cd34a1ce>
+      — see `reference_canopica_interview_story_bank` memory for the full
+      design/build record. Link sent to the user; not yet confirmed
+      working in their browser.
 - [ ] **Delete the Gist** once the Artifact is regenerated from it — it
-      was always the interim working copy, not the destination.
+      was always the interim working copy, not the destination. **Holding
+      until the user confirms the new Artifact link actually opens for
+      them** — this project has a documented history of a publish
+      succeeding on the tool side but not being visible to the user due
+      to an account mismatch (2026-08-23), so "published successfully"
+      alone isn't enough to treat the Gist as safe to delete yet.
 
 ## 5. Loose ends needing an explicit decision (not silently dropped)
 
@@ -141,10 +152,13 @@ documentation wrap-up, not new capability.
       `infra/azure/ci-runner/` — 17 resources destroyed, verified gone
       (`az group exists` → `false`, empty `terraform state list`, no
       leftover Entra ID app). See `docs/STATUS.md`'s verification log.
-- [ ] **Repo visibility itself.** Once every item above is done: flip to
-      public, and turn on branch-ruleset protection at the same time
-      (free again once the repo is public, per the same decision row —
-      today it's a personal-account Free-plan limit on a private repo).
+- [x] **Repo visibility itself — done 2026-08-31.** Flipped to public
+      (`gh repo edit --visibility public`), branch ruleset `main-protection`
+      created (blocks deletion/force-push, requires the 9 always-run CI
+      jobs — deliberately excludes the 3 path-gated ones — no PR
+      requirement per explicit user choice, so direct pushes to main keep
+      working). CI badge and repo page both confirmed `200` to an
+      unauthenticated request. See `docs/STATUS.md`'s verification log.
 
 ---
 
@@ -155,5 +169,6 @@ documentation wrap-up, not new capability.
       skipped.
 - [ ] `docs/STATUS.md` updated in the same commit as the flip itself,
       same discipline as every other change to this file.
-- [ ] Repo is public, CI badge renders for a signed-out viewer, branch
-      protection is on.
+- [x] Repo is public, CI badge renders for a signed-out viewer, branch
+      protection is on. Confirmed 2026-08-31 (both `200` to an
+      unauthenticated request; ruleset `main-protection` active).
