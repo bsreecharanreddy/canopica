@@ -90,10 +90,21 @@ documentation wrap-up, not new capability.
 
 ## 3. GitHub account/profile
 
-- [ ] **Profile README** (`<username>/<username>` special repo) — add
-      Canopica project details.
-- [ ] **Bio field** — reflect the project.
-- [ ] **Pinned repositories** — feature Canopica.
+- [x] **Profile README — done 2026-08-31.** Created
+      `bsreecharanreddy/bsreecharanreddy` (the special repo GitHub renders
+      on the profile page) with a README leading with engineering/
+      tech-stack signal per
+      [[feedback-engineering-focused-framing]] — Canopica's architecture
+      first, domain second, plus a short background section.
+- [x] **Bio field — done 2026-08-31.** Required a `gh auth refresh -s user`
+      device-code login (the CLI's default scopes don't cover writing the
+      user profile) — user completed that interactively, then
+      `gh api -X PATCH user -f bio=...` set it.
+- [ ] **Pinned repositories** — feature Canopica. **No public API for
+      this exists** (checked the full GraphQL mutation schema — nothing
+      pin-related for repos, only issues/environments) — it's web-UI-only.
+      Steps handed to the user directly: profile page → "Customize your
+      pins" → check `canopica` → Save. Not yet confirmed done.
       (All three explicitly deferred 2026-08-30 — "hold off for now, keep
       it as an item to do once we flip to public.")
 
