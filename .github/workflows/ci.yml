@@ -65,7 +65,7 @@ concurrency:
 #
 # start-runner/stop-runner gate their *steps* on the variables below
 # rather than gating the jobs themselves. That is not a style choice: the
-# eleven jobs all carry `needs: [start-runner]`, and a skipped job makes
+# twelve jobs all carry `needs: [start-runner]`, and a skipped job makes
 # its dependents skip too, so gating the job would silently disable the
 # entire workflow the moment the variables were cleared. Gating the steps
 # turns those two jobs into ~3-second no-ops instead, and every `needs:`
@@ -762,6 +762,7 @@ jobs:
         web,
         python,
         ai,
+        worker,
         audit-chain,
         dbt,
         reporting,
