@@ -51,44 +51,60 @@ design docs for how that plays out component by component.
 
 ```mermaid
 flowchart TB
-    A["React UI\n(role-based access)"]
+    A["React UI\n[React 19 · TypeScript · Vite]\nrole-based web client"]
+    IDP["Identity Provider\n[Keycloak 26 · OIDC]"]
+    M["Object Storage\n[MinIO · S3-compatible]"]
 
-    subgraph core["System of record — deterministic, auditable"]
+    subgraph core["System of Record — deterministic, auditable"]
         direction LR
-        B["Rules Engine\n(DMN decision tables)"] --> F["Audit Log\n(hash-chained, append-only)"]
+        API["Case & Determination API\n[Spring Boot 3.5 · Java 17]"]
+        B["Rules Engine\n[Drools DMN · KIE 10.2]\ndecision tables + trace"]
+        F["Audit Log\n[PostgreSQL 18]\nhash-chained, append-only"]
+        API --> B --> F
     end
-
-    M["Object Storage\n(MinIO)"]
 
     subgraph async["Async Worker — pgmq-driven"]
         direction LR
-        Q["pgmq queues\n(document_intake · correspondence_dispatch\nfraud_scoring · qc_summary)"] --> W["Worker\n(classification · notice drafting\nfraud scoring · QC summarization)"]
+        Q["pgmq Queues\n[PostgreSQL 18 extension]\ndocument_intake · correspondence_dispatch\nfraud_scoring · qc_summary"]
+        W["Worker\n[Python]\nclassification · notice drafting\nfraud scoring · QC summarization"]
+        Q --> W
     end
 
-    subgraph data["Data Platform — ELT, orchestrated by Airflow"]
+    subgraph data["Data Platform — ELT · dbt-core 1.12 · orchestrated by Airflow 2.10"]
         direction LR
-        C1["Bronze\n(raw)"] --> C2["Silver\n(conformed)"] --> C3["Gold\n(marts)"]
+        C1["Bronze\nraw"] --> C2["Silver\nconformed"] --> C3["Gold\nmarts"]
     end
 
     subgraph bi["Reporting"]
         direction LR
-        G["Semantic Layer\n(MetricFlow · TMDL)"] --> D["Power BI · Metabase"]
+        G["Semantic Layer\n[dbt MetricFlow · TMDL]"] --> D["BI Tools\n[Power BI · Metabase]"]
     end
 
-    E["AI Layer\nPolicy Q&A · Rule-Authoring Copilot\nAnalytics Copilot · Dashboard-Authoring Copilot\nDocument Intake · Correspondence Drafting\nFraud Triage · SOP Copilot · ..."]
+    E["AI Layer\n[Python · FastAPI · OpenSearch · Ollama/OpenRouter]\nPolicy Q&A · Rule-Authoring Copilot\nAnalytics Copilot · Dashboard-Authoring Copilot\nDocument Intake · Correspondence Drafting\nFraud Triage · SOP Copilot · ..."]
 
-    A --> core
-    A --> M
-    core -- "same-transaction enqueue" --> Q
-    W --> M
-    W --> core
-    core --> C1
-    C3 --> G
+    A -- "HTTPS / REST" --> API
+    A -- "OIDC login" --> IDP
+    API -- "validates JWT" --> IDP
+    A -- "uploads" --> M
+    F -- "same-transaction enqueue" --> Q
+    W -- "reads/writes" --> M
+    W -- "reads/writes case data" --> API
+    core -- "extract" --> C1
+    C3 -- "reads" --> G
 
-    E -. assists, never decides .-> A
-    E -. assists, never decides .-> core
-    E -. assists, never decides .-> bi
-    W -. calls .-> E
+    E -. "assists, never decides" .-> A
+    E -. "assists, never decides" .-> core
+    E -. "assists, never decides" .-> bi
+    W -. "calls" .-> E
+
+    subgraph legend["Legend"]
+        direction LR
+        L1[" "] -- "synchronous call" --> L2[" "]
+        L3[" "] -. "async / advisory" .-> L4[" "]
+    end
+
+    classDef invisible fill:none,stroke:none
+    class L1,L2,L3,L4,legend invisible
 ```
 
 Full architecture, every component, and the reasoning behind each choice
