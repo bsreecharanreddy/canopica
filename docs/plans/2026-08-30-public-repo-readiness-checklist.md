@@ -100,11 +100,12 @@ documentation wrap-up, not new capability.
       device-code login (the CLI's default scopes don't cover writing the
       user profile) — user completed that interactively, then
       `gh api -X PATCH user -f bio=...` set it.
-- [ ] **Pinned repositories** — feature Canopica. **No public API for
-      this exists** (checked the full GraphQL mutation schema — nothing
-      pin-related for repos, only issues/environments) — it's web-UI-only.
-      Steps handed to the user directly: profile page → "Customize your
-      pins" → check `canopica` → Save. Not yet confirmed done.
+- [x] **Pinned repositories — done 2026-08-31.** No public API for this
+      (checked the full GraphQL mutation schema first — nothing
+      pin-related for repos, only issues/environments), so the manual
+      steps were handed to the user directly; they completed it, verified
+      via the read-side of the same GraphQL schema
+      (`user.pinnedItems`) rather than trusting the user's report alone.
       (All three explicitly deferred 2026-08-30 — "hold off for now, keep
       it as an item to do once we flip to public.")
 
