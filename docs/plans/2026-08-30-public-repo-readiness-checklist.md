@@ -154,11 +154,16 @@ documentation wrap-up, not new capability.
       leftover Entra ID app). See `docs/STATUS.md`'s verification log.
 - [x] **Repo visibility itself — done 2026-08-31.** Flipped to public
       (`gh repo edit --visibility public`), branch ruleset `main-protection`
-      created (blocks deletion/force-push, requires the 9 always-run CI
-      jobs — deliberately excludes the 3 path-gated ones — no PR
-      requirement per explicit user choice, so direct pushes to main keep
-      working). CI badge and repo page both confirmed `200` to an
-      unauthenticated request. See `docs/STATUS.md`'s verification log.
+      created — final shape is `deletion` + `non_fast_forward` only
+      (blocks deleting/force-pushing `main`), no `required_status_checks`.
+      That rule was tried first, scoped to the 9 always-run CI jobs, but
+      turned out to hard-deadlock direct pushes on this GitHub tier (a
+      required check can't exist for a commit that hasn't been pushed
+      yet) — caught immediately when the very next push was rejected,
+      fixed by removing it. No PR requirement, per explicit user choice,
+      so direct pushes to main keep working exactly as before. CI badge
+      and repo page both confirmed `200` to an unauthenticated request.
+      Full incident in `docs/STATUS.md`'s verification log.
 
 ---
 
