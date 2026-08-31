@@ -238,6 +238,40 @@ log rather than take it on faith.
   non-blocking, if a `git commit` stages files outside `docs/` without
   `docs/STATUS.md`, enforcing the same-commit rule above mechanically
   instead of relying on memory.
+- **`canopica-code-review` skill** — a code-content review checklist
+  distinct from `canopica-task-checkpoint`'s process/commit gate,
+  covering conventions no generic reviewer could know because each is
+  grounded in a mistake this project already made: migration-numbering
+  discipline (`V18`'s and Phase 4's own corrected plan-doc mistakes),
+  keeping `AuditEventType` in sync on both the read and write side, two
+  distinct transactional-outbox failures found for real
+  (`QcSamplingService`'s Spring AOP self-invocation gap, `PgmqService`'s
+  original JDBC statement-vs-function bug), the shared-Postgres
+  test-isolation hazard `AuditChainTest` first documented and this same
+  session's own worker test repeated once more, and the bronze/silver/
+  gold path a new operational table needs (missed once for
+  `fraud_risk_score`). Chose skill over agent for this one specifically —
+  unlike `canopica-security-auditor`'s "fresh eyes catch what the author's
+  context rationalized past" case, these are pattern-conformance checks
+  best run inline against the current diff, not needing a separate
+  context.
+- **`canopica-security-auditor` subagent** — reviews a new/modified
+  endpoint, table, or AI call site for the exact class of gap that
+  already cost this project a real fix once: commit `c0be51e`,
+  `DocumentService.confirm()` caseload-checking the document itself but
+  trusting every id named inside the request body, letting a worker
+  mutate an unrelated case's verification/income record (a broken-
+  object-level-authorization bug, not a mere validation gap). Also
+  checks the neighboring gaps this project's own design docs already
+  treat as load-bearing — `SecurityConfig` matcher coverage, PII/
+  tokenization discipline into gold, the AI layer's prompt-injection/
+  output-trust boundary, append-only enforcement on binding-decision
+  tables, raw-SQL parameterization, dev-secret hygiene — since each is a
+  real, already-documented constraint this project depends on, not a
+  speculative addition. Same incident-driven bar as every skill above;
+  the one true finding it's grounded in was itself caught by an
+  automated background security review before this agent existed, which
+  is exactly the "make the lesson repeatable" case for writing it down.
 
 The Ryuk/Testcontainers-Python incident (Task 6 — see STATUS.md's
 verification log) is *not* duplicated here as a skill: it's already fully

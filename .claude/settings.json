@@ -16,8 +16,8 @@
     ]
   },
   "enabledPlugins": {
-    "terraform@claude-plugins-official": false,
-    "playwright@claude-plugins-official": false,
-    "chrome-devtools-mcp@claude-plugins-official": false
+    "terraform@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true
   }
 }
