@@ -234,6 +234,18 @@ plainly rather than leaving a reader to discover:
   39.53% eligible rate, $105.53 average benefit. Screenshot:
   [`docs/cloud-demo/powerbi-service-report.png`](docs/cloud-demo/powerbi-service-report.png).
 
+- **CI ran on a self-hosted Azure VM for six days (2026-08-25 –
+  2026-08-31) during private development.** Private-repo GitHub Actions
+  minutes are capped at 2000/month; once the AI layer's e2e/eval jobs
+  (OpenSearch + Ollama) started running on every push, this repo
+  exhausted that cap for real (run `32913936148`, a hard
+  payment-required error). Self-hosting ran the identical jobs and gates
+  without weakening any of them, and moved back to GitHub-hosted runners
+  at this public flip, once public repos' free/unlimited Actions minutes
+  apply instead. Mentioned here so several days of CI-debugging commits
+  in that window read as building under a real, named constraint, not as
+  struggling with a solved problem.
+
 Every one of these is a scoping decision, not an oversight — see the plan's
 own "Deferred out of Phase 1a, on purpose" list
 (`docs/plans/2026-08-21-phase-1a-implementation-plan.md`) and

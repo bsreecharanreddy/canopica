@@ -254,15 +254,16 @@ class Settings(BaseSettings):
     # inference" row, decided 2026-08-26): `deepseek/deepseek-chat` for
     # the rest of active development -- cheapest of four real candidates
     # on OpenRouter's own live pricing, and already proven as the eval
-    # judge above -- repointed to `anthropic/claude-haiku-4.5` in the same
-    # commit as the public-repo flip, for a spec-clean
-    # `gen_ai.provider.name` value and to avoid a China-based model
-    # answering the public-facing surface. The price-per-MTok pair below
-    # MUST move with the model -- nothing here reads a live price from
-    # OpenRouter, so the swap is three lines, not one.
-    openrouter_public_demo_paid_model: str = "deepseek/deepseek-chat"
-    openrouter_public_demo_paid_input_price_per_mtok_usd: float = 0.2574
-    openrouter_public_demo_paid_output_price_per_mtok_usd: float = 1.029
+    # judge above -- repointed to `anthropic/claude-haiku-4.5` here, in
+    # the same commit as the public-repo flip (2026-08-31), for a
+    # spec-clean `gen_ai.provider.name` value and to avoid a China-based
+    # model answering the public-facing surface. Price pair re-verified
+    # live against OpenRouter's own `/api/v1/models` at swap time:
+    # $1.00/$5.00 per MTok input/output, unchanged from the 2026-08-26
+    # comparison above.
+    openrouter_public_demo_paid_model: str = "anthropic/claude-haiku-4.5"
+    openrouter_public_demo_paid_input_price_per_mtok_usd: float = 1.0
+    openrouter_public_demo_paid_output_price_per_mtok_usd: float = 5.0
 
     # A hard ceiling on the paid tier's cumulative spend for the current
     # calendar month, per design doc §2.7 -- once at or over this, the

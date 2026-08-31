@@ -67,24 +67,17 @@ documentation wrap-up, not new capability.
       historical records (verification-log rows, a completed phase's own
       plan doc) — rewriting those for phrasing would misrepresent what
       was actually written at the time.
-- [ ] **Add a short callout** (README and/or STATUS.md's top), written at
-      flip time once the runner migration in §5 has actually happened,
-      explaining — past tense — that CI ran on a self-hosted Azure VM for
-      several days during private development (the private-repo GitHub
-      Actions minutes cap was fully exhausted for real, run
-      `32913936148`) and moved back to GitHub-hosted runners at the
-      public flip, once that cap no longer applies. So a reader doesn't
-      misread three-plus days of dense CI-debugging commits as struggling
-      with a solved problem rather than building one under a real,
-      named constraint. (Superseded framing — the original bullet said
-      "by deliberate choice, not GitHub-hosted," written before the
-      2026-08-31 decision to move back to GitHub-hosted runners at the
-      flip; see §0 and §5.)
-- [ ] **Swap the public demo's inference model**: `deepseek/deepseek-chat`
-      → `anthropic/claude-haiku-4.5`, one line in the same
-      `OpenRouterTieredClient` config — do this in the **same commit** as
-      the repo flip, not before (cosmetic/optics, not cost or
-      correctness, per the 2026-08-26 decision).
+- [x] **Add a short callout — done 2026-08-31.** README's "Honest
+      limitations" section gained a bullet stating, past tense, that CI
+      ran on a self-hosted Azure VM for six days (2026-08-25 – 2026-08-31)
+      after the private-repo GitHub Actions minutes cap was exhausted for
+      real (run `32913936148`), and moved back to GitHub-hosted runners at
+      this flip.
+- [x] **Swap the public demo's inference model — done 2026-08-31.**
+      `deepseek/deepseek-chat` → `anthropic/claude-haiku-4.5` in
+      `ai/src/canopica_ai/config.py`, price pair re-verified live against
+      OpenRouter's own API at swap time ($1.00/$5.00 per MTok, unchanged).
+      See `docs/STATUS.md`'s verification log for the full record.
 
 ## 2. Public demo — the actual live deploy
 
