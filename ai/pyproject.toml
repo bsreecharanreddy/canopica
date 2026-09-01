@@ -70,8 +70,17 @@ dev = [
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     # Already present as deepeval's own transitive dependency; declared
-    # directly now that a real test (TestAskWithARealModel) depends on its
-    # `@pytest.mark.flaky` behavior deliberately, not by accident.
+    # directly now that real tests depend on its `@pytest.mark.flaky`
+    # behavior deliberately, not by accident -- originally just
+    # `TestAskWithARealModel`; three more e2e tests each gained the same
+    # marker 2026-09-01 after failing live in CI on the same class of
+    # real small-model judgment-call variance (`test_document_intake.py`,
+    # `test_sop_copilot.py`, `test_public_demo.py` -- see each test's own
+    # comment for its specific evidence). Deliberately still scoped to
+    # these four, not applied broadly -- every other e2e test stays
+    # unmarked because it's either hermetic or already proven
+    # deterministic, and a rerun on any of those would just as
+    # deliberately hide a real bug.
     "pytest-rerunfailures>=16.6",
     "ruff>=0.16.4",
     "types-defusedxml>=0.7.0",

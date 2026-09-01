@@ -166,6 +166,19 @@ class TestIndexAndAskAgainstARealStack:
         client = OpenSearch(hosts=[settings.opensearch_url])
         index_corpus(client, settings)
 
+    # `reruns=1`, same shape and same reasoning as `test_analytics_copilot.py`'s
+    # `TestAskWithARealModel`: `service.py`'s own grounding retry already
+    # gives this one internal second try before abstaining, so the
+    # residual failure is `llama3.2:3b` failing to ground *both* tries --
+    # already documented as a real, live-measured "~1-in-10" abstention-
+    # variance rate for this exact test (see Phase 5 Task 1's 2026-08-30
+    # `docs/STATUS.md` verification-log row, and again on 2026-08-31/09-01
+    # across `33438812730`/`33451941316`), just not yet mitigated with a
+    # marker until now. The sibling test below (correctly abstaining on an
+    # off-topic question) stays unmarked -- retrieval failing to surface
+    # anything for "capital of France" is structural, not a delicate
+    # model judgment call.
+    @pytest.mark.flaky(reruns=1)
     def test_a_question_matching_real_corpus_content_answers_with_a_real_citation(
         self, settings: Settings
     ) -> None:

@@ -142,6 +142,18 @@ class TestRealLocalStack:
     `_get_rate_limiter` are overridden; `answer_general` itself is not,
     which is the whole point of this test."""
 
+    # `reruns=1`, same shape and same reasoning as `test_analytics_copilot.py`'s
+    # `TestAskWithARealModel`: this exercises `guardrails.py`'s real input/
+    # output classifier calls (`llama3.2:3b`, not a separate model) on top
+    # of Task 2's own grounding/abstention logic, so two independent real-
+    # model judgment calls have to land right, not one. Failed live in CI
+    # for the first time 2026-09-01 (run `33451941316`) -- a benign,
+    # clearly on-topic SNAP question got a `400` from the input or output
+    # guardrail misclassifying it as `BLOCK` -- and resource diagnostics
+    # from that same run ruled out host pressure as the cause (15GB RAM,
+    # comfortable headroom), leaving real classifier variance as the only
+    # explanation.
+    @pytest.mark.flaky(reruns=1)
     def test_a_real_question_returns_a_grounded_answer_through_the_full_demo_path(
         self, indexed_corpus: Settings, monkeypatch: pytest.MonkeyPatch
     ) -> None:
