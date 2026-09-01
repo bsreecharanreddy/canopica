@@ -275,7 +275,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      # test:coverage over plain test: same suite, plus a printed coverage
+      # summary (visibility only, no threshold gate) via @vitest/coverage-v8.
+      - run: npm run test:coverage
 
   python:
     name: Python (data platform)
@@ -293,7 +295,7 @@ jobs:
       - run: uv sync --dev
       - run: uv run ruff check .
       - run: uv run mypy src tests
-      - run: uv run pytest -m "not e2e and not integration"
+      - run: uv run pytest -m "not e2e and not integration" --cov=canopica_data --cov-report=term
 
   ai:
     name: Python (AI capability layer)
@@ -326,7 +328,7 @@ jobs:
         working-directory: data-platform
       - run: uv run ruff check .
       - run: uv run mypy src tests
-      - run: uv run pytest -m "not e2e"
+      - run: uv run pytest -m "not e2e" --cov=canopica_ai --cov-report=term
 
   worker:
     name: Python (async worker)
@@ -350,7 +352,7 @@ jobs:
       # fix, same reasoning, as ai-eval's own (see that job's own comment):
       # a real no-op tracer avoids every span blocking several seconds on a
       # doomed OTLP export retry.
-      - run: uv run pytest
+      - run: uv run pytest --cov=canopica_worker --cov-report=term
         env:
           CANOPICA_OTEL_ENABLED: "false"
 

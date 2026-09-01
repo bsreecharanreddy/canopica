@@ -81,6 +81,7 @@ dev = [
     # unmarked because it's either hermetic or already proven
     # deterministic, and a rerun on any of those would just as
     # deliberately hide a real bug.
+    "pytest-cov>=7.1.0",
     "pytest-rerunfailures>=16.6",
     "ruff>=0.16.4",
     "types-defusedxml>=0.7.0",
