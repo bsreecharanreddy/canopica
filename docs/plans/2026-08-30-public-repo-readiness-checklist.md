@@ -135,15 +135,23 @@ documentation wrap-up, not new capability.
       artifact was blocked by the auto-mode permission classifier:
       <https://claude.ai/code/artifact/f956d495-1a7e-492c-981b-4de1cd34a1ce>
       — see `reference_canopica_interview_story_bank` memory for the full
-      design/build record. Link sent to the user; not yet confirmed
-      working in their browser.
-- [ ] **Delete the Gist** once the Artifact is regenerated from it — it
-      was always the interim working copy, not the destination. **Holding
-      until the user confirms the new Artifact link actually opens for
-      them** — this project has a documented history of a publish
-      succeeding on the tool side but not being visible to the user due
-      to an account mismatch (2026-08-23), so "published successfully"
-      alone isn't enough to treat the Gist as safe to delete yet.
+      design/build record. **Confirmed working in the user's browser
+      2026-09-01.**
+- [x] **Keep the Gist — explicitly decided 2026-09-01, not deleted.**
+      Originally planned as delete-once-regenerated (an interim working
+      copy, not the destination), reversed once the user raised a real
+      point: Canopica may still get enhanced later, and the Gist is the
+      only easily-*editable* copy (plain markdown — add a bullet, done)
+      versus the Artifact, which is fully rendered HTML built by a
+      script, not something to hand-edit. Settled shape going forward:
+      Gist = living source, edit here first; Artifact = periodically-
+      regenerated polished/shareable output, redone from the Gist
+      whenever a fresh version is wanted — a source-and-build-output
+      relationship, not two things drifting independently. Also a real
+      redundancy win against the user's own stated worry ("may not
+      always have access to this story bank") — two independent copies
+      in two independent systems (GitHub Gist, claude.ai Artifact)
+      survives more failure modes than collapsing to one.
 
 ## 5. Loose ends needing an explicit decision (not silently dropped)
 
