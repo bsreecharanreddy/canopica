@@ -4,9 +4,19 @@
 # real `POST /demo/ask` returned a grounded, cited answer against the
 # real deployed infrastructure, not a local stand-in. See
 # docs/STATUS.md's verification log for the full deploy history,
-# including three real bugs found only once running on real Fly.io
-# infrastructure (a reranker model that never re-deployed at runtime,
-# a persisted-state check that skipped redeploying it anyway).
+# including four real bugs found only once running on real Fly.io
+# infrastructure (a reranker model that never re-deployed at runtime, a
+# persisted-state check that skipped redeploying it anyway, and --
+# found 2026-09-01, on the first real stop/start cycle -- the
+# OpenSearch health-poll loop below silently proceeding past its own
+# timeout instead of failing, which crash-looped the machine through
+# Fly's entire automatic-restart budget before anyone noticed. That
+# last one means the "machine stopped between uses" state observed
+# right after the first deploy was very likely this same crash, not a
+# deliberate stop -- Fly's own event log only retains 5 recent events,
+# so this can't be fully confirmed after the fact, but every stop this
+# project *can* still see in that log is `exit_code=1,
+# requested_stop=false`, never a clean, requested stop.
 #
 # COST / STOP-START: this bills per-second compute at the shared-cpu-2x
 # rate below (~$22/mo if left running continuously) -- confirmed live
@@ -15,19 +25,24 @@
 # *automatic* idle-based scaling; it does not prevent a manual stop.
 # Per the user's explicit 2026-08-31 request -- more projects planned
 # before job-hunting starts, so this only needs to be up when actually
-# being shown to someone -- the machine defaults to STOPPED between
-# uses:
+# being shown to someone -- the intent is to keep the machine stopped
+# between uses. `fly scale count 0/1` does NOT reliably do this: once a
+# machine already exists (just powered off), `scale count 1` is a
+# silent no-op against a stopped machine (count is already 1) -- found
+# live 2026-09-01 trying to start it for a validation check. The
+# commands that actually work, against this app's one machine id:
 #
-#   fly scale count 0 --app canopica-policy-demo   # stop (compute -> ~$0)
-#   fly scale count 1 --app canopica-policy-demo   # start before demoing
+#   fly machine stop 845034a2214398 --app canopica-policy-demo   # stop (compute -> ~$0)
+#   fly machine start 845034a2214398 --app canopica-policy-demo  # start before demoing
 #
 # A stopped machine still bills the small persisted volume continuously
 # regardless of run-state (~$0.15/mo, see [[mounts]] below) -- that part
 # can't be turned off without destroying the volume. Boot from stopped
-# takes up to ~2 minutes (the OpenSearch+Ollama sequence
-# public-demo-entrypoint.sh waits on before uvicorn starts listening),
-# so start it a couple of minutes ahead of sharing the link rather than
-# at the moment someone clicks it.
+# takes up to ~3 minutes now (the OpenSearch+Ollama sequence
+# public-demo-entrypoint.sh waits on before uvicorn starts listening,
+# widened from ~2 minutes 2026-09-01 -- see that step's own comment
+# below), so start it a few minutes ahead of sharing the link rather
+# than at the moment someone clicks it.
 #
 # Deploy command, run from the REPO ROOT (not this directory) -- the
 # Dockerfile's COPY instructions resolve `ai/` and `infra/opensearch/`
@@ -80,10 +95,13 @@ primary_region = "iad"
 
   [[http_service.checks]]
     # Generous relative to Fly's own defaults: matches the entrypoint's
-    # own up-to-120s OpenSearch health-poll loop that runs *before*
-    # uvicorn starts listening at all, so a shorter grace period would
-    # have Fly judge a normally-booting machine as failed.
-    grace_period = "150s"
+    # own up-to-180s OpenSearch health-poll loop (widened from 120s
+    # 2026-09-01 -- see public-demo-entrypoint.sh's own comment for the
+    # live-found evidence that 120s wasn't reliably enough) plus the
+    # reranker redeploy call, both of which run *before* uvicorn starts
+    # listening at all, so a shorter grace period would have Fly judge a
+    # normally-booting machine as failed.
+    grace_period = "220s"
     interval = "30s"
     timeout = "10s"
     method = "GET"

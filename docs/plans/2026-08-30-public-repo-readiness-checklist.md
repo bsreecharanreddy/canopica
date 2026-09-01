@@ -81,19 +81,28 @@ documentation wrap-up, not new capability.
 
 ## 2. Public demo — the actual live deploy
 
-- [x] **`fly deploy` for real — done 2026-08-31.** Deployed against a
-      live Fly.io account; found and fixed three real bugs only visible
-      on real infrastructure (a `fly.toml` dockerfile-path bug, a
-      two-layer OpenSearch lock-file bug, and the reranker model never
-      redeploying at runtime) before it worked end to end. See
+- [x] **`fly deploy` for real — done 2026-08-31, hardened 2026-09-01.**
+      Deployed against a live Fly.io account; found and fixed four real
+      bugs only visible on real infrastructure (a `fly.toml`
+      dockerfile-path bug, a two-layer OpenSearch lock-file bug, the
+      reranker model never redeploying at runtime, and an OpenSearch
+      health-poll loop that silently proceeded past its own timeout
+      instead of failing, crash-looping the machine through Fly's
+      entire automatic-restart budget on the first real stop/start
+      cycle) before it worked reliably end to end. See
       `docs/STATUS.md`'s verification log for the full story.
 - [x] **Confirm the deployed demo actually answers a real question end
-      to end once live — done 2026-08-31.** A real `POST /demo/ask`
+      to end once live — done 2026-08-31, re-confirmed 2026-09-01 after
+      the crash-loop fix above.** A real `POST /demo/ask`
       against `canopica-policy-demo.fly.dev` returned a grounded, cited
-      answer (SNAP gross income test, citing `273.9(a)`). Machine then
-      stopped (`fly scale count 0`) to control cost between demos, per
-      the user's explicit request — see `infra/fly/fly.toml`'s own
-      header comment for the stop/start commands.
+      answer (SNAP gross income test/GI test, citing `273.9(a)`/
+      `273.2(j)`) on two separate occasions, before and after the
+      2026-09-01 fix. The machine is meant to default to stopped
+      between uses to control cost, per the user's explicit request —
+      see `infra/fly/fly.toml`'s own header comment for the correct
+      stop/start commands (`fly machine stop/start`, not `fly scale
+      count`, which was found live 2026-09-01 to silently no-op against
+      an already-existing stopped machine).
 
 ## 3. GitHub account/profile
 

@@ -16,13 +16,35 @@ set -euo pipefail
 /usr/share/opensearch/opensearch-docker-entrypoint.sh &
 
 echo "waiting for OpenSearch..."
-for _ in $(seq 1 60); do
+opensearch_up=false
+# Live-found gap (2026-09-01, first real stop/start cycle after the
+# initial deploy): this loop's own budget used to be 60 x 2s = 120s
+# with no check afterward -- if OpenSearch wasn't healthy by then, the
+# script silently fell through anyway and the next step (below) crashed
+# on a plain connection-refused, which killed the whole machine and,
+# after Fly's own automatic restart-on-crash budget (10 attempts) was
+# exhausted, left the demo permanently down with no clear error anywhere
+# in the logs pointing at OpenSearch itself. Confirmed live via a real
+# `flyctl logs --no-tail` capture: a genuine cold boot on this machine's
+# shared-cpu tier had OpenSearch still mid-bootstrap (no "started"/
+# cluster-formed line yet) more than 120s in, so 120s is not a reliably
+# sufficient budget on real infrastructure, not just a number to
+# increase for its own sake. Widened to 90 x 2s = 180s, and this loop
+# now fails loudly (a clear "OpenSearch never became healthy" message
+# and a nonzero exit) instead of silently proceeding into a confusing
+# downstream crash if that's still not enough.
+for _ in $(seq 1 90); do
   if curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null 2>&1; then
     echo "OpenSearch is up."
+    opensearch_up=true
     break
   fi
   sleep 2
 done
+if [ "$opensearch_up" != true ]; then
+  echo "FATAL: OpenSearch never became healthy within 180s." >&2
+  exit 1
+fi
 
 cd /usr/share/opensearch/public-demo/ai
 
