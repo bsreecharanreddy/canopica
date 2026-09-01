@@ -1,32 +1,62 @@
-# React + TypeScript + Vite
+# Canopica UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + TypeScript + Vite client for Canopica — see the [repo root
+README](../README.md) for what the whole system is. This package is the
+`A["React UI"]` box in that README's architecture diagram: a role-based
+client against the Case & Determination API, styled with the "Public
+Ledger" design system (`docs/design/2026-08-27-ui-modernization-public-ledger.md`
+in the repo root) — civic-editorial in tone, on purpose, since the subject
+matter is a real benefits determination, not a generic SaaS dashboard.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19, TypeScript, Vite 8
+- Tailwind CSS 4 + `radix-ui` primitives, `class-variance-authority` for variants
+- `react-router-dom` for routing, `react-oidc-context`/`oidc-client-ts` for Keycloak OIDC login
+- `react-i18next` for localization (Phase 3 correspondence translation surfaces this in the UI too)
+- Vitest + React Testing Library + `vitest-axe` for component and accessibility tests
+- `oxlint` for linting (not ESLint — see `oxlint.json` at the repo root)
 
-## React Compiler
+## Running locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+From the repo root, `make up` brings up the full stack (Postgres, API,
+UI, Metabase) via Docker Compose — that's the normal way to run this.
+To run just the UI against an already-running API:
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # http://localhost:3000, proxies /api -> localhost:8080
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Other scripts:
+
+```bash
+npm test              # vitest run — component + accessibility tests
+npm run test:coverage # vitest run --coverage
+npm run typecheck      # tsc -b --noEmit
+npm run lint            # oxlint
+npm run build           # tsc -b && vite build
+```
+
+## Key pages
+
+`src/pages/` — one file per real, wired screen (no mockups):
+
+| Page | Role | What it does |
+|---|---|---|
+| `IntakePage` | citizen | Submit a program-eligibility application |
+| `WorkerCasesPage` | worker | Caseload queue, claim/assignment |
+| `CaseDetailPage` | worker | Run a determination, view the DMN trace and audit trail |
+| `PolicyQaPage` | either | RAG policy Q&A with grounded citations |
+| `RuleAuthoringPage` | worker | Human-gated policy-parameter publishing copilot |
+| `DocumentReviewPage` | worker | Review AI-classified/extracted uploaded documents |
+| `NoticeReviewPage` | worker | Review and approve AI-drafted correspondence before dispatch |
+| `FraudReviewPage` | supervisor | Fraud-risk triage review queue |
+| `QcReviewPage` | supervisor | QC / payment-error-rate sampling review |
+| `SlaMonitorPage` | worker/supervisor | At-risk case aging and stall-reason monitor |
+| `SopCopilotPage` | worker | Caseworker SOP copilot |
+
+Every AI-assisted page above surfaces the model's output as something a
+human reviews and acts on, never as an auto-applied decision — the same
+"AI assists, never decides" boundary the root README states as this
+project's one governing principle.

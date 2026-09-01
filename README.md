@@ -1,6 +1,45 @@
 # Canopica
 
 [![CI](https://github.com/bsreecharanreddy/canopica/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bsreecharanreddy/canopica/actions/workflows/ci.yml)
+![Java coverage](https://img.shields.io/badge/coverage%20(java)-86%25-brightgreen)
+![Python coverage](https://img.shields.io/badge/coverage%20(python)-78%25-yellowgreen)
+![UI coverage](https://img.shields.io/badge/coverage%20(ui)-83%25-brightgreen)
+
+## TL;DR
+
+Canopica is a deterministic, auditable benefits-eligibility decision
+system with an AI copilot layer on top — every dollar amount traces to a
+DMN decision-table run and a hash-chained audit log, and every one of its
+nine LLM-backed capabilities is architecturally barred from making a
+binding decision itself. **Built solo, start to finish**: every design
+doc, every line of the Java/Spring API, the React UI, and the Python data
+platform, every CI job, and every cloud deployment below.
+
+- **Reproducible by construction.** An old determination re-run years
+  later against its own historical policy-parameter version still
+  produces its original dollar amount — verified by test, not assumed.
+- **AI kept on a leash, not just told to behave.** Grounded-citation
+  checks, a hallucination-guard-and-abstain discipline verified against
+  real live-model failures (not just written down), an eval-suite CI gate
+  (RAGAS/DeepEval), and a fairness disparate-impact gate — see
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the concrete incident
+  each of these closed.
+- **Proven on real infrastructure, not just `docker compose up`.**
+  Terraform actually applied to Azure Container Apps, a real Databricks
+  Free Edition dbt run, and a live TMDL semantic model published to Power
+  BI Service — screenshots in [Known constraints & scoping decisions](#known-constraints--scoping-decisions)
+  below.
+
+**Live demo:** [canopica-policy-demo.fly.dev](https://canopica-policy-demo.fly.dev)
+— a real deployed instance of the Policy Q&A capability, not a mockup.
+Kept **stopped by default** between uses to control Fly.io compute cost
+(~$22/mo running continuously) — it auto-wakes on the first request but
+can take up to ~3 minutes to finish booting OpenSearch + Ollama, so please
+be patient on a cold start rather than assuming it's down.
+
+Five-minute architecture read: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Full depth: [§ Docs](#docs) below.
+
+---
 
 A portfolio project demonstrating a deterministic, auditable decision
 system — the kind where every dollar amount has to be explainable and
@@ -139,6 +178,8 @@ endpoint, or the UI signed in as a worker) — then `make pipeline`
 picks it up on its next run. `docs/demo.md` walks the full
 intake-through-determination-through-dashboard path end to end.
 
+<img src="reporting/dashboard/snap-determinations-dashboard.png" width="700" alt="The Metabase SNAP determinations dashboard, real seeded data">
+
 Tear down with `make down` (also removes the Postgres volume).
 
 ## Status & roadmap
@@ -159,8 +200,9 @@ Communication AI, and Compliance & Integrity AI) **are done. Phase 5**
 (real cloud deployment demos) **is done** — the Terraform above was
 actually applied against a live Azure subscription, not just validated,
 and the existing dbt project and TMDL semantic model were proven against
-real Databricks and Power BI Service targets; see "Honest limitations"
-below for what each demo found and how it was resolved.
+real Databricks and Power BI Service targets; see "Known constraints &
+scoping decisions" below for what each demo found and how it was
+resolved.
 
 | Phase | Focus | Status |
 |---|---|---|
@@ -175,7 +217,7 @@ See `docs/design/2026-08-21-full-system-and-phased-roadmap.md` for the
 full breakdown of every phase, and [`docs/STATUS.md`](docs/STATUS.md) for
 task-level detail.
 
-## Honest limitations of what's built so far
+## Known constraints & scoping decisions
 
 Phase 1a is a real, working slice, not a demo shell, and Phase 1b —
 Keycloak identity, caseload-scoped row-level authorization, the mocked
@@ -199,9 +241,12 @@ plainly rather than leaving a reader to discover:
   below what the DuckDB target needs), a small seeded bronze slice proves
   the silver/gold chain end to end, and one real dialect gap
   (`SIMILAR TO` isn't valid Databricks SQL; the shared PII-guard macro now
-  dispatches to `RLIKE` there) was found and fixed. Screenshots:
-  [`docs/cloud-demo/databricks-unity-catalog.png`](docs/cloud-demo/databricks-unity-catalog.png),
-  [`docs/cloud-demo/databricks-sql-result.png`](docs/cloud-demo/databricks-sql-result.png).
+  dispatches to `RLIKE` there) was found and fixed.
+
+  <img src="docs/cloud-demo/databricks-unity-catalog.png" width="700" alt="Canopica's gold marts registered in Databricks Unity Catalog">
+  <img src="docs/cloud-demo/databricks-sql-result.png" width="700" alt="A real query result against the Databricks-built gold mart">
+
+  Full-resolution originals: [`databricks-unity-catalog.png`](docs/cloud-demo/databricks-unity-catalog.png), [`databricks-sql-result.png`](docs/cloud-demo/databricks-sql-result.png).
 - **Azure now proven for real too** (Phase 5 Task 2) — `infra/azure/`'s
   reference Terraform was applied for real against a live Free Trial
   subscription: resource group, Key Vault, Postgres Flexible Server,
@@ -219,9 +264,11 @@ plainly rather than leaving a reader to discover:
   [`infra/azure/README.md`](infra/azure/README.md) for what's modeled and
   what's deliberately absent (Keycloak/Metabase/the observability stack
   among them) and the `usgovcloud` swap this project can't actually
-  exercise itself (§ Compliance & governance below). Screenshots:
-  [`docs/cloud-demo/azure-resource-group.png`](docs/cloud-demo/azure-resource-group.png),
-  [`docs/cloud-demo/azure-container-apps-environment.png`](docs/cloud-demo/azure-container-apps-environment.png).
+  exercise itself (§ Compliance & governance below).
+
+  <img src="docs/cloud-demo/azure-resource-group.png" width="700" alt="The live Azure resource group Terraform actually applied">
+  <img src="docs/cloud-demo/azure-container-apps-environment.png" width="700" alt="All four Container Apps confirmed Running against real public health endpoints">
+
   Torn down immediately after screenshots, same session — nothing from
   this apply is left running. Task 2 Step 5 attempted a Microsoft Fabric
   screenshot of the real TMDL semantic model specifically; Fabric trial
@@ -231,8 +278,11 @@ plainly rather than leaving a reader to discover:
   instead (Power BI Individual) was already documented as sufficient for
   this exact import, so the semantic model was published there instead,
   against the same live Azure Postgres data: 43 real determinations,
-  39.53% eligible rate, $105.53 average benefit. Screenshot:
-  [`docs/cloud-demo/powerbi-service-report.png`](docs/cloud-demo/powerbi-service-report.png).
+  39.53% eligible rate, $105.53 average benefit.
+
+  <img src="docs/cloud-demo/powerbi-service-report.png" width="700" alt="The TMDL semantic model published live to Power BI Service, 43 real determinations">
+
+  Full-resolution originals: [`azure-resource-group.png`](docs/cloud-demo/azure-resource-group.png), [`azure-container-apps-environment.png`](docs/cloud-demo/azure-container-apps-environment.png), [`powerbi-service-report.png`](docs/cloud-demo/powerbi-service-report.png).
 
 - **CI ran on a self-hosted Azure VM for six days (2026-08-25 –
   2026-08-31) during private development.** Private-repo GitHub Actions
@@ -252,6 +302,23 @@ own "Deferred out of Phase 1a, on purpose" list
 [`2026-08-21-tech-stack-and-production-tradeoffs.md`](docs/design/2026-08-21-tech-stack-and-production-tradeoffs.md)
 for what each substitution in the stack itself costs relative to a real
 production deployment.
+
+## Test coverage
+
+The three badges at the top are real, measured line coverage — not an
+estimate — from a full `make test` run on 2026-09-01: JaCoCo for the two
+Java modules, `pytest-cov` for the three Python packages, and Vitest's
+`v8` provider for the UI. Wired into `pom.xml`/`vite.config.ts` and each
+Python package's dev dependencies, so `./mvnw verify`, `npm run
+test:coverage`, and `pytest --cov` regenerate these numbers on demand —
+the badges themselves are a dated snapshot, not a live service, so they
+won't drift back into sync automatically if the numbers move.
+
+| Layer | Line coverage | Note |
+|---|---|---|
+| Java (`api` + `rules-engine`) | 86% | JaCoCo, combined across both modules |
+| Python (`data-platform` + `ai` + `worker`) | 78% | `pytest-cov`, `-m "not e2e"`; `data-platform` alone reads lower (55%) because its CLI/pipeline entrypoints are exercised by the separate integration/e2e suite (`make e2e`), not unit tests, and this figure only covers the latter |
+| UI (`ui/`) | 83% | Vitest, statement/line coverage via `@vitest/coverage-v8` |
 
 ## Tech stack
 
@@ -311,6 +378,7 @@ This README is the primary read. For depth: everything else lives in
 [`docs/`](docs/) — dated design docs, each one a real record of a design
 decision and the reasoning behind it, not after-the-fact documentation.
 
+- [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) — a 5-minute summary: the three tiers, the three hardest problems and how they were solved, the three biggest tradeoffs
 - [`STATUS.md`](docs/STATUS.md) — live implementation status against the full plan, updated in the same commit as the work it describes
 - [`2026-08-20-phase1-vertical-slice.md`](docs/design/2026-08-20-phase1-vertical-slice.md) — the original Phase 1 architecture (partially superseded; kept as a record of how the design evolved)
 - [`2026-08-21-full-system-and-phased-roadmap.md`](docs/design/2026-08-21-full-system-and-phased-roadmap.md) — full AI layer + the complete phased roadmap (start here)
