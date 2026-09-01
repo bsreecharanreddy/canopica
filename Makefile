@@ -22,7 +22,13 @@ test: ## Run every unit/integration suite that does not need the Compose stack
 	# Testcontainers, unaffected by this.
 	cd data-platform && TESTCONTAINERS_RYUK_DISABLED=true uv run pytest -m "not e2e"
 	cd ai && uv run pytest -m "not e2e"
-	cd worker && TESTCONTAINERS_RYUK_DISABLED=true uv run pytest -m "not e2e"
+	# CANOPICA_OTEL_ENABLED=false, matching CI's worker job exactly: this
+	# target never starts Jaeger, but Task 8's queue-cycle spans wrap every
+	# poll_once cycle test_main.py exercises for real, including a
+	# 1-second visibility-timeout test with no margin for a real span
+	# export's blocking retry against an unreachable collector -- without
+	# this, the message becomes visible again mid-test and the test fails.
+	cd worker && TESTCONTAINERS_RYUK_DISABLED=true CANOPICA_OTEL_ENABLED=false uv run pytest -m "not e2e"
 
 lint: ## Type-check and lint every language
 	cd data-platform && uv run ruff check . && uv run mypy src tests
