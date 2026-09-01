@@ -205,11 +205,27 @@ documentation wrap-up, not new capability.
 
 ## Definition of done
 
-- [ ] Every checkbox above resolved — either done, or (for the two
-      "loose ends" items) explicitly decided and recorded, not silently
-      skipped.
-- [ ] `docs/STATUS.md` updated in the same commit as the flip itself,
-      same discipline as every other change to this file.
+- [x] **Every checkbox above resolved — done 2026-09-01.** Either done,
+      or (for the two "loose ends" items) explicitly decided and
+      recorded, not silently skipped — including two items that surfaced
+      only during this final pass and weren't in the original list: the
+      Fly.io demo's silent crash-loop bug (found, fixed, verified durable
+      over a sustained run before defaulting the machine back to
+      stopped) and `e2e-ai`'s real-model-variance reliability (three more
+      tests marked `@pytest.mark.flaky`, matching existing precedent; the
+      bigger architectural fix explicitly deferred to its own task, not
+      silently dropped).
+- [x] **`docs/STATUS.md` updated in the same commit as the flip
+      itself — done throughout.** Every substantive change in this
+      checklist's own history landed with its own `docs/STATUS.md`
+      verification-log row in the same commit, per this project's
+      standing discipline.
 - [x] Repo is public, CI badge renders for a signed-out viewer, branch
       protection is on. Confirmed 2026-08-31 (both `200` to an
       unauthenticated request; ruleset `main-protection` active).
+
+**Checklist closed 2026-09-01.** Every phase of the technical roadmap
+(1a through 5) is done and CI-confirmed on `origin/main`; this checklist's
+own scope — the operational/documentation wrap-up around that work — is
+now fully resolved. See `docs/STATUS.md`'s verification log for the full
+evidence trail.
